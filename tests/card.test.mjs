@@ -167,3 +167,21 @@ test('station logos reject executable URLs and safely fall back after image erro
  assert.equal(a.shadowRoot.querySelectorAll('img').length,1);assert.equal(a.shadowRoot.querySelector('script'),null);
  const img=a.shadowRoot.querySelector('img');img.dispatchEvent(new env.window.Event('error',{bubbles:true}));assert.equal(img.hidden,true);
 });
+
+test('native HA slider uses standard properties and commits only value-changed',async()=>{
+ const env=setup();env.window.customElements.define('ha-control-slider',class extends env.window.HTMLElement {});
+ const a=env.add();await flush();const slider=a.shadowRoot.querySelector('ha-control-slider');
+ assert(slider);assert.equal(a.shadowRoot.querySelector('input[type=range]'),null);
+ assert.equal(slider.value,25);assert.equal(slider.unit,'%');assert.equal(slider.tooltipMode,'interaction');assert.equal(slider.showHandle,true);
+ slider.value=57;slider.dispatchEvent(new env.window.CustomEvent('slider-moved',{detail:{value:57},bubbles:true}));await flush();assert.equal(env.calls.length,0);
+ env.update('media_player.a',{attributes:{volume_level:.1}});assert.equal(a.shadowRoot.querySelector('ha-control-slider'),slider);assert.equal(slider.value,57);
+ slider.dispatchEvent(new env.window.CustomEvent('value-changed',{detail:{value:57},bubbles:true}));await flush();
+ assert.equal(env.calls.length,1);assert.equal(env.calls[0].data.volume_level,.57);
+ env.update('media_player.a',{state:'unavailable'});const disabled=a.shadowRoot.querySelector('ha-control-slider');assert.equal(disabled.disabled,true);
+ disabled.dispatchEvent(new env.window.CustomEvent('value-changed',{detail:{value:90},bubbles:true}));await flush();assert.equal(env.calls.length,1);
+});
+test('standard fallback shows percentage immediately during input without a service call',async()=>{
+ const env=setup(),a=env.add();await flush();const slider=a.shadowRoot.querySelector('input[type=range]');slider.value='64';
+ slider.dispatchEvent(new env.window.Event('input',{bubbles:true}));await flush();
+ assert.equal(a.shadowRoot.querySelector('output').textContent,'64 %');assert.equal(slider.getAttribute('aria-valuetext'),'64 %');assert.equal(env.calls.length,0);
+});

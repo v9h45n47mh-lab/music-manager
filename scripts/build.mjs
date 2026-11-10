@@ -25,4 +25,4 @@ for (const [name,value] of [['music-manager-card.js',output],['LICENSES.txt',lic
   if (process.argv.includes('--check')) { if (await read('dist/'+name) !== value) throw new Error('Stale generated file: '+name); }
   else await writeFile(path.join(root,'dist',name),value);
 }
-console.log(`Music Manager 1.1.0 · UI Kit ${lock.version} · ${process.argv.includes('--check')?'verified':'built'}`);
+console.log(`Music Manager 1.1.1 · UI Kit ${lock.version} · ${process.argv.includes('--check')?'verified':'built'}`);

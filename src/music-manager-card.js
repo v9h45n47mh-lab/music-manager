@@ -20,15 +20,8 @@ const MUSIC_CSS = `
   .music-transport button:disabled{color:var(--disabled-text-color,#bdbdbd);opacity:1}
   .music-transport button:hover:enabled{background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,var(--secondary-background-color,#f2f2f2))}
   .music-icon{width:20px;height:20px;fill:currentColor;vertical-align:middle}
-  .music-volume .position-control{padding:0}
-  .music-volume .slider-head{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%)}
-  .music-volume input[type=range]{display:block;appearance:none;-webkit-appearance:none;box-sizing:border-box;width:100%;height:42px;margin:0;padding:0;border:0;border-radius:12px;cursor:pointer;background:linear-gradient(to right,var(--primary-color,#49a5ed) var(--range-percent),color-mix(in srgb,var(--primary-color,#49a5ed) 20%,var(--card-background-color,#fff)) var(--range-percent))}
-  .music-volume input[type=range]::-webkit-slider-runnable-track{height:42px;border:0;border-radius:12px;background:transparent}
-  .music-volume input[type=range]::-moz-range-track{height:42px;border:0;border-radius:12px;background:transparent}
-  .music-volume input[type=range]::-moz-range-progress{background:transparent}
-  .music-volume input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:32px;height:42px;margin:0;border:0;border-radius:10px;box-shadow:none;background:var(--primary-color,#49a5ed) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='42'%3E%3Crect x='14' y='11' width='4' height='20' rx='2' fill='white'/%3E%3C/svg%3E") center no-repeat}
-  .music-volume input[type=range]::-moz-range-thumb{width:32px;height:42px;border:0;border-radius:10px;box-shadow:none;background:var(--primary-color,#49a5ed) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='42'%3E%3Crect x='14' y='11' width='4' height='20' rx='2' fill='white'/%3E%3C/svg%3E") center no-repeat}
-  .music-volume input:disabled{opacity:.45;cursor:default}
+  .music-volume{min-width:0}
+  .music-volume ha-control-slider{display:block;width:100%}
   .music-favorites:empty,#music-favorite-status:empty,#music-player-status:empty{display:none}
   .music-station-row [aria-pressed="false"] .music-icon{fill:none;stroke:currentColor;stroke-width:1.7}
   .music-favorites{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;min-width:0}
@@ -76,6 +69,7 @@ class MusicManagerCard extends HTMLElement {
     this._browseReady = false;
     this._canSearch = true;
     this._searchMode = false;
+    this._volumeInteracting = false;
   }
 
   static getConfigElement() { return document.createElement('music-manager-card-editor'); }
@@ -99,6 +93,7 @@ class MusicManagerCard extends HTMLElement {
       this._dialog?.close();
     }
     this._ensureDOM();
+    this._loadNativeVolume();
     this._renderPlayer();
   }
 
@@ -108,14 +103,17 @@ class MusicManagerCard extends HTMLElement {
     if (!this._config) return;
     this._ensureDOM();
     this._connectFavorites();
+    this._loadNativeVolume();
     if (previous !== this._state || !this._player.firstChild) this._renderPlayer();
   }
   get _state() { return this._hass?.states?.[this._config?.entity]; }
 
-  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._renderPlayer(); }
+  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); }
   disconnectedCallback() {
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
+    this._volumeInteracting=false;
+    this._nativeVolumeLoader?.remove();
     this._request++;
     this._epoch++;
     this._busy = false;
@@ -150,7 +148,7 @@ class MusicManagerCard extends HTMLElement {
       if(!active || this._dialog.contains(active))this._player.querySelector('[data-action="open-radio"]')?.focus();
     });
     this._player.addEventListener('focusout',()=>{
-      queueMicrotask(()=>{if(this._deferredPlayer && this.shadowRoot.activeElement?.type!=='range')this._renderPlayer();});
+      queueMicrotask(()=>{if(this._deferredPlayer && !this._editingVolume())this._renderPlayer();});
     });
     this.shadowRoot.addEventListener('error',event=>{if(event.target.tagName==='IMG')event.target.hidden=true;},true);
     this._bind();
@@ -222,11 +220,71 @@ class MusicManagerCard extends HTMLElement {
     }
   }
 
+  _editingVolume() {
+    const active=this.shadowRoot.activeElement;
+    return this._volumeInteracting || this._player?.querySelector('ha-control-slider')?.pressed || Boolean(active && this._player?.contains(active) &&
+      (active.type==='range' || active.localName==='ha-control-slider'));
+  }
+
+  async _loadNativeVolume() {
+    if(!this.isConnected || !this._hass || !this._config?.controls.volume)return;
+    if(customElements.get('ha-control-slider')){
+      if(this.shadowRoot.getElementById('music-volume')?.localName!=='ha-control-slider')this._renderPlayer();
+      return;
+    }
+    if(this._nativeVolumeRequested || !window.loadCardHelpers)return;
+    this._nativeVolumeRequested=true;
+    let timer;
+    try {
+      // Ask HA's own card loader to register its volume feature and slider.
+      // The hidden tile only loads frontend code; it sends no player commands.
+      const helpers=await window.loadCardHelpers();
+      if(!this.isConnected)return;
+      if(!customElements.get('ha-control-slider')) {
+        const loader=helpers.createCardElement({type:'tile',entity:this._config.entity,features:[{type:'media-player-volume-slider',show_mute_button:false}]});
+        loader.hidden=true;loader.setAttribute('aria-hidden','true');loader.hass=this._hass;
+        this._nativeVolumeLoader=loader;this.shadowRoot.append(loader);
+        await Promise.race([customElements.whenDefined('ha-control-slider'),new Promise(resolve=>{timer=setTimeout(resolve,8000);})]);
+      }
+      if(this.isConnected)this._renderPlayer();
+    } catch {
+      // The standard UI Kit range remains fully usable while HA loads.
+    } finally {
+      clearTimeout(timer);this._nativeVolumeLoader?.remove();this._nativeVolumeLoader=null;
+    }
+  }
+
+  _volumeMarkup(value,disabled) {
+    return customElements.get('ha-control-slider')
+      ? `<ha-control-slider id="music-volume" min="0" max="100" step="1" value="${value}" label="Lautstärke" unit="%" show-handle tooltip-mode="interaction"${disabled?' disabled':''}></ha-control-slider>`
+      : rangeControl({id:'music-volume',label:'Lautstärke',value,action:'volume',allowKeep:false,disabled});
+  }
+
+  _bindNativeVolume(value,disabled) {
+    const slider=this.shadowRoot.getElementById('music-volume');
+    if(slider?.localName!=='ha-control-slider')return;
+    Object.assign(slider,{value,min:0,max:100,step:1,unit:'%',label:'Lautstärke',
+      locale:this._hass?.locale,showHandle:true,tooltipMode:'interaction',disabled});
+    slider.addEventListener('slider-moved',event=>{
+      event.stopPropagation();
+      if(slider!==this.shadowRoot.getElementById('music-volume'))return;
+      if(Number.isFinite(event.detail?.value))this._volumeInteracting=true;
+      else queueMicrotask(()=>{this._volumeInteracting=false;if(this._deferredPlayer&&!this._editingVolume())this._renderPlayer();});
+    });
+    slider.addEventListener('value-changed',event=>{
+      event.stopPropagation();
+      if(slider!==this.shadowRoot.getElementById('music-volume'))return;
+      this._volumeInteracting=false;
+      const value=event.detail?.value;
+      if(!slider.disabled && Number.isFinite(value))void this._action({action:'volume',phase:'change',value});
+    });
+  }
+
   _renderPlayer() {
     if (!this._player || !this._config) return;
     // HA state updates must not replace an input while the user drags it.
     const active = this.shadowRoot.activeElement;
-    if (active?.type === 'range' && this._player.contains(active)) { this._deferredPlayer=true;return; }
+    if (this._editingVolume()) { this._deferredPlayer=true;return; }
     this._deferredPlayer=false;
     const focusedAction = this._player.contains(active) ? active?.dataset?.action : null;
     const state=this._state, attrs=state?.attributes || {}, controls=this._config.controls;
@@ -249,12 +307,13 @@ class MusicManagerCard extends HTMLElement {
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
       <div class="music-controls">
         ${transport.length ? `<div class="music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}
-        ${controls.volume ? `<div class="music-volume">${rangeControl({id:'music-volume',label:'Lautstärke',value:vol??0,action:'volume',allowKeep:false,disabled:disabled||vol===null||!hasFeature(state,'volume')})}</div>` : ''}
+        ${controls.volume ? `<div class="music-volume">${this._volumeMarkup(vol??0,disabled||vol===null||!hasFeature(state,'volume'))}</div>` : ''}
       </div>
       <div id="music-favorites" class="music-favorites" aria-label="Favoritensender">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:disabled||!hasFeature(state,'playMedia')}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}</div>
       <div class="toolbar">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}</div>
       <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Im Radio Browser mit dem Stern Sender zu deinen Favoriten hinzufügen.'):''}</div>
       <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState('Befehl wird gesendet …') : ''}</div>`;
+    this._bindNativeVolume(vol??0,disabled||vol===null||!hasFeature(state,'volume'));
     if (focusedAction) this._player.querySelector(`[data-action="${focusedAction}"]`)?.focus();
   }
 

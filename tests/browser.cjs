@@ -30,6 +30,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('volume changes on commit only; no mute control',async()=>{
   await card().locator('#music-volume').evaluate(input=>{input.value='47';input.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.evaluate(()=>demo.calls.length),4);
+  assert.equal(await card().locator('output').innerText(),'47 %');
   await card().locator('#music-volume').evaluate(input=>input.dispatchEvent(new Event('change',{bubbles:true})));
   await page.waitForFunction(()=>demo.calls.length===5);
   assert.equal(await page.evaluate(()=>demo.calls[4].data.volume_level),0.47);
@@ -192,13 +193,27 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    });
    assert(!report.pageOverflow,`${width} page overflow`);assert.deepEqual(report.overflow,[]);assert.deepEqual(report.card,report.ref);
    const layout=await card().evaluate(el=>{const r=el.shadowRoot;return {controls:r.querySelector('.music-controls').getBoundingClientRect().bottom,favorites:r.querySelector('#music-favorites').getBoundingClientRect().top,buttons:[...r.querySelectorAll('.music-transport button')].map(e=>e.getBoundingClientRect().width),slider:r.querySelector('#music-volume').getBoundingClientRect().height};});
-   assert(layout.favorites>=layout.controls);assert(layout.buttons.every(w=>Math.abs(w-layout.buttons[0])<1));assert.equal(layout.slider,42);
+   assert(layout.favorites>=layout.controls);assert(layout.buttons.every(w=>Math.abs(w-layout.buttons[0])<1));assert.equal(layout.slider,4);
    await page.screenshot({path:path.join(screens,`card-${width}-${dark?'dark':'light'}.png`),fullPage:true});
    await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();
    const bounds=await dialog().boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);
    const dialogOverflow=await dialog().evaluate(e=>e.scrollWidth>e.clientWidth);assert(!dialogOverflow,`${width} dialog overflow`);
    await page.screenshot({path:path.join(screens,`radio-${width}-${dark?'dark':'light'}.png`),fullPage:true});await page.keyboard.press('Escape');
   }
+ });
+ await check('native HA slider adapter uses the public event contract (test double)',async()=>{
+  await reset();await page.evaluate(()=>{
+   customElements.define('ha-control-slider',class extends HTMLElement {});
+   demo.cards[0].setConfig({entity:'media_player.wohnzimmer'});
+  });
+  const native=card().locator('ha-control-slider');await native.waitFor({state:'attached'});
+  const config=await native.evaluate(el=>({unit:el.unit,tooltip:el.tooltipMode,value:el.value,handle:el.showHandle}));
+  assert.deepEqual(config,{unit:'%',tooltip:'interaction',value:28,handle:true});
+  await native.evaluate(el=>{el.value=61;el.dispatchEvent(new CustomEvent('slider-moved',{detail:{value:61},bubbles:true}));});
+  assert.equal(await page.evaluate(()=>demo.calls.length),0);
+  await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{volume_level:.1}}));assert.equal(await native.evaluate(el=>el.value),61);
+  await native.evaluate(el=>el.dispatchEvent(new CustomEvent('value-changed',{detail:{value:61},bubbles:true})));
+  await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.61);
  });
  assert.deepEqual(errors,[]);console.log(`${checks} browser scenarios passed; no JavaScript errors.`);
  await browser.close();server.close();
