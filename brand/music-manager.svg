@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Music Manager">
+  <g stroke="#078bb5" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="24" y="32" width="126" height="198" rx="24" fill="#ffd16a"/>
+    <circle cx="87" cy="81" r="15" fill="none"/>
+    <circle cx="87" cy="162" r="37" fill="none"/>
+    <circle cx="87" cy="162" r="8" fill="#078bb5" stroke="none"/>
+    <path d="M181 128V40l52-14v88M181 62l52-14" fill="none"/>
+    <ellipse cx="168" cy="133" rx="14" ry="11" fill="#078bb5" stroke="none"/>
+    <ellipse cx="220" cy="119" rx="14" ry="11" fill="#078bb5" stroke="none"/>
+    <path d="M178 182c9-8 9-20 0-28m18 42c18-15 18-40 0-55" fill="none"/>
+  </g>
+</svg>

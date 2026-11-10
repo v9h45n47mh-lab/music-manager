@@ -1,0 +1,7 @@
+{
+  "name": "Music Manager",
+  "filename": "music-manager-card.js",
+  "content_in_root": false,
+  "render_readme": true,
+  "homeassistant": "2026.11.0"
+}
