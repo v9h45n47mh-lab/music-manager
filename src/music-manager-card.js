@@ -449,7 +449,6 @@ class MusicManagerCardEditor extends HTMLElement {
   }
   _render() {
     if(!this._config)return;
-    this._unbind?.();
     const names={play_pause:'Play / Pause',previous:'Vorheriger Titel',stop:'Stop',next:'Nächster Titel',volume:'Lautstärke'};
     const options=[...this._options];
     const selected=options.find(o=>o.value===this._config.entity);
@@ -461,8 +460,8 @@ class MusicManagerCardEditor extends HTMLElement {
       ${notice('Die Box wird pro Karte festgelegt. Radiosender wählst du direkt in der Karte. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Für die globale Suche wird Home Assistant 2026.11 oder neuer benötigt.')}
       ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
     </div>`;
-    this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{
-      if(action==='entity-select' && options.some(o=>o.value===value)) {
+    if(!this._unbind)this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{
+      if(action==='entity-select' && (this._options.some(o=>o.value===value)||value===this._config.entity)) {
         this._config={...this._config,entity:value};this._emit();
       }
       if(action==='control-toggle' && Object.hasOwn(CONTROL_DEFAULTS,data.key)) {
