@@ -114,8 +114,10 @@ class MusicManagerCard extends HTMLElement {
     this._dialog.addEventListener('close',()=>{
       this._request++;
       this._browseLoading=false;
-      // Native dialog focus restoration can be lost when player state changes.
-      this._player.querySelector('[data-action="open-radio"]')?.focus();
+      // Restore a removed opener, but do not steal focus if the user has
+      // already moved to another control before the native close event arrives.
+      const active=this.shadowRoot.activeElement;
+      if(!active || this._dialog.contains(active))this._player.querySelector('[data-action="open-radio"]')?.focus();
     });
     this._player.addEventListener('focusout',()=>{
       queueMicrotask(()=>{if(this._deferredPlayer && this.shadowRoot.activeElement?.type!=='range')this._renderPlayer();});
