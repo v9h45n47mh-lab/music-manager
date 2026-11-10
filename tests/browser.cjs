@@ -116,7 +116,10 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.equal(await page.evaluate(()=>editorEvents.at(-1).entity),'media_player.maximilian_sonos');
   assert.equal(await editor.locator('#music-name').count(),0);
   assert.equal(await editor.getByRole('switch',{name:'Stummschalten',exact:true}).count(),0);
-  await editor.getByRole('switch',{name:'Nächster Titel',exact:true}).click();assert.equal(await page.evaluate(()=>editorEvents.at(-1).controls.next),false);
+  console.log('EDITOR BEFORE',JSON.stringify(await page.evaluate(()=>({events:editorEvents,html:document.querySelector('music-manager-card-editor').shadowRoot.querySelector('[data-key=next]').outerHTML}))));
+  await editor.getByRole('switch',{name:'Nächster Titel',exact:true}).click();
+  console.log('EDITOR AFTER',JSON.stringify(await page.evaluate(()=>({events:editorEvents,html:document.querySelector('music-manager-card-editor').shadowRoot.querySelector('[data-key=next]').outerHTML}))));
+  assert.equal(await page.evaluate(()=>editorEvents.at(-1).controls.next),false);
  });
  await check('station labels and configured names are escaped, duplicate binds avoided on reconnect',async()=>{
   await reset();await page.evaluate(()=>{
