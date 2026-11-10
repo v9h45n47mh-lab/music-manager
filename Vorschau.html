@@ -1088,7 +1088,12 @@ class MusicManagerCardEditor extends HTMLElement {
     </div>`;
     if(!this._unbind)this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{
       if(action==='entity-select' && (this._options.some(o=>o.value===value)||value===this._config.entity)) {
-        this._config={...this._config,entity:value};this._emit();
+        this._config={...this._config,entity:value};
+        // Selection is complete: preserving focus on the replaced search input
+        // would reopen the in-flow list and shift the next clicked control.
+        this.shadowRoot.activeElement?.blur?.();
+        this._emit();
+        this.shadowRoot.querySelector('[data-ui-combo-toggle]')?.focus();
       }
       if(action==='control-toggle' && Object.hasOwn(CONTROL_DEFAULTS,data.key)) {
         this._config={...this._config,controls:{...this._config.controls,[data.key]:checked}};this._emit();this._renderPreservingInput();
