@@ -1,4 +1,4 @@
-/* Music Manager 1.0.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 1.1.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.2.2 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.2.2";
@@ -530,8 +530,8 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.0.0';
-export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,volume:true,mute:true});
+export const MUSIC_VERSION = '1.1.0';
+export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Die Kartenkonfiguration muss ein Objekt sein.');
@@ -545,7 +545,7 @@ export function normalizeConfig(config) {
       controls[key] = config.controls[key];
     }
   }
-  return {...config,type:'custom:music-manager-card',entity:config.entity,name:config.name ?? 'Music Manager',controls};
+  return {...config,type:'custom:music-manager-card',entity:config.entity,name:config.name ?? '',controls};
 }
 
 export function hasFeature(state, name) { return Boolean((Number(state?.attributes?.supported_features) || 0) & FEATURES[name]); }
@@ -582,29 +582,106 @@ export function sonosOptions(hass, entries) {
     .sort((a,b)=>a.label.localeCompare(b.label));
 }
 
+// HA authenticates these commands as the current user; no entity/card/user ID
+// is included in the storage key or payload.
+export const FAVORITES_KEY = 'music_manager_favorites';
+export function stationLogo(value) {
+  if (typeof value !== 'string' || value.length > 4096) return '';
+  try {
+    const url = new URL(value, 'https://home-assistant.local');
+    return ['http:','https:'].includes(url.protocol) && !url.username && !url.password ? value : '';
+  } catch { return ''; }
+}
+export function normalizeFavorites(value) {
+  return normalizeMedia(value).filter(s=>s.can_play && s.media_content_id!==RADIO_ROOT).map(s=>({
+    media_content_id:s.media_content_id,media_content_type:String(s.media_content_type||'audio/mpeg'),
+    title:s.title,thumbnail:stationLogo(s.thumbnail),can_play:true,can_expand:false
+  }));
+}
+const favoriteQueues = new WeakMap();
+export async function saveFavorite(hass, station, enabled) {
+  const item = normalizeFavorites([station])[0];
+  if (!item || !hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
+  // Serialize changes across this user's cards, and read immediately before
+  // each write so another card's favorites are preserved.
+  const session=hass.connection || hass;
+  let users=favoriteQueues.get(session);
+  if(!users){users=new Map();favoriteQueues.set(session,users);}
+  const key=hass.user.id, previous=users.get(key)||Promise.resolve();
+  const operation=previous.catch(()=>{}).then(async()=>{
+    const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
+    const favorites=normalizeFavorites(response?.value);
+    const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
+    if(enabled)next.splice(favorites.findIndex(s=>s.media_content_id===item.media_content_id) < 0 ? next.length : favorites.findIndex(s=>s.media_content_id===item.media_content_id),0,item);
+    await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:next});
+    return next;
+  });
+  users.set(key,operation);
+  try{return await operation;}finally{if(users.get(key)===operation)users.delete(key);}
+}
+
 const {
-  UI_CSS, UI_VERSION, navigation, row, button, iconButton, field, combobox,
+  UI_CSS, UI_VERSION, row, button, iconButton, field, combobox,
   section, toggle, rangeControl, dialog, notice, versionInfo, emptyState,
   loadingState, bindUI, escapeHtml
 } = MusicManagerUI;
 
 
-// Only music-specific arrangement; all shared typography, fields, buttons,
-// rows, slider, dialog, colors and spacing come from the unchanged UI Kit.
+// UI Kit components remain unchanged; the music controls have their own
+// scoped presentation to match the supplied Home Assistant media controls.
 const MUSIC_CSS = `
   :host{min-width:0}
-  .music-stack{display:grid;gap:16px;min-width:0}
-  .music-transport{justify-content:center}
-  .music-browser{display:grid;gap:16px;min-width:0}
+  .music-stack,.music-browser,.music-editor{display:grid;gap:16px;min-width:0}
+  .music-controls{display:grid;gap:12px;min-width:0}
+  .music-transport{display:flex;gap:12px}
+  .music-transport button{flex:1;min-width:0;height:44px;display:grid;place-items:center;padding:0;border-radius:12px;background:var(--secondary-background-color,#f2f2f2);color:var(--primary-text-color,#212121)}
+  .music-transport button:disabled{color:var(--disabled-text-color,#bdbdbd);opacity:1}
+  .music-transport button:hover:enabled{background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,var(--secondary-background-color,#f2f2f2))}
+  .music-icon{width:20px;height:20px;fill:currentColor;vertical-align:middle}
+  .music-volume .position-control{padding:0}
+  .music-volume .slider-head{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%)}
+  .music-volume input[type=range]{display:block;appearance:none;-webkit-appearance:none;box-sizing:border-box;width:100%;height:42px;margin:0;padding:0;border:0;border-radius:12px;cursor:pointer;background:linear-gradient(to right,var(--primary-color,#49a5ed) var(--range-percent),color-mix(in srgb,var(--primary-color,#49a5ed) 20%,var(--card-background-color,#fff)) var(--range-percent))}
+  .music-volume input[type=range]::-webkit-slider-runnable-track{height:42px;border:0;border-radius:12px;background:transparent}
+  .music-volume input[type=range]::-moz-range-track{height:42px;border:0;border-radius:12px;background:transparent}
+  .music-volume input[type=range]::-moz-range-progress{background:transparent}
+  .music-volume input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:32px;height:42px;margin:0;border:0;border-radius:10px;box-shadow:none;background:var(--primary-color,#49a5ed) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='42'%3E%3Crect x='14' y='11' width='4' height='20' rx='2' fill='white'/%3E%3C/svg%3E") center no-repeat}
+  .music-volume input[type=range]::-moz-range-thumb{width:32px;height:42px;border:0;border-radius:10px;box-shadow:none;background:var(--primary-color,#49a5ed) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='42'%3E%3Crect x='14' y='11' width='4' height='20' rx='2' fill='white'/%3E%3C/svg%3E") center no-repeat}
+  .music-volume input:disabled{opacity:.45;cursor:default}
+  .music-favorites:empty,#music-favorite-status:empty,#music-player-status:empty{display:none}
+  .music-station-row [aria-pressed="false"] .music-icon{fill:none;stroke:currentColor;stroke-width:1.7}
+  .music-favorites{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;min-width:0}
+  .music-favorite{display:grid;gap:6px;align-content:start;justify-items:center;min-width:0;min-height:80px;padding:8px;border-radius:12px;background:var(--secondary-background-color,#f2f2f2)}
+  .music-favorite span{max-width:100%;overflow-wrap:anywhere}
+  .music-station-logo{position:relative;display:grid;place-items:center;width:48px;height:48px;flex-shrink:0;border-radius:8px;background:var(--card-background-color,#fff);color:var(--secondary-text-color,#727272);overflow:hidden}
+  .music-station-logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--card-background-color,#fff)}
+  .music-station-row{display:flex;align-items:center;gap:12px;min-width:0}
+  .music-station-row>.setting-row{flex:1;min-width:0}
   .music-results{max-height:50dvh;overflow:auto;overscroll-behavior:contain}
-  .music-editor{display:grid;gap:16px;min-width:0}
 `;
+const MUSIC_ICONS = {
+  previous:'M6 5h2v14H6zM18 5v14l-9-7z',next:'M16 5h2v14h-2zM6 5l9 7-9 7z',
+  play:'M8 5v14l11-7z',pause:'M6 5h4v14H6zM14 5h4v14h-4z',stop:'M6 6h12v12H6z',
+  star:'m12 2.5 2.9 5.9 6.5 1-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-1z',
+  radio:'M4 7h16v13H4zM6 3l13-2v2L6 5zM6 9v3h12V9zM7 14h5v4H7zM15 14h3v2h-3z'
+};
+const musicIcon = name => `<svg class="music-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${MUSIC_ICONS[name]}"></path></svg>`;
+function musicButton({label,action,icon,disabled=false,data={},pressed}) {
+  return button({label,action,disabled,data}).replace('<button ',`<button aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${pressed===undefined?'':` aria-pressed="${pressed}"`} `).replace(`<span>${escapeHtml(label)}</span>`,musicIcon(icon));
+}
+function logoMarkup(station) {
+  const src=stationLogo(station.thumbnail);
+  return `<span class="music-station-logo" aria-hidden="true">${musicIcon('radio')}${src?`<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>`;
+}
 
 class MusicManagerCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({mode:'open'});
-    this._page = 'player';
+    this._favorites = [];
+    this._favoriteEpoch = 0;
+    this._favoriteLoading = false;
+    this._favoriteBusy = false;
+    this._favoriteError = '';
     this._epoch = 0;
     this._request = 0;
     this._browserItems = [];
@@ -622,7 +699,7 @@ class MusicManagerCard extends HTMLElement {
   static getConfigElement() { return document.createElement('music-manager-card-editor'); }
   static getStubConfig(hass) {
     const entity = sonosOptions(hass)[0]?.value || '';
-    return {type:'custom:music-manager-card',entity,name:'Music Manager',controls:{...CONTROL_DEFAULTS}};
+    return {type:'custom:music-manager-card',entity,controls:{...CONTROL_DEFAULTS}};
   }
   getCardSize() { return 6; }
   getGridOptions() { return {columns:12,rows:'auto',min_columns:6,min_rows:3}; }
@@ -648,13 +725,15 @@ class MusicManagerCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     this._ensureDOM();
+    this._connectFavorites();
     if (previous !== this._state || !this._player.firstChild) this._renderPlayer();
   }
   get _state() { return this._hass?.states?.[this._config?.entity]; }
 
-  connectedCallback() { this._ensureDOM(); this._bind(); this._renderPlayer(); }
+  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._renderPlayer(); }
   disconnectedCallback() {
     this._unbind?.(); this._unbind = null;
+    this._disconnectFavorites();
     this._request++;
     this._epoch++;
     this._busy = false;
@@ -665,18 +744,7 @@ class MusicManagerCard extends HTMLElement {
   _ensureDOM() {
     if (this._player) return;
     this.shadowRoot.innerHTML = `<style>${UI_CSS}\n${MUSIC_CSS}</style><ha-card>
-      <div id="navigation"></div><main>
-        <div id="player" class="music-stack"></div>
-        <div id="help" hidden class="music-stack">
-          ${section({id:'music-help',title:'So verwendest du den Music Manager',content:
-            row({title:'Sonos-Box wählen',description:'Im Karteneditor legst du die Box und die sichtbaren Bedienelemente fest. Jede Karte kann eine andere Box steuern.'})+
-            row({title:'Radio hören',description:'„Sender wählen“ öffnet den Radio Browser. Suche einen Sendernamen oder öffne ein Land, eine Sprache oder ein Genre. „Abspielen“ startet den Sender auf der gewählten Box.'})+
-            row({title:'Play/Pause und Titelwechsel',description:'Zurück und Weiter steuern Titel in der Sonos-Warteschlange. Live-Radio kann keine Titel überspringen. Je nach Quelle unterstützt Sonos Pause oder nur Stop; Live-Radio setzt beim Fortsetzen am aktuellen Live-Programm an.'})+
-            row({title:'Lautstärke und Gruppen',description:'Der Regler steuert die gewählte Box. Gehört sie zu einer Sonos-Gruppe, folgt die Wiedergabe dem normalen Sonos-Gruppenverhalten. Die Karte ändert keine Gruppierung.'})+
-            row({title:'Voraussetzungen',description:'Die offiziellen Integrationen Sonos und Radio Browser müssen in Home Assistant eingerichtet sein. Die Karte verwendet die vorhandenen Home-Assistant-Berechtigungen.'})})}
-          ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
-        </div>
-      </main></ha-card>
+      <main><div id="player" class="music-stack"></div></main></ha-card>
       ${dialog({id:'music-radio-dialog',title:'Radio Browser',content:`<div class="music-browser">
         <form id="music-search-form" class="music-browser">
           <div id="search-field">${field({id:'music-radio-query',label:'Sender suchen',type:'search',placeholder:'z. B. SWR3 oder Rock',maxLength:200,autocomplete:'off'})}</div>
@@ -702,12 +770,74 @@ class MusicManagerCard extends HTMLElement {
     this._player.addEventListener('focusout',()=>{
       queueMicrotask(()=>{if(this._deferredPlayer && this.shadowRoot.activeElement?.type!=='range')this._renderPlayer();});
     });
+    this.shadowRoot.addEventListener('error',event=>{if(event.target.tagName==='IMG')event.target.hidden=true;},true);
     this._bind();
   }
 
   _bind() {
     if (this._unbind || !this._player || !this.isConnected) return;
     this._unbind = bindUI(this.shadowRoot,event=>{void this._action(event);});
+  }
+
+  _disconnectFavorites() {
+    this._favoriteEpoch++;
+    this._favoriteUnsubscribe?.();
+    this._favoriteUnsubscribe=null;
+    this._favoriteUser=null;
+    this._favoriteConnection=null;
+    this._favoriteBusy=false;
+    this._favorites=[];
+  }
+
+  _connectFavorites() {
+    if(!this.isConnected || !this._hass)return;
+    const hass=this._hass, user=hass.user?.id, connection=hass.connection;
+    if(this._favoriteUser===user && this._favoriteConnection===connection)return;
+    this._disconnectFavorites();
+    this._favoriteUser=user;
+    this._favoriteConnection=connection;
+    this._favoriteLoading=Boolean(user);
+    this._favoriteError=user?'':'Favoriten benötigen einen angemeldeten Home-Assistant-Benutzer.';
+    const epoch=this._favoriteEpoch;
+    // Clear the previous user's shortcuts immediately, even during a drag.
+    this.shadowRoot.activeElement?.blur?.();
+    this._renderPlayer();
+    if(!user)return;
+    const apply=response=>{
+      if(epoch!==this._favoriteEpoch)return;
+      this._favorites=normalizeFavorites(response?.value);
+      this._favoriteLoading=false;this._favoriteError='';
+      this._renderPlayer();if(this._dialog.open)this._renderBrowser();
+    };
+    void (async()=>{
+      try {
+        if(connection?.subscribeMessage) {
+          const unsubscribe=await connection.subscribeMessage(apply,{type:'frontend/subscribe_user_data',key:FAVORITES_KEY});
+          if(epoch!==this._favoriteEpoch)unsubscribe();
+          else this._favoriteUnsubscribe=unsubscribe;
+        } else apply(await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY}));
+      } catch(error) {
+        if(epoch!==this._favoriteEpoch)return;
+        this._favoriteLoading=false;
+        this._favoriteError='Favoriten konnten nicht geladen werden: '+errorText(error);
+        this._renderPlayer();if(this._dialog.open)this._renderBrowser();
+      }
+    })();
+  }
+
+  async _toggleFavorite(station) {
+    if(this._favoriteBusy || this._favoriteLoading || !station?.can_play)return;
+    const epoch=this._favoriteEpoch, hass=this._hass;
+    const enabled=!this._favorites.some(s=>s.media_content_id===station.media_content_id);
+    this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();
+    try {
+      const favorites=await saveFavorite(hass,station,enabled);
+      if(epoch===this._favoriteEpoch)this._favorites=favorites;
+    } catch(error) {
+      if(epoch===this._favoriteEpoch)this._favoriteError='Favoriten konnten nicht gespeichert werden: '+errorText(error);
+    } finally {
+      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._renderPlayer();this._renderBrowser();}
+    }
   }
 
   _renderPlayer() {
@@ -717,9 +847,6 @@ class MusicManagerCard extends HTMLElement {
     if (active?.type === 'range' && this._player.contains(active)) { this._deferredPlayer=true;return; }
     this._deferredPlayer=false;
     const focusedAction = this._player.contains(active) ? active?.dataset?.action : null;
-    this.shadowRoot.getElementById('navigation').innerHTML = navigation({label:'Music Manager',items:[{id:'player',label:'Musik'}],active:this._page,settings:false});
-    this._player.hidden = this._page !== 'player';
-    this.shadowRoot.getElementById('help').hidden = this._page !== 'help';
     const state=this._state, attrs=state?.attributes || {}, controls=this._config.controls;
     const available=isAvailable(state), disabled=!available || this._busy;
     const action=playbackAction(state,this._selectedStation);
@@ -729,27 +856,31 @@ class MusicManagerCard extends HTMLElement {
     const title=attrs.media_title || attrs.media_channel || 'Keine Wiedergabe';
     const detail=[attrs.media_artist || attrs.media_album_name, attrs.media_channel && attrs.media_channel!==title ? attrs.media_channel : '', stateLabel].filter(Boolean).join(' · ');
     const transport=[];
-    if (controls.previous) transport.push(button({label:'Zurück',action:'previous',disabled:disabled||!hasFeature(state,'previous')}));
-    if (controls.play_pause) transport.push(button({label:playbackLabel,action:'play-pause',variant:'primary',disabled:disabled||!action}));
-    if (controls.next) transport.push(button({label:'Weiter',action:'next',disabled:disabled||!hasFeature(state,'next')}));
-    const vol=volumePercent(attrs.volume_level);
+    if (controls.previous) transport.push(musicButton({label:'Zurück',icon:'previous',action:'previous',disabled:disabled||!hasFeature(state,'previous')}));
+    if (controls.play_pause) transport.push(musicButton({label:playbackLabel,icon:playing?(action==='media_stop'?'stop':'pause'):'play',action:'play-pause',disabled:disabled||!action}));
+    if (controls.stop) transport.push(musicButton({label:'Stop',icon:'stop',action:'stop',disabled:disabled||!hasFeature(state,'stop')}));
+    if (controls.next) transport.push(musicButton({label:'Weiter',icon:'next',action:'next',disabled:disabled||!hasFeature(state,'next')}));
+    const vol=attrs.is_volume_muted?0:volumePercent(attrs.volume_level);
     this._player.innerHTML = `
-      ${row({title:this._config.name || 'Music Manager',description:attrs.friendly_name || this._config.entity})}
+      <div class="music-box">${row({title:attrs.friendly_name || this._config.entity})}</div>
       ${row({title,description:detail})}
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
-      ${transport.length ? `<div class="toolbar music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}
-      ${controls.volume ? rangeControl({id:'music-volume',label:'Lautstärke',value:vol??0,action:'volume',allowKeep:false,disabled:disabled||vol===null||!hasFeature(state,'volume')}) : ''}
-      <div class="toolbar">
-        ${controls.mute ? toggle({label:'Stumm',action:'mute',checked:Boolean(attrs.is_volume_muted),disabled:disabled||!hasFeature(state,'mute')}) : ''}
-        ${button({label:'Sender wählen',action:'open-radio',disabled:disabled||!hasFeature(state,'playMedia')})}
+      <div class="music-controls">
+        ${transport.length ? `<div class="music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}
+        ${controls.volume ? `<div class="music-volume">${rangeControl({id:'music-volume',label:'Lautstärke',value:vol??0,action:'volume',allowKeep:false,disabled:disabled||vol===null||!hasFeature(state,'volume')})}</div>` : ''}
       </div>
+      <div id="music-favorites" class="music-favorites" aria-label="Favoritensender">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:disabled||!hasFeature(state,'playMedia')}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}</div>
+      <div class="toolbar">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}</div>
+      <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Im Radio Browser mit dem Stern Sender zu deinen Favoriten hinzufügen.'):''}</div>
       <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState('Befehl wird gesendet …') : ''}</div>`;
     if (focusedAction) this._player.querySelector(`[data-action="${focusedAction}"]`)?.focus();
   }
 
   async _action({action,data,value,phase,checked}) {
     switch(action) {
-      case 'navigate': this._page=data.page==='help'?'help':'player';this._renderPlayer();break;
+      case 'reload-favorites': this._disconnectFavorites();this._connectFavorites();break;
+      case 'toggle-favorite': await this._toggleFavorite(this._browserItems[Number(data.index)]);break;
+      case 'play-favorite': {const station=this._favorites[Number(data.index)];if(station)await this._playStation(station);break;}
       case 'open-radio': await this._openRadio();break;
       case 'search': await this._search();break;
       case 'root': await this._browse(RADIO_ROOT,'Kategorien',true);break;
@@ -767,6 +898,7 @@ class MusicManagerCard extends HTMLElement {
         const station=this._browserItems[Number(data.index)];
         if(station?.can_play)await this._playStation(station);break;
       }
+      case 'stop': if(hasFeature(this._state,'stop'))await this._service('media_stop');break;
       case 'previous': if(hasFeature(this._state,'previous'))await this._service('media_previous_track');break;
       case 'next': if(hasFeature(this._state,'next'))await this._service('media_next_track');break;
       case 'play-pause': {
@@ -774,10 +906,13 @@ class MusicManagerCard extends HTMLElement {
         if(service==='play_media')await this._playStation(this._selectedStation);
         else if(service)await this._service(service);break;
       }
-      case 'mute': if(hasFeature(this._state,'mute'))await this._service('volume_mute',{is_volume_muted:checked});break;
       case 'volume':
         if (phase==='change' && hasFeature(this._state,'volume') && Number.isFinite(value)) {
-          await this._service('volume_set',{volume_level:Math.max(0,Math.min(100,value))/100});
+          const level=Math.max(0,Math.min(100,value))/100;
+          const epoch=this._epoch;
+          const ok=await this._service('volume_set',{volume_level:level});
+          // A positive slider value must also release mute set in another app.
+          if(ok && epoch===this._epoch && level>0 && this._state?.attributes?.is_volume_muted && hasFeature(this._state,'mute'))await this._service('volume_mute',{is_volume_muted:false});
           // Preserve the focused slider, then reflect a rejected command on blur.
           this._deferredPlayer=true;
           const status=this.shadowRoot.getElementById('music-player-status');
@@ -880,15 +1015,15 @@ class MusicManagerCard extends HTMLElement {
     const status=this.shadowRoot.getElementById('music-radio-status');
     const results=this.shadowRoot.getElementById('music-radio-results');
     const path=this.shadowRoot.getElementById('music-radio-path');
-    status.innerHTML=(this._radioError?notice(this._radioError,{error:true}):'')+(this._error?notice(this._error,{error:true}):'')+(this._browseLoading?loadingState('Radiosender werden geladen …'):this._busy?loadingState('Sender wird gestartet …'):'');
+    status.innerHTML=(this._favoriteError?notice(this._favoriteError,{error:true}):'')+(this._radioError?notice(this._radioError,{error:true}):'')+(this._error?notice(this._error,{error:true}):'')+(this._browseLoading?loadingState('Radiosender werden geladen …'):this._busy?loadingState('Sender wird gestartet …'):'');
     const pathLabel=this._searchMode ? `Suchergebnisse: ${this._resultQuery}` : this._path.map(p=>p.title).join(' / ');
     path.innerHTML=row({title:pathLabel||'Radio Browser',description:this._browseLoading?'':`${this._browserItems.length} Einträge`,trailing:this._path.length>1||this._searchMode?iconButton({icon:'left',label:'Zurück zu den Kategorien',action:'back',disabled:this._busy}):''});
     results.setAttribute('aria-busy',String(this._browseLoading));
-    results.innerHTML=this._browseLoading?'':this._browserItems.length?this._browserItems.map((item,index)=>row({
+    results.innerHTML=this._browseLoading?'':this._browserItems.length?this._browserItems.map((item,index)=>`<div class="music-station-row">${item.can_play?logoMarkup(item):''}${row({
       title:this._translateCategory(item.title),
       description:item.can_expand?'Kategorie':'Radiosender',
-      trailing:item.can_expand ? iconButton({icon:'right',label:'Kategorie öffnen: '+item.title,action:'browse-item',data:{index},disabled:this._busy}) : button({label:'Abspielen',action:'play-station',data:{index},disabled:this._busy||!isAvailable(this._state)})
-    })).join(''):this._radioError?'':emptyState(this._searchMode?'Keine passenden Sender gefunden. Versuche einen anderen Namen.':'Keine Einträge in dieser Kategorie.');
+      trailing:item.can_expand ? iconButton({icon:'right',label:'Kategorie öffnen: '+item.title,action:'browse-item',data:{index},disabled:this._busy}) : musicButton({label:(this._favorites.some(s=>s.media_content_id===item.media_content_id)?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'toggle-favorite',data:{index},pressed:this._favorites.some(s=>s.media_content_id===item.media_content_id),disabled:this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id})+button({label:'Abspielen',action:'play-station',data:{index},disabled:this._busy||!isAvailable(this._state)||!hasFeature(this._state,'playMedia')})
+    })}</div>`).join(''):this._radioError?'':emptyState(this._searchMode?'Keine passenden Sender gefunden. Versuche einen anderen Namen.':'Keine Einträge in dieser Kategorie.');
     for(const control of this._dialog.querySelectorAll('form button'))control.disabled=this._busy;
     this._searchInput.disabled=this._busy;
   }
@@ -900,7 +1035,7 @@ class MusicManagerCardEditor extends HTMLElement {
     this._registryRequested=false;this._registryError='';
   }
   setConfig(config) {
-    this._config={...config,name:config.name??'Music Manager',controls:{...CONTROL_DEFAULTS,...config.controls}};
+    this._config={...config,name:config.name??'',controls:{...CONTROL_DEFAULTS,...config.controls}};
     this._renderPreservingInput();
   }
   set hass(hass) {
@@ -933,19 +1068,17 @@ class MusicManagerCardEditor extends HTMLElement {
   _render() {
     if(!this._config)return;
     this._unbind?.();
-    const names={play_pause:'Play / Pause',previous:'Vorheriger Titel',next:'Nächster Titel',volume:'Lautstärke',mute:'Stummschalten'};
+    const names={play_pause:'Play / Pause',previous:'Vorheriger Titel',stop:'Stop',next:'Nächster Titel',volume:'Lautstärke'};
     const options=[...this._options];
     const selected=options.find(o=>o.value===this._config.entity);
     if(this._config.entity&&!selected)options.push({value:this._config.entity,label:this._hass?.states?.[this._config.entity]?.attributes?.friendly_name||this._config.entity,description:'Aktuell konfiguriert – Sonos-Zuordnung prüfen'});
     this.shadowRoot.innerHTML=`<style>${UI_CSS}\n${MUSIC_CSS}</style><div class="music-editor">
       ${combobox({id:'music-entity',label:'Sonos-Box',items:options,value:selected?.label||this._config.entity||'',selected:this._config.entity||'',action:'entity-select',placeholder:'Sonos-Box auswählen …',required:true,emptyLabel:'Keine Sonos-Box gefunden.'})}
       ${this._registryError?notice(this._registryError,{error:true}):''}
-      ${field({id:'music-name',label:'Kartenname',value:this._config.name,maxLength:100})}
       ${section({id:'music-editor-controls',title:'Bedienelemente anzeigen',content:Object.entries(names).map(([key,label])=>row({title:label,trailing:toggle({label,action:'control-toggle',checked:this._config.controls[key],iconOnly:true,data:{key}})})).join('')})}
-      ${notice('Die Box wird pro Karte festgelegt. Radiosender wählst du anschließend direkt in der Karte. Für die globale Suche wird Home Assistant 2026.11 oder neuer benötigt.')}
+      ${notice('Die Box wird pro Karte festgelegt. Radiosender wählst du direkt in der Karte. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Für die globale Suche wird Home Assistant 2026.11 oder neuer benötigt.')}
       ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
     </div>`;
-    this.shadowRoot.getElementById('music-name').addEventListener('input',event=>{this._config={...this._config,name:event.target.value};this._emit();});
     this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{
       if(action==='entity-select' && options.some(o=>o.value===value)) {
         this._config={...this._config,entity:value};this._emit();

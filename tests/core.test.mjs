@@ -38,3 +38,12 @@ test('Sonos selection uses registry platform, not names or speaker device class'
  const hass={states:{'media_player.a':{attributes:{friendly_name:'Symfonisk'}},'media_player.b':{attributes:{friendly_name:'Sonos-looking TV'}},'media_player.c':{attributes:{}}}};
  assert.deepEqual(sonosOptions(hass,[{entity_id:'media_player.a',platform:'sonos'},{entity_id:'media_player.b',platform:'cast'},{entity_id:'media_player.c',platform:'sonos',disabled_by:'user'}]),[{value:'media_player.a',label:'Symfonisk',description:'media_player.a'}]);
 });
+test('favorite records keep only playable radio sources and safe logo URLs',async()=>{
+ const {normalizeFavorites,stationLogo}=await import('../src/core.js');
+ const s={media_content_id:RADIO_ROOT+'/swr3',title:'SWR3',can_play:true,thumbnail:'https://example.org/logo.png',entity_id:'media_player.a'};
+ assert.equal(normalizeFavorites([s,s])[0].thumbnail,s.thumbnail);assert.equal(normalizeFavorites([s,s]).length,1);
+ assert(!('entity_id' in normalizeFavorites([s])[0]));
+ assert.equal(normalizeFavorites([{...s,can_play:false,can_expand:true}]).length,0);
+ for(const url of ['javascript:alert(1)','data:image/svg+xml,evil','file:///etc/passwd','https://user:password@example.org'])assert.equal(stationLogo(url),'');
+ assert.equal(stationLogo('/api/media_source_proxy/logo.png'),'/api/media_source_proxy/logo.png');
+});

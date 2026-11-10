@@ -1,8 +1,8 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.0.0';
-export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,volume:true,mute:true});
+export const MUSIC_VERSION = '1.1.0';
+export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Die Kartenkonfiguration muss ein Objekt sein.');
@@ -16,7 +16,7 @@ export function normalizeConfig(config) {
       controls[key] = config.controls[key];
     }
   }
-  return {...config,type:'custom:music-manager-card',entity:config.entity,name:config.name ?? 'Music Manager',controls};
+  return {...config,type:'custom:music-manager-card',entity:config.entity,name:config.name ?? '',controls};
 }
 
 export function hasFeature(state, name) { return Boolean((Number(state?.attributes?.supported_features) || 0) & FEATURES[name]); }
@@ -51,4 +51,42 @@ export function sonosOptions(hass, entries) {
   return registry.filter(e => e.platform === 'sonos' && e.entity_id?.startsWith('media_player.') && !e.disabled_by && hass?.states?.[e.entity_id])
     .map(e => ({value:e.entity_id,label:hass.states[e.entity_id].attributes?.friendly_name || e.entity_id,description:e.entity_id}))
     .sort((a,b)=>a.label.localeCompare(b.label));
+}
+
+// HA authenticates these commands as the current user; no entity/card/user ID
+// is included in the storage key or payload.
+export const FAVORITES_KEY = 'music_manager_favorites';
+export function stationLogo(value) {
+  if (typeof value !== 'string' || value.length > 4096) return '';
+  try {
+    const url = new URL(value, 'https://home-assistant.local');
+    return ['http:','https:'].includes(url.protocol) && !url.username && !url.password ? value : '';
+  } catch { return ''; }
+}
+export function normalizeFavorites(value) {
+  return normalizeMedia(value).filter(s=>s.can_play && s.media_content_id!==RADIO_ROOT).map(s=>({
+    media_content_id:s.media_content_id,media_content_type:String(s.media_content_type||'audio/mpeg'),
+    title:s.title,thumbnail:stationLogo(s.thumbnail),can_play:true,can_expand:false
+  }));
+}
+const favoriteQueues = new WeakMap();
+export async function saveFavorite(hass, station, enabled) {
+  const item = normalizeFavorites([station])[0];
+  if (!item || !hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
+  // Serialize changes across this user's cards, and read immediately before
+  // each write so another card's favorites are preserved.
+  const session=hass.connection || hass;
+  let users=favoriteQueues.get(session);
+  if(!users){users=new Map();favoriteQueues.set(session,users);}
+  const key=hass.user.id, previous=users.get(key)||Promise.resolve();
+  const operation=previous.catch(()=>{}).then(async()=>{
+    const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
+    const favorites=normalizeFavorites(response?.value);
+    const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
+    if(enabled)next.splice(favorites.findIndex(s=>s.media_content_id===item.media_content_id) < 0 ? next.length : favorites.findIndex(s=>s.media_content_id===item.media_content_id),0,item);
+    await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:next});
+    return next;
+  });
+  users.set(key,operation);
+  try{return await operation;}finally{if(users.get(key)===operation)users.delete(key);}
 }

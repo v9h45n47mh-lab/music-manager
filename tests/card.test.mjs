@@ -23,10 +23,26 @@ function setup() {
  const registry=[{entity_id:'media_player.a',platform:'sonos'},{entity_id:'media_player.b',platform:'sonos'},{entity_id:'media_player.tv',platform:'cast'}];
  let states=Object.fromEntries(registry.map(e=>[e.entity_id,{entity_id:e.entity_id,state:'playing',attributes:{friendly_name:e.entity_id,volume_level:0.25,supported_features:features,media_title:'Titel'}}]));
  const cards=[];
- const makeHass=()=>({states,entities:Object.fromEntries(registry.map(e=>[e.entity_id,e])),
+let currentUser='manuel',failFavorites=false;
+const favoriteData=new Map(),favoriteSubscribers=new Map(),connections=new Map();
+const notifyFavorites=user=>{for(const cb of favoriteSubscribers.get(user)||[])cb({value:favoriteData.get(user)||[]});};
+const connectionFor=user=>{
+ if(!connections.has(user))connections.set(user,{async subscribeMessage(cb,message){
+  if(failFavorites)throw new Error('Favoriten nicht verfügbar');
+  if(!favoriteSubscribers.has(user))favoriteSubscribers.set(user,new Set());
+  favoriteSubscribers.get(user).add(cb);cb({value:favoriteData.get(user)||[]});
+  return ()=>favoriteSubscribers.get(user).delete(cb);
+ }});
+ return connections.get(user);
+};
+
+ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(user),states,entities:Object.fromEntries(registry.map(e=>[e.entity_id,e])),
   async callService(domain,service,data){calls.push({domain,service,data});if(serviceHook)await serviceHook();if(failService)throw new Error('Keine Berechtigung');},
   async callWS(message){wsCalls.push(message);if(wsHook){const result=await wsHook(message);if(result!==undefined)return result;}
    if(message.type==='config/entity_registry/list')return registry;
+   if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
+   if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,message.value);notifyFavorites(user);return null;}
+
    if(failBrowse)throw new Error('Radio Browser nicht verfügbar');
    if(message.type==='media_source/search_media')return {result:message.search_query==='leer'?[]:[station('swr3')]};
    return {can_search:true,children:message.media_content_id===ROOT?[{title:'Popular',can_expand:true,media_content_id:ROOT+'/popular'}]:[station('swr3')]};}
@@ -34,13 +50,14 @@ function setup() {
  const add=(entity='media_player.a',controls)=>{const card=document.createElement('music-manager-card');card.setConfig({entity,controls});document.body.append(card);cards.push(card);card.hass=makeHass();return card;};
  const update=(entity,changes)=>{const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old.attributes,...changes.attributes}}};for(const card of cards)card.hass=makeHass();};
  const click=(element,action)=>{const button=element.shadowRoot.querySelector(`[data-action="${action}"]`);assert(button,action+' exists');assert(!button.disabled,action+' enabled');button.click();};
- return {window,document,calls,wsCalls,add,update,click,makeHass,set failService(v){failService=v},set failBrowse(v){failBrowse=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v}};
+ return {window,document,calls,wsCalls,add,update,click,makeHass,favoriteData,notifyFavorites,connections,
+ switchUser(user){currentUser=user;for(const card of cards)card.hass=makeHass();},set failFavorites(v){failFavorites=v},set failService(v){failService=v},set failBrowse(v){failBrowse=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v}};
 }
 test('actual card controls call HA media services and preserve per-card targets',async()=>{
  const env=setup(),a=env.add(),b=env.add('media_player.b');
- for(const [action,service] of [['previous','media_previous_track'],['next','media_next_track'],['play-pause','media_pause']]){env.click(a,action);await flush();assert.equal(env.calls.at(-1).service,service);assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');}
+ for(const [action,service] of [['previous','media_previous_track'],['next','media_next_track'],['play-pause','media_pause'],['stop','media_stop']]){env.click(a,action);await flush();assert.equal(env.calls.at(-1).service,service);assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');}
  env.update('media_player.b',{state:'paused'});env.click(b,'play-pause');await flush();assert.equal(env.calls.at(-1).service,'media_play');assert.equal(env.calls.at(-1).data.entity_id,'media_player.b');
- env.click(a,'mute');await flush();assert.equal(env.calls.at(-1).data.is_volume_muted,true);
+ assert.equal(a.shadowRoot.querySelector('[data-action="mute"]'),null);
 });
 test('UI Kit slider emits volume_set once on change, never on input',async()=>{
  const env=setup(),card=env.add();const slider=card.shadowRoot.querySelector('input[type=range]');
@@ -49,7 +66,7 @@ test('UI Kit slider emits volume_set once on change, never on input',async()=>{
 });
 test('Radio Browser search and selection use supported HA websocket and service payloads',async()=>{
  const env=setup(),card=env.add();env.click(card,'open-radio');await flush();
- assert.equal(env.wsCalls[0].type,'media_source/browse_media');assert.equal(env.wsCalls[0].media_content_id,ROOT);
+ assert(env.wsCalls.some(c=>c.type==='media_source/browse_media'&&c.media_content_id===ROOT));
  card.shadowRoot.querySelector('#music-radio-query').value='SWR3';env.click(card,'search');await flush();
  assert.equal(env.wsCalls.at(-1).type,'media_source/search_media');assert.equal(env.wsCalls.at(-1).search_query,'SWR3');
  env.click(card,'play-station');await flush();
@@ -76,16 +93,16 @@ test('changing configured box during a pending command cannot overwrite the new 
 });
 test('unsupported features and unavailable states disable controls, configuration hides switches',async()=>{
  const env=setup(),card=env.add();env.update('media_player.a',{state:'unavailable'});
- for(const action of ['next','previous','play-pause','open-radio','mute'])assert.equal(card.shadowRoot.querySelector(`[data-action="${action}"]`).disabled,true);
- env.update('media_player.a',{state:'playing',attributes:{supported_features:4096}});assert.equal(card.shadowRoot.querySelector('[data-action="next"]').disabled,true);assert.match(card.shadowRoot.querySelector('[data-action="play-pause"]').textContent,/Stop/);
+ for(const action of ['next','previous','play-pause','stop'])assert.equal(card.shadowRoot.querySelector(`[data-action="${action}"]`).disabled,true);
+ env.update('media_player.a',{state:'playing',attributes:{supported_features:4096}});assert.equal(card.shadowRoot.querySelector('[data-action="next"]').disabled,true);assert.equal(card.shadowRoot.querySelector('[data-action="play-pause"]').getAttribute('aria-label'),'Stop');
  env.click(card,'play-pause');await flush();assert.equal(env.calls.at(-1).service,'media_stop');
  card.setConfig({entity:'media_player.a',controls:{next:false,previous:false,volume:false,mute:false}});for(const selector of ['[data-action="next"]','[data-action="previous"]','[data-action="mute"]','input[type=range]'])assert.equal(card.shadowRoot.querySelector(selector),null);
 });
-test('Sonos-only visual editor emits entity, name and independent control configuration',async()=>{
+test('Sonos-only visual editor emits entity and independent control configuration',async()=>{
  const env=setup(),editor=env.document.createElement('music-manager-card-editor');editor.setConfig({entity:'media_player.a'});editor.hass=env.makeHass();env.document.body.append(editor);await flush();const events=[];editor.addEventListener('config-changed',e=>events.push(e.detail.config));
  const options=[...editor.shadowRoot.querySelectorAll('[data-ui-option]')];assert.equal(options.length,2);assert(options.every(e=>e.dataset.value!=='media_player.tv'));
  options.find(e=>e.dataset.value==='media_player.b').click();await flush();assert.equal(events.at(-1).entity,'media_player.b');
- editor.shadowRoot.querySelector('#music-name').value='Zimmer';editor.shadowRoot.querySelector('#music-name').dispatchEvent(new env.window.Event('input',{bubbles:true}));assert.equal(events.at(-1).name,'Zimmer');
+ assert.equal(editor.shadowRoot.querySelector('#music-name'),null);
  editor.shadowRoot.querySelector('[data-key="next"]').click();assert.equal(events.at(-1).controls.next,false);assert.equal(events.at(-1).controls.volume,true);
 });
 test('external text stays escaped; reconnecting does not duplicate event handlers',async()=>{
@@ -93,4 +110,60 @@ test('external text stays escaped; reconnecting does not duplicate event handler
  card.remove();env.document.body.append(card);env.click(card,'next');await flush();assert.equal(env.calls.length,1);
  env.wsHook=msg=>msg.type==='media_source/search_media'?{result:[station('bad','<script>bad()</script>')]}:undefined;
  env.click(card,'open-radio');await flush();card.shadowRoot.querySelector('#music-radio-query').value='bad';env.click(card,'search');await flush();assert.equal(card.shadowRoot.querySelector('script'),null);assert.match(card.shadowRoot.querySelector('#music-radio-results').textContent,/<script>/);
+});
+test('favorites belong to the HA user, sync across boxes and survive recreation',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');await flush();
+ env.click(a,'open-radio');await flush();env.click(a,'popular');await flush();env.click(a,'toggle-favorite');await flush();
+ assert.equal(env.favoriteData.get('manuel').length,1);
+ assert.equal(a.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,1);
+ assert.equal(b.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,1);
+ assert(env.wsCalls.some(c=>c.type==='frontend/set_user_data'&&c.key==='music_manager_favorites'&&!('entity_id' in c)&&!('user_id' in c)));
+ env.click(b,'play-favorite');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.b');
+ a.remove();const c=env.add();await flush();assert.equal(c.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,1);
+ env.switchUser('paul');await flush();assert.equal(b.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,0);
+ env.switchUser('manuel');await flush();assert.equal(b.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,1);
+ env.click(c,'open-radio');await flush();env.click(c,'popular');await flush();env.click(c,'toggle-favorite');await flush();
+ assert.equal(env.favoriteData.get('manuel').length,0);assert.equal(b.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,0);
+});
+test('favorite subscription updates render other-device changes and unsubscribe on removal',async()=>{
+ const env=setup(),a=env.add();await flush();
+ env.favoriteData.set('manuel',[{...station('swr3'),thumbnail:'https://example.org/logo.png'}]);env.notifyFavorites('manuel');
+ assert.equal(a.shadowRoot.querySelector('[data-action="play-favorite"] img').getAttribute('src'),'https://example.org/logo.png');
+ assert.equal(a.shadowRoot.querySelector('.music-box').textContent,'media_player.a');
+ assert.equal(a.shadowRoot.querySelector('nav'),null);
+ a.remove();env.favoriteData.set('manuel',[]);env.notifyFavorites('manuel');
+ env.document.body.append(a);await flush();assert.equal(a.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,0);
+});
+test('failed favorite writes retain existing shortcuts and offer retry',async()=>{
+ const env=setup(),a=env.add();await flush();env.click(a,'open-radio');await flush();env.click(a,'popular');await flush();
+ env.failFavorites=true;env.click(a,'toggle-favorite');await flush();
+ assert.match(a.shadowRoot.querySelector('#music-radio-status').textContent,/nicht gespeichert/);assert.equal(a._favorites.length,0);
+ env.failFavorites=false;env.click(a,'toggle-favorite');await flush();assert.equal(a._favorites.length,1);
+});
+test('concurrent favorites from two cards preserve both stations',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');await flush();
+ await Promise.all([a._toggleFavorite(station('swr3')),b._toggleFavorite(station('rock','Rock'))]);await flush();
+ assert.deepEqual(env.favoriteData.get('manuel').map(s=>s.title),['SWR3','Rock']);
+ assert.equal(a._favorites.length,2);assert.equal(b._favorites.length,2);
+});
+test('late favorite load cannot leak the previous user into the new session',async()=>{
+ const env=setup();let deliver,finish;
+ env.connections.set('manuel',{subscribeMessage(cb){deliver=cb;return new Promise(r=>{finish=()=>r(()=>{});});}});
+ const a=env.add();env.switchUser('paul');await flush();deliver({value:[station('private','Privat')]});finish();await flush();
+ assert.equal(a._favorites.length,0);assert(!a.shadowRoot.querySelector('#player').textContent.includes('Privat'));
+});
+test('volume zero silences and a positive slider value releases external mute',async()=>{
+ const env=setup(),a=env.add();await flush();
+ env.update('media_player.a',{attributes:{is_volume_muted:true}});
+ assert.equal(a.shadowRoot.querySelector('#music-volume').getAttribute('value'),'0');
+ await a._action({action:'volume',phase:'change',value:43});
+ assert.equal(env.calls.at(-2).service,'volume_set');assert.equal(env.calls.at(-2).data.volume_level,.43);
+ assert.equal(env.calls.at(-1).service,'volume_mute');assert.equal(env.calls.at(-1).data.is_volume_muted,false);
+ await a._action({action:'volume',phase:'change',value:0});assert.equal(env.calls.at(-1).data.volume_level,0);
+});
+test('station logos reject executable URLs and safely fall back after image errors',async()=>{
+ const env=setup(),a=env.add();await flush();
+ env.favoriteData.set('manuel',[{...station('bad','<img src=x onerror=alert(1)>'),thumbnail:'javascript:alert(1)'},{...station('logo','Logo'),thumbnail:'https://example.org/missing.png'}]);env.notifyFavorites('manuel');
+ assert.equal(a.shadowRoot.querySelectorAll('img').length,1);assert.equal(a.shadowRoot.querySelector('script'),null);
+ const img=a.shadowRoot.querySelector('img');img.dispatchEvent(new env.window.Event('error',{bubbles:true}));assert.equal(img.hidden,true);
 });

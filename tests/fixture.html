@@ -22,7 +22,20 @@ let states={
 const calls=[],wsCalls=[];
 let failService=false,failBrowse=false,canSearch=true,wsHook=null,serviceHook=null;
 const cards=[];
-const makeHass=()=>({states,entities:Object.fromEntries(registry.map(e=>[e.entity_id,e])),
+let currentUser='manuel',failFavorites=false;
+const favoriteData=new Map(),favoriteSubscribers=new Map(),connections=new Map();
+const notifyFavorites=user=>{for(const cb of favoriteSubscribers.get(user)||[])cb({value:favoriteData.get(user)||[]});};
+const connectionFor=user=>{
+ if(!connections.has(user))connections.set(user,{async subscribeMessage(cb,message){
+  if(failFavorites)throw new Error('Favoriten nicht verfügbar');
+  if(!favoriteSubscribers.has(user))favoriteSubscribers.set(user,new Set());
+  favoriteSubscribers.get(user).add(cb);cb({value:favoriteData.get(user)||[]});
+  return ()=>favoriteSubscribers.get(user).delete(cb);
+ }});
+ return connections.get(user);
+};
+
+const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(user),states,entities:Object.fromEntries(registry.map(e=>[e.entity_id,e])),
  async callService(domain,service,data){
   calls.push({domain,service,data});
   if(serviceHook)await serviceHook(domain,service,data);
@@ -36,6 +49,9 @@ const makeHass=()=>({states,entities:Object.fromEntries(registry.map(e=>[e.entit
   wsCalls.push({...msg});
   if(wsHook){const result=await wsHook(msg);if(result!==undefined)return result;}
   if(msg.type==='config/entity_registry/list')return registry;
+   if(msg.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
+   if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,msg.value);notifyFavorites(user);return null;}
+
   if(failBrowse)throw new Error('Radio Browser nicht geladen');
   if(msg.type==='media_source/search_media')return {result:msg.search_query==='leer'?[]:[station('swr3','SWR3'),station('rock','Rock Antenne – sehr langer Sendername für die mobile Ansicht')]};
   if(msg.type==='media_source/browse_media'){
@@ -48,6 +64,7 @@ function push(){for(const card of cards)card.hass=makeHass();}
 function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
 function update(entity,changes){const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old?.attributes,...changes.attributes}}};push();}
 window.demo={cards,calls,wsCalls,registry,makeHass,addCard,push,update,station,directory,
+ switchUser(user){currentUser=user;push();},seedFavorites(user,items){favoriteData.set(user,items);notifyFavorites(user);},get favoriteData(){return favoriteData},set failFavorites(v){failFavorites=v},
  set failService(v){failService=v},set failBrowse(v){failBrowse=v},set canSearch(v){canSearch=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v},get states(){return states}};
 addCard('media_player.wohnzimmer','Music Manager');
 addCard('media_player.maximilian_sonos','Musik Maximilian');

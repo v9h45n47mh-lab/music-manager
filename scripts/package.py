@@ -5,7 +5,8 @@ import hashlib
 import json
 
 root = Path(__file__).resolve().parents[1]
-out = root.parent / "Music-Manager-1.0.0.zip"
+version = json.loads((root / "package.json").read_text())["version"]
+out = root.parent / f"Music-Manager-{version}.zip"
 fixture = (root / "tests/fixture.html").read_text()
 script = (root / "dist/music-manager-card.js").read_text()
 preview = fixture.replace('<script type="module" src="../dist/music-manager-card.js"></script>', '<script type="module">' + script.replace('</script', '<\\/script') + '</script>')

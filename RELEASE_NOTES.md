@@ -1,12 +1,13 @@
-Erste Version der Music-Manager-Karte für Home Assistant.
+Die Karte verwendet jetzt die kompakte Mediensteuerung nach der Screenshot-Vorlage und persönliche Radiofavoriten.
 
-- Sonos-Box im visuellen Karteneditor pro Karte auswählen.
-- Radiosender aus dem HA Radio Browser suchen, durch Kategorien navigieren und direkt abspielen.
-- Play/Pause bzw. Stop, vorheriger/nächster Titel, Lautstärke und Stummschalten separat ein-/ausblenden.
-- Unverändert lokal eingebundenes HA UI Kit 1.2.2, ohne CDN.
-- Eigenes Lautsprecher-/Musiknotenlogo mit transparenten hellen/dunklen PNG- und SVG-Assets.
-- Fehleranzeige, Schutz gegen verspätete Antworten und unabhängige Karteninstanzen.
+- Oben nur der Name der gewählten Sonos-Box, ohne Music-Manager-Titel oder Navigation.
+- Vier gleich breite Symboltasten: Zurück, Play/Pause, Stop, Weiter.
+- Breiter Lautstärkeregler; keine separate Stumm-Taste. 0 schaltet lautlos, ein positiver Wert hebt eine externe Stummschaltung auf.
+- Sender im Radio Browser mit dem Stern favorisieren oder entfernen.
+- Kurzwahl mit Senderlogo direkt unter den Bedienelementen, inklusive Ersatzsymbol bei fehlendem Logo.
+- Favoriten dauerhaft im Home-Assistant-Benutzerprofil: unabhängig von Box, Karte, Browser und Gerät. Live-Synchronisierung für denselben Benutzer; getrennte Listen für andere Benutzer.
+- HA UI Kit 1.2.2 weiterhin unverändert enthalten; Musikdarstellung nach der Vorlage ergänzt. Marketplace-Logo bleibt enthalten.
 
-Installation über HACS als benutzerdefiniertes Repository der Kategorie Dashboard/Lovelace oder manuell aus dem ZIP. Voraussetzungen: Home Assistant 2026.11+, Sonos und Radio Browser. Die Datei `music-manager-card.js` ist die vollständige Kartenressource; das UI Kit ist enthalten.
+Installation: In HACS auf 1.1.0 aktualisieren und das Dashboard vollständig neu laden. Bei manueller Installation die JS-Datei ersetzen und den Ressourcenparameter auf `?v=1.1.0` setzen. Bestehende Kartenkonfigurationen funktionieren weiterhin; `name` und `controls.mute` werden für die Darstellung nicht mehr verwendet.
 
-Zurück/Weiter steuern die Sonos-Warteschlange. Live-Radio bietet keinen Titelwechsel. Die Wiedergabe wurde mit simulierten Home-Assistant-Daten geprüft; ein Test an echter Sonos-Hardware steht aus. Die GitHub-Actions-Prüfungen zeigen den Stand der Funktions- und Browserprüfungen.
+24 Funktions-/DOM-Tests sowie 15 Browser-Szenarien mit mobilen und Desktop-Ansichten in hellen und dunklen Themes. Der aktuelle Status steht in GitHub Actions. Sonos-Hardware wurde in dieser Umgebung nicht live getestet.

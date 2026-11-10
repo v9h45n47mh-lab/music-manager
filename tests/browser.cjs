@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),screens=path.join(root,'test-results');f
 const server=http.createServer((req,res)=>{
  const target=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]));
  if(!target.startsWith(root+path.sep)){res.writeHead(403);res.end();return;}
- try{res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.html')?'text/html':'text/plain');res.end(fs.readFileSync(target));}catch{res.writeHead(404);res.end();}
+ try{res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.html')?'text/html':target.endsWith('.png')?'image/png':target.endsWith('.svg')?'image/svg+xml':'text/plain');res.end(fs.readFileSync(target));}catch{res.writeHead(404);res.end();}
 });
 let browser,page;let checks=0;
 async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
@@ -27,13 +27,13 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.deepEqual(calls.map(c=>c.service),['media_pause','media_play','media_previous_track','media_next_track']);
   assert(calls.every(c=>c.domain==='media_player'&&c.data.entity_id==='media_player.wohnzimmer'));
  });
- await check('volume changes on commit only, as fractional 0..1; mute is targeted',async()=>{
+ await check('volume changes on commit only; no mute control',async()=>{
   await card().locator('#music-volume').evaluate(input=>{input.value='47';input.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.evaluate(()=>demo.calls.length),4);
   await card().locator('#music-volume').evaluate(input=>input.dispatchEvent(new Event('change',{bubbles:true})));
   await page.waitForFunction(()=>demo.calls.length===5);
   assert.equal(await page.evaluate(()=>demo.calls[4].data.volume_level),0.47);
-  await action('mute').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.is_volume_muted),true);
+  assert.equal(await action('mute').count(),0);
  });
  await check('radio search uses Home Assistant and station playback targets Sonos',async()=>{
   await action('open-radio').click();await dialog().locator('#music-radio-results .setting-row').first().waitFor();
@@ -98,9 +98,9 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  });
  await check('unavailable entity and unsupported actions are disabled; stop fallback',async()=>{
   await reset();await page.evaluate(()=>demo.update('media_player.wohnzimmer',{state:'unavailable'}));
-  assert(await action('play-pause').isDisabled());assert(await action('open-radio').isDisabled());assert(await card().locator('#music-volume').isDisabled());
+  assert(await action('play-pause').isDisabled());assert(!await action('open-radio').isDisabled());assert(await card().locator('#music-volume').isDisabled());
   await page.evaluate(()=>demo.update('media_player.wohnzimmer',{state:'playing',attributes:{supported_features:4096}}));
-  assert(await action('next').isDisabled());assert(await action('previous').isDisabled());assert.equal(await action('play-pause').innerText(),'Stop');
+  assert(await action('next').isDisabled());assert(await action('previous').isDisabled());assert.equal(await action('play-pause').getAttribute('aria-label'),'Stop');
   await action('play-pause').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).service),'media_stop');
  });
  await check('per-card switches hide controls and registry editor only lists Sonos',async()=>{
@@ -114,8 +114,8 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.deepEqual(options.sort(),['media_player.maximilian_sonos','media_player.wohnzimmer']);
   await editor.locator('#music-entity').fill('Maximilian');await editor.locator('[data-ui-option]').filter({hasText:'Sonos Maximilian'}).click();
   assert.equal(await page.evaluate(()=>editorEvents.at(-1).entity),'media_player.maximilian_sonos');
-  await editor.locator('#music-name').fill('Musik im Zimmer');await editor.locator('#music-name').press('End');await editor.locator('#music-name').pressSequentially('!');
-  assert.equal(await page.evaluate(()=>editorEvents.at(-1).name),'Musik im Zimmer!');
+  assert.equal(await editor.locator('#music-name').count(),0);
+  assert.equal(await editor.getByRole('switch',{name:'Stummschalten',exact:true}).count(),0);
   await editor.getByRole('switch',{name:'Nächster Titel',exact:true}).click();assert.equal(await page.evaluate(()=>editorEvents.at(-1).controls.next),false);
  });
  await check('station labels and configured names are escaped, duplicate binds avoided on reconnect',async()=>{
@@ -129,14 +129,57 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await action('open-radio').click();await dialog().locator('#music-radio-query').fill('x');await dialog().locator('[data-action="search"]').click();await dialog().locator('[data-action="play-station"]').waitFor();
   assert.equal(await dialog().locator('script').count(),0);assert.equal(await page.evaluate(()=>window.injected),undefined);await page.keyboard.press('Escape');
  });
+ await check('four icon buttons, dedicated Stop and user favorites on every box',async()=>{
+  await reset();assert.equal(await card().locator('.music-transport button').count(),4);
+  assert.deepEqual(await card().locator('.music-transport button').evaluateAll(nodes=>nodes.map(e=>e.dataset.action)),['previous','play-pause','stop','next']);
+  assert.equal(await card().locator('.music-box').innerText(),'Sonos Wohnzimmer');assert.equal(await card().locator('nav').count(),0);
+  await action('stop').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).service),'media_stop');
+  await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();
+  await dialog().locator('[data-action="toggle-favorite"]').first().click();
+  await page.waitForFunction(()=>demo.cards.every(c=>c.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length===1));
+  assert.equal(await dialog().locator('[data-action="toggle-favorite"]').first().getAttribute('aria-pressed'),'true');
+  await dialog().getByRole('button',{name:'Schließen',exact:true}).click();
+  const second=page.locator('music-manager-card').nth(1);await second.locator('[data-action="play-favorite"]').click();
+  assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.maximilian_sonos');
+  await page.evaluate(()=>demo.switchUser('paul'));assert.equal(await action('play-favorite').count(),0);
+  await page.evaluate(()=>demo.switchUser('manuel'));await action('play-favorite').waitFor();
+  // Recreate the card, as on dashboard reload; server-side favorites remain.
+  await page.evaluate(()=>{const c=demo.cards[0];c.remove();document.querySelector('#cards').prepend(c);});await action('play-favorite').waitFor();
+  await action('open-radio').click();await dialog().locator('[data-action="toggle-favorite"]').first().click();
+  await page.waitForFunction(()=>demo.cards.every(c=>!c.shadowRoot.querySelector('[data-action="play-favorite"]')));await page.keyboard.press('Escape');
+ });
+ await check('other-device favorites update live, unsafe/broken logos fall back, errors remain visible',async()=>{
+  await reset();await page.evaluate(()=>demo.seedFavorites('manuel',[
+   {...demo.station('safe','Logo'),thumbnail:'/brand/icon.png'},
+   {...demo.station('broken','Fehlendes Logo'),thumbnail:'/missing.png'},
+   {...demo.station('bad','<script>bad()</script>'),thumbnail:'javascript:alert(1)'}
+  ]));
+  assert.equal(await card().locator('[data-action="play-favorite"] img').count(),2);
+  await page.waitForFunction(()=>demo.cards[0].shadowRoot.querySelector('img[src="/missing.png"]').hidden);
+  assert.equal(await card().locator('script').count(),0);assert.equal(await card().locator('[data-action="play-favorite"]').count(),3);
+  await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await page.evaluate(()=>demo.failFavorites=true);
+  await dialog().locator('[data-action="toggle-favorite"]').first().click();await dialog().getByRole('alert').waitFor();
+  assert.match(await dialog().getByRole('alert').innerText(),/nicht gespeichert/);
+  await page.evaluate(()=>demo.failFavorites=false);await dialog().locator('[data-action="toggle-favorite"]').first().click();await page.keyboard.press('Escape');
+ });
+ await check('slider silences at zero and releases external mute, with keyboard access',async()=>{
+  await reset();await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{is_volume_muted:true}}));
+  assert.equal(await card().locator('#music-volume').inputValue(),'0');
+  await card().locator('#music-volume').focus();await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(()=>demo.calls.some(c=>c.service==='volume_mute'));
+  assert.equal(await page.evaluate(()=>demo.calls.find(c=>c.service==='volume_mute').data.is_volume_muted),false);
+  await page.keyboard.press('Home');await page.waitForFunction(()=>demo.calls.at(-1).data.volume_level===0);
+  await action('open-radio').focus();
+ });
  await check('desktop/mobile light/dark layouts and exact UI Kit typography',async()=>{
   await reset();
+  await page.evaluate(()=>demo.seedFavorites('manuel',Array.from({length:7},(_,i)=>({...demo.station('favorite-'+i,i===6?'Ein besonders langer Favoritensendername':'Sender '+(i+1)),thumbnail:'/brand/icon.png'}))));
   // A separate untouched UI Kit reference ensures local styles do not alter shared components.
   await page.evaluate(async()=>{
    const kit=await import('/src/family-ui/1.2.2/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Beschreibung',trailing:kit.button({label:'Abspielen',action:'ref'})})}`;
   });
-  for(const width of [375,390,430,1100])for(const dark of [false,true]){
+  for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    const report=await page.evaluate(()=>{
     const c=demo.cards[0].shadowRoot,ref=document.querySelector('#reference').shadowRoot;
@@ -146,6 +189,8 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
     return {pageOverflow:document.documentElement.scrollWidth>innerWidth,overflow,card:styles(c,'.row-text strong'),ref:styles(ref,'.row-text strong')};
    });
    assert(!report.pageOverflow,`${width} page overflow`);assert.deepEqual(report.overflow,[]);assert.deepEqual(report.card,report.ref);
+   const layout=await card().evaluate(el=>{const r=el.shadowRoot;return {controls:r.querySelector('.music-controls').getBoundingClientRect().bottom,favorites:r.querySelector('#music-favorites').getBoundingClientRect().top,buttons:[...r.querySelectorAll('.music-transport button')].map(e=>e.getBoundingClientRect().width),slider:r.querySelector('#music-volume').getBoundingClientRect().height};});
+   assert(layout.favorites>=layout.controls);assert(layout.buttons.every(w=>Math.abs(w-layout.buttons[0])<1));assert.equal(layout.slider,42);
    await page.screenshot({path:path.join(screens,`card-${width}-${dark?'dark':'light'}.png`),fullPage:true});
    await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();
    const bounds=await dialog().boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);
