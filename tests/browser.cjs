@@ -214,13 +214,13 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    assert(!await dialog().evaluate(el=>el.scrollWidth>el.clientWidth));
    await page.screenshot({path:path.join(screens,`favorites-${width}-${dark?'dark':'light'}.png`),fullPage:true});
   }
-  await dialog().getByRole('checkbox',{name:'Favorit behalten: SWR3',exact:true}).uncheck();
+  await dialog().getByRole('checkbox',{name:'Favorit behalten: SWR3',exact:true}).click();
   await page.waitForFunction(()=>demo.cards.every(c=>c._favorites.length===2));
   assert.equal(await dialog().getByRole('checkbox').count(),2);assert.equal(await page.evaluate(()=>demo.favoriteData.get('manuel').length),2);
-  await page.evaluate(()=>demo.failFavorites=true);await dialog().getByRole('checkbox').first().uncheck();await dialog().getByRole('alert').waitFor();
+  await page.evaluate(()=>demo.failFavorites=true);await dialog().getByRole('checkbox').first().click();await dialog().getByRole('alert').waitFor();
   assert(await dialog().getByRole('checkbox').first().isChecked());
   await page.evaluate(()=>demo.failFavorites=false);
-  for(let remaining=2;remaining>0;remaining--){await dialog().getByRole('checkbox').first().uncheck();await page.waitForFunction(n=>demo.cards[0]._favorites.length===n,remaining-1);}
+  for(let remaining=2;remaining>0;remaining--){await dialog().getByRole('checkbox').first().click();await page.waitForFunction(n=>demo.cards[0]._favorites.length===n,remaining-1);}
   await dialog().getByText('Keine Favoritensender vorhanden.',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
   await page.keyboard.press('Escape');
  });
