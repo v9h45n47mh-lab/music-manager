@@ -1,0 +1,58 @@
+{
+  "title": "Music Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Music Assistant verbinden",
+        "description": "Apple Music wird über die bestehende Music-Assistant-Integration verwendet. Die Verbindung benötigt Rechte zum Lesen der MA-Benutzer. Apple-Zugangsdaten bleiben in Music Assistant. Nach dem Hinzufügen unter Konfigurieren die 1:1-Kontozuordnungen anlegen.",
+        "data": {
+          "music_assistant_entry": "Music-Assistant-Verbindung"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Music Assistant ist nicht bereit oder die Verbindung darf keine Benutzer lesen."
+    },
+    "abort": {
+      "single_instance_allowed": "Music Manager ist bereits eingerichtet. Öffne Konfigurieren für die Benutzerzuordnung.",
+      "music_assistant_missing": "Richte zuerst die offizielle Music-Assistant-Integration ein."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Apple-Music-Konten",
+        "menu_options": {
+          "add": "Benutzerzuordnung hinzufügen oder ändern",
+          "remove": "Benutzerzuordnung entfernen"
+        }
+      },
+      "add": {
+        "title": "Persönliches Apple-Music-Konto zuordnen",
+        "description": "1 HA-Benutzer = 1 MA-Benutzer = 1 Apple-Music-Anmeldung. Erstelle in Music Assistant einen aktiven normalen Benutzer (kein Administrator) und beschränke dessen Musikquellen auf genau dieses Apple-Music-Konto. Wähle danach die drei zusammengehörigen Einträge.",
+        "data": {
+          "ha_user_id": "Home-Assistant-Benutzer",
+          "ma_user_id": "Music-Assistant-Benutzer",
+          "provider_id": "Apple-Music-Konto in Music Assistant"
+        }
+      },
+      "remove": {
+        "title": "Zuordnung entfernen",
+        "description": "Der gewählte HA-Benutzer erhält über diese Karte keinen Apple-Music-Zugang mehr. Radiofavoriten bleiben erhalten.",
+        "data": {
+          "ha_user_id": "Home-Assistant-Benutzer"
+        }
+      }
+    },
+    "error": {
+      "invalid_account": "Bitte gültige Einträge aus den Listen auswählen.",
+      "duplicate_account": "Dieses MA-Benutzerkonto oder Apple-Music-Konto ist bereits einem anderen HA-Benutzer zugeordnet.",
+      "account_filter": "Der MA-Benutzer muss aktiv sein, die Rolle Benutzer haben und bei Musikquellen auf genau das gewählte Apple-Music-Konto beschränkt sein."
+    },
+    "abort": {
+      "accounts_missing": "Richte in Music Assistant mindestens ein Apple-Music-Konto und einen aktiven normalen Benutzer ein.",
+      "cannot_connect": "Die Music-Assistant-Verbindung ist nicht bereit oder darf keine Benutzer lesen.",
+      "no_accounts": "Es sind noch keine Konten zugeordnet."
+    }
+  }
+}

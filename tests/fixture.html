@@ -13,12 +13,13 @@ const ROOT='media-source://radio_browser';
 const featureFlags=1|4|8|16|32|512|4096|16384;
 const station=(id,title)=>({title,media_content_id:ROOT+'/'+id,media_content_type:'audio/mpeg',can_play:true,can_expand:false});
 const directory=(id,title)=>({title,media_content_id:ROOT+'/'+id,media_content_type:'music',can_play:false,can_expand:true});
-const registry=[{entity_id:'media_player.wohnzimmer',platform:'sonos'},{entity_id:'media_player.maximilian_sonos',platform:'sonos'},{entity_id:'media_player.tv',platform:'cast'},{entity_id:'media_player.disabled',platform:'sonos',disabled_by:'user'}];
+const registry=[{entity_id:'media_player.wohnzimmer',platform:'sonos',unique_id:'RINCON_AABBCCDDEEFF01400'},{entity_id:'media_player.maximilian_sonos',platform:'sonos',unique_id:'RINCON_11223344556601400'},{entity_id:'media_player.ma_wohnzimmer',platform:'music_assistant',unique_id:'RINCON_AABBCCDDEEFF01400'},{entity_id:'media_player.ma_maximilian',platform:'music_assistant',unique_id:'RINCON_11223344556601400'},{entity_id:'media_player.tv',platform:'cast'},{entity_id:'media_player.disabled',platform:'sonos',disabled_by:'user'}];
 let states={
  'media_player.wohnzimmer':{entity_id:'media_player.wohnzimmer',state:'playing',attributes:{friendly_name:'Sonos Wohnzimmer',media_title:'SWR3',media_artist:'Live-Radio',volume_level:0.28,is_volume_muted:false,supported_features:featureFlags}},
  'media_player.maximilian_sonos':{entity_id:'media_player.maximilian_sonos',state:'paused',attributes:{friendly_name:'Sonos Maximilian',media_title:'Musik in Maximilians Zimmer',media_artist:'Sonos-Warteschlange',volume_level:0.18,is_volume_muted:false,supported_features:featureFlags}},
  'media_player.tv':{entity_id:'media_player.tv',state:'idle',attributes:{friendly_name:'Fernseher',supported_features:featureFlags}}
 };
+for(const [entity,title] of [['media_player.ma_wohnzimmer','Sonos Wohnzimmer'],['media_player.ma_maximilian','Sonos Maximilian']])states[entity]={entity_id:entity,state:'idle',attributes:{friendly_name:title,volume_level:0.28,supported_features:featureFlags}};
 const calls=[],wsCalls=[];
 let failService=false,failBrowse=false,canSearch=true,wsHook=null,serviceHook=null;
 const cards=[];
@@ -52,6 +53,12 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
    if(msg.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
    if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,msg.value);notifyFavorites(user);return null;}
 
+  if(msg.type==='music_manager/apple_music'){
+   if(msg.action==='status')return {account:user==='manuel'?'Manuel (Beispielkonto)':'Maximilian (Beispielkonto)',provider:'Apple Music'};
+   if(msg.action==='play'){update(msg.entity_id,{state:'playing',attributes:{active_queue:'example-queue',media_title:'Apple Music – Beispieltitel',media_artist:'Beispielinterpret'}});return {started:true};}
+   const type=msg.action==='search'?'track':msg.media_type;
+   return {items:[{uri:'apple_music--demo://'+type+'/123',title:msg.action==='search'?'Beispieltitel: '+msg.query:type==='playlist'?'Meine Lieblingsmusik':type==='album'?'Mein Lieblingsalbum':'Mein Lieblingstitel',description:{track:'Titel',album:'Album',playlist:'Playlist'}[type],media_type:type}],more:false};
+  }
   if(failBrowse)throw new Error('Radio Browser nicht geladen');
   if(msg.type==='media_source/search_media')return {result:msg.search_query==='leer'?[]:[station('swr3','SWR3'),station('rock','Rock Antenne – sehr langer Sendername für die mobile Ansicht')]};
   if(msg.type==='media_source/browse_media'){
@@ -61,7 +68,7 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
   throw new Error('Unbekannte Websocket-Aktion '+msg.type);
  }});
 function push(){for(const card of cards)card.hass=makeHass();}
-function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
+function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls,music_assistant_entity:entity==='media_player.wohnzimmer'?'media_player.ma_wohnzimmer':'media_player.ma_maximilian'});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
 function update(entity,changes){const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old?.attributes,...changes.attributes}}};push();}
 window.demo={cards,calls,wsCalls,registry,makeHass,addCard,push,update,station,directory,
  switchUser(user){currentUser=user;push();},seedFavorites(user,items){favoriteData.set(user,items);notifyFavorites(user);},get favoriteData(){return favoriteData},set failFavorites(v){failFavorites=v},

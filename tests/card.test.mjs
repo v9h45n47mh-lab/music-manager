@@ -20,7 +20,7 @@ function setup() {
  vm.runInContext(bundle.replace(/^export /gm,''),context);
  const calls=[],wsCalls=[];
  let failService=false,failBrowse=false,wsHook=null,serviceHook=null;
- const registry=[{entity_id:'media_player.a',platform:'sonos'},{entity_id:'media_player.b',platform:'sonos'},{entity_id:'media_player.tv',platform:'cast'}];
+ const registry=[{entity_id:'media_player.a',platform:'sonos',unique_id:'RINCON_AABBCCDDEEFF01400'},{entity_id:'media_player.b',platform:'sonos',unique_id:'RINCON_11223344556601400'},{entity_id:'media_player.tv',platform:'cast'},{entity_id:'media_player.ma_a',platform:'music_assistant',unique_id:'RINCON_AABBCCDDEEFF01400'},{entity_id:'media_player.ma_b',platform:'music_assistant',unique_id:'RINCON_11223344556601400'}];
  let states=Object.fromEntries(registry.map(e=>[e.entity_id,{entity_id:e.entity_id,state:'playing',attributes:{friendly_name:e.entity_id,volume_level:0.25,supported_features:features,media_title:'Titel'}}]));
  const cards=[];
 let currentUser='manuel',failFavorites=false;
@@ -100,7 +100,7 @@ test('unsupported features and unavailable states disable controls, configuratio
 });
 test('Sonos-only visual editor emits entity and independent control configuration',async()=>{
  const env=setup(),editor=env.document.createElement('music-manager-card-editor');editor.setConfig({entity:'media_player.a'});editor.hass=env.makeHass();env.document.body.append(editor);await flush();const events=[];editor.addEventListener('config-changed',e=>{events.push(e.detail.config);editor.setConfig(e.detail.config);});
- const options=[...editor.shadowRoot.querySelectorAll('[data-ui-option]')];assert.equal(options.length,2);assert(options.every(e=>e.dataset.value!=='media_player.tv'));
+ const options=[...editor.shadowRoot.querySelectorAll('#music-entity-options [data-ui-option]')];assert.equal(options.length,2);assert(options.every(e=>e.dataset.value!=='media_player.tv'));
  options.find(e=>e.dataset.value==='media_player.b').click();await flush();assert.equal(events.at(-1).entity,'media_player.b');
  assert.equal(editor.shadowRoot.querySelector('#music-name'),null);
  editor.shadowRoot.querySelector('[data-key="next"]').click();assert.equal(events.at(-1).controls.next,false);assert.equal(events.at(-1).controls.volume,true);
@@ -205,4 +205,46 @@ test('favorite management ignores late browse results and retains checked favori
  env.failFavorites=true;let input=a.shadowRoot.querySelector('[data-managed-favorite-id]');input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();
  assert.match(a.shadowRoot.querySelector('#music-radio-status').textContent,/nicht gespeichert/);assert.equal(a._favorites.length,1);assert(a.shadowRoot.querySelector('[data-managed-favorite-id]').hasAttribute('checked'));
  env.failFavorites=false;input=a.shadowRoot.querySelector('[data-managed-favorite-id]');input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(a._favorites.length,0);
+});
+
+test('Apple Music logo is a tile under controls and missing setup stays actionable',async()=>{
+ const env=setup(),card=env.add();await flush();
+ const tile=card.shadowRoot.querySelector('#music-favorites [data-action="open-apple"]');assert(tile);assert(tile.querySelector('svg.music-apple-logo'));
+ const before=env.wsCalls.length;tile.click();await flush();
+ assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Music-Manager-Connector/);assert.equal(env.wsCalls.length,before);
+ assert.equal(card._appleQuery.disabled,true);assert.equal(Boolean(card._dialog.open),false);
+});
+test('Apple Music catalog and library use the authenticated gateway and selected speaker, never a user ID',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel'}:msg.action==='play'?{started:true}:{items:[{uri:'apple_music--a://track/42',title:'Ein Titel',description:'Interpret · Titel'}],more:false}:undefined;
+ env.click(card,'open-apple');await flush();assert.equal(card._appleAccount,'Manuel');assert.equal(card._appleItems.length,1);
+ card._appleQuery.value='Mein Titel';env.click(card,'apple-search');await flush();
+ const search=env.wsCalls.at(-1);assert.equal(search.action,'search');assert.equal(search.query,'Mein Titel');assert.equal(search.entity_id,'media_player.ma_a');assert.equal(search.source_entity,'media_player.a');assert.equal(search.user_id,undefined);assert.equal(search.provider_id,undefined);
+ env.click(card,'apple-play');await flush();assert.equal(env.wsCalls.at(-1).action,'play');assert.equal(env.wsCalls.at(-1).uri,'apple_music--a://track/42');assert.equal(card._appleDialog.open,false);
+ env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
+ await card._playStation(station('swr3'));assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');assert.equal(card._applePreferred,false);
+});
+test('Apple Music user changes and box changes discard pending private catalog results',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ let finish;
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel'}:new Promise(resolve=>{finish=()=>resolve({items:[{uri:'apple_music--a://track/1',title:'Privater Titel'}]});}):undefined;
+ env.click(card,'open-apple');await flush();assert.equal(card._appleLoading,true);env.switchUser('maximilian');finish();await flush();
+ assert.equal(card._appleDialog.open,false);assert.equal(card._appleItems.length,0);assert.equal(card._appleAccount,'');assert(!card._appleDialog.textContent.includes('Privater Titel'));
+ env.click(card,'open-apple');await flush();card.setConfig({entity:'media_player.b',music_assistant_entity:'media_player.ma_b'});finish();await flush();assert.equal(card._appleItems.length,0);assert.equal(card._appleDialog.open,false);
+});
+test('Apple Music setup and playback errors keep the picker open, escaped and retriable',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.wsHook=msg=>{if(msg.type==='music_manager/apple_music')throw {code:'unknown_command'};};
+ env.click(card,'open-apple');await flush();assert.match(card._appleDialog.textContent,/Connector/);assert.equal(card._appleLoading,false);
+ env.wsHook=msg=>{if(msg.type!=='music_manager/apple_music')return;if(msg.action==='status')return {account:'Manuel'};if(msg.action==='play')throw new Error('Box nicht erreichbar');return {items:[{uri:'apple_music--a://track/1',title:'<img src=x onerror=bad()>',description:'<script>bad()</script>'}]};};
+ env.click(card,'open-apple');await flush();assert.equal(card._appleDialog.querySelector('img,script'),null);env.click(card,'apple-play');await flush();assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Box nicht erreichbar/);assert.equal(card._busy,false);assert.equal(card._appleItems.length,1);
+});
+test('Apple Music library pagination preserves items and editor offers only the same Sonos hardware',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel'}:{items:[{uri:'apple_music--a://playlist/'+(msg.offset||0),title:'Playlist '+(msg.offset||0)}],more:!msg.offset,next_offset:50}:undefined;
+ env.click(card,'open-apple');await flush();env.click(card,'apple-more');await flush();assert.equal(card._appleItems.length,2);assert.equal(env.wsCalls.at(-1).offset,50);
+ const editor=env.document.createElement('music-manager-card-editor');editor.setConfig({entity:'media_player.a'});editor.hass=env.makeHass();env.document.body.append(editor);await flush();
+ assert.deepEqual([...editor.shadowRoot.querySelectorAll('#music-ma-entity-options [data-ui-option]')].map(o=>o.dataset.value),['','media_player.ma_a']);
+ const events=[];editor.addEventListener('config-changed',e=>{events.push(e.detail.config);editor.setConfig(e.detail.config);});editor.shadowRoot.querySelector('#music-ma-entity-options [data-value="media_player.ma_a"]').click();await flush();assert.equal(events.at(-1).music_assistant_entity,'media_player.ma_a');
+ editor.shadowRoot.querySelector('#music-entity-options [data-value="media_player.b"]').click();await flush();assert.equal(events.at(-1).music_assistant_entity,'');
 });

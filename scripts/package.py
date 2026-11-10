@@ -18,6 +18,9 @@ with ZipFile(out, "w", ZIP_DEFLATED, compresslevel=9) as archive:
     archive.write(root / "dist/LICENSES.txt", "LICENSES.txt")
     for name in ["music-manager-card.js", "LICENSES.txt", "manifest.json"]:
         archive.write(root / "dist" / name, "www/music-manager/" + name)
+    for file in sorted((root / "custom_components").rglob("*")):
+        if file.is_file() and "__pycache__" not in file.parts:
+            archive.write(file, file.relative_to(root).as_posix())
     for file in sorted((root / "brand").iterdir()):
         archive.write(file, "brand/" + file.name)
     for file in sorted(root.rglob("*")):

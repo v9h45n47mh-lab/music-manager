@@ -1,0 +1,58 @@
+{
+  "title": "Music Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Music Assistant",
+        "description": "Use Apple Music through the existing Music Assistant integration. The connection needs permission to read MA users. Apple credentials stay in Music Assistant. After adding this integration, configure the personal 1:1 account assignments.",
+        "data": {
+          "music_assistant_entry": "Music Assistant connection"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Music Assistant is unavailable or this connection cannot read users."
+    },
+    "abort": {
+      "single_instance_allowed": "Music Manager is already configured. Open Configure to manage account assignments.",
+      "music_assistant_missing": "Set up the official Music Assistant integration first."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Apple Music accounts",
+        "menu_options": {
+          "add": "Add or change user assignment",
+          "remove": "Remove user assignment"
+        }
+      },
+      "add": {
+        "title": "Assign personal Apple Music account",
+        "description": "1 HA user = 1 MA user = 1 Apple Music provider instance. Create an active normal MA user, not an administrator, and restrict their music sources to exactly this Apple Music instance.",
+        "data": {
+          "ha_user_id": "Home Assistant user",
+          "ma_user_id": "Music Assistant user",
+          "provider_id": "Apple Music account in Music Assistant"
+        }
+      },
+      "remove": {
+        "title": "Remove assignment",
+        "description": "The selected HA user loses Apple Music access through this card. Radio favorites remain available.",
+        "data": {
+          "ha_user_id": "Home Assistant user"
+        }
+      }
+    },
+    "error": {
+      "invalid_account": "Select valid entries from the lists.",
+      "duplicate_account": "This MA user or Apple Music instance is already assigned to another HA user.",
+      "account_filter": "The MA user must be active, have the user role and be restricted to exactly the selected Apple Music source."
+    },
+    "abort": {
+      "accounts_missing": "Add an Apple Music provider instance and an active normal user in Music Assistant first.",
+      "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
+      "no_accounts": "No accounts have been assigned yet."
+    }
+  }
+}

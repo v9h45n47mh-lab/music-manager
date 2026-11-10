@@ -1,4 +1,4 @@
-/* Music Manager 1.1.2 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 1.2.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.2.2 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.2.2";
@@ -530,13 +530,14 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.1.2';
+export const MUSIC_VERSION = '1.2.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Die Kartenkonfiguration muss ein Objekt sein.');
   if (typeof config.entity !== 'string' || !/^media_player\.[a-z0-9_]+$/.test(config.entity)) throw new Error('Bitte eine Sonos-Box als media_player auswählen.');
   if (config.name !== undefined && typeof config.name !== 'string') throw new Error('Der Kartenname muss ein Text sein.');
+  if (config.music_assistant_entity && (typeof config.music_assistant_entity !== 'string' || !/^media_player\.[a-z0-9_]+$/.test(config.music_assistant_entity))) throw new Error('Bitte die Music-Assistant-Entität derselben Sonos-Box auswählen.');
   if (config.controls !== undefined && (!config.controls || typeof config.controls !== 'object' || Array.isArray(config.controls))) throw new Error('controls muss ein Objekt sein.');
   const controls = {...CONTROL_DEFAULTS};
   for (const key of Object.keys(controls)) {
@@ -545,7 +546,7 @@ export function normalizeConfig(config) {
       controls[key] = config.controls[key];
     }
   }
-  return {...config,type:'custom:music-manager-card',entity:config.entity,name:config.name ?? '',controls};
+  return {...config,type:'custom:music-manager-card',entity:config.entity,music_assistant_entity:config.music_assistant_entity||'',name:config.name ?? '',controls};
 }
 
 export function hasFeature(state, name) { return Boolean((Number(state?.attributes?.supported_features) || 0) & FEATURES[name]); }
@@ -579,6 +580,15 @@ export function sonosOptions(hass, entries) {
   const registry = entries || Object.values(hass?.entities || {});
   return registry.filter(e => e.platform === 'sonos' && e.entity_id?.startsWith('media_player.') && !e.disabled_by && hass?.states?.[e.entity_id])
     .map(e => ({value:e.entity_id,label:hass.states[e.entity_id].attributes?.friendly_name || e.entity_id,description:e.entity_id}))
+    .sort((a,b)=>a.label.localeCompare(b.label));
+}
+
+export function musicAssistantOptions(hass, entries, sourceEntity) {
+  const registry=entries || Object.values(hass?.entities || {});
+  const uid=id=>String(id||'').toLowerCase().match(/rincon_[a-z0-9]+/)?.[0];
+  const source=registry.find(e=>e.entity_id===sourceEntity), sourceUid=uid(source?.unique_id);
+  return registry.filter(e=>e.platform==='music_assistant' && e.entity_id?.startsWith('media_player.') && !e.disabled_by && hass?.states?.[e.entity_id] && (!sourceUid || uid(e.unique_id)===sourceUid))
+    .map(e=>({value:e.entity_id,label:hass.states[e.entity_id].attributes?.friendly_name||e.entity_id,description:e.entity_id}))
     .sort((a,b)=>a.label.localeCompare(b.label));
 }
 
@@ -649,8 +659,12 @@ const MUSIC_CSS = `
   .music-station-logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--card-background-color,#fff)}
   .music-station-row{display:flex;align-items:center;gap:12px;min-width:0}
   .music-station-row>.setting-row{flex:1;min-width:0}
+  .music-apple-logo{display:block;width:48px;height:48px;flex-shrink:0;border-radius:10px}
+  .music-apple-results .setting-row{min-width:0}
   .music-results{max-height:50dvh;overflow:auto;overscroll-behavior:contain}
 `;
+const APPLE_MUSIC_LOGO = `<svg class="music-apple-logo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="apple-music-gradient" x2="0" y2="1"><stop stop-color="#fa586a"/><stop offset="1" stop-color="#e82948"/></linearGradient></defs><rect width="48" height="48" rx="10" fill="url(#apple-music-gradient)"/><path fill="#fff" d="M33.7 9.1 20.2 12c-.8.2-1.2.7-1.2 1.5v19.1c-1.1-.6-2.6-.5-4 .1-2.3.8-3.7 2.7-3.2 4.3.5 1.6 2.7 2.2 5 1.4 2.1-.7 3.6-2.3 3.6-4V20.1l12.1-2.6v11.6c-1.1-.5-2.5-.4-3.9.1-2.3.8-3.8 2.7-3.2 4.3.5 1.6 2.7 2.2 5 1.4 2.2-.8 3.6-2.4 3.6-4V10.2c0-.8-.3-1.2-.9-1.1Z"/></svg>`;
+const APPLE_SETUP = 'Für Apple Music: Music Assistant mit deinem Apple-Music-Konto und der Sonos-Box einrichten. Den Music-Manager-Connector aus dem ZIP installieren, unter Geräte & Dienste hinzufügen und deinen HA-Benutzer zuordnen. Im Karteneditor anschließend die Music-Assistant-Entität derselben Box wählen.';
 const MUSIC_ICONS = {
   previous:'M6 5h2v14H6zM18 5v14l-9-7z',next:'M16 5h2v14h-2zM6 5l9 7-9 7z',
   play:'M8 5v14l11-7z',pause:'M6 5h4v14H6zM14 5h4v14h-4z',stop:'M6 6h12v12H6z',
@@ -689,6 +703,8 @@ class MusicManagerCard extends HTMLElement {
     this._canSearch = true;
     this._searchMode = false;
     this._volumeInteracting = false;
+    this._appleRequest=0;this._appleItems=[];this._appleAccount='';this._appleError='';
+    this._appleLoading=false;this._appleView='playlist';this._appleMore=false;
   }
 
   static getConfigElement() { return document.createElement('music-manager-card-editor'); }
@@ -701,7 +717,7 @@ class MusicManagerCard extends HTMLElement {
 
   setConfig(config) {
     const next = normalizeConfig(config);
-    const changed = this._config?.entity !== next.entity;
+    const changed = this._config?.entity !== next.entity || this._config?.music_assistant_entity !== next.music_assistant_entity;
     this._config = next;
     if (changed) {
       this._epoch++;
@@ -710,6 +726,7 @@ class MusicManagerCard extends HTMLElement {
       this._error = '';
       this._selectedStation = null;
       this._dialog?.close();
+      this._resetApple();
     }
     this._ensureDOM();
     this._loadNativeVolume();
@@ -717,15 +734,22 @@ class MusicManagerCard extends HTMLElement {
   }
 
   set hass(hass) {
-    const previous = this._hass?.states?.[this._config?.entity];
+    const previous = this._state;
+    const userChanged=this._hass && (this._hass.user?.id!==hass.user?.id || this._hass.connection!==hass.connection);
     this._hass = hass;
     if (!this._config) return;
     this._ensureDOM();
+    if(userChanged){this._epoch++;this._busy=false;this._resetApple();}
+    if(this._hass.states?.[this._config.music_assistant_entity]?.attributes?.active_queue)this._applePreferred=false;
     this._connectFavorites();
     this._loadNativeVolume();
     if (previous !== this._state || !this._player.firstChild) this._renderPlayer();
   }
-  get _state() { return this._hass?.states?.[this._config?.entity]; }
+  get _controlEntity() {
+    const entity=this._config?.music_assistant_entity, state=this._hass?.states?.[entity];
+    return isAvailable(state) && (state.attributes?.active_queue || this._applePreferred) ? entity : this._config?.entity;
+  }
+  get _state() { return this._hass?.states?.[this._controlEntity]; }
 
   connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); }
   disconnectedCallback() {
@@ -738,6 +762,7 @@ class MusicManagerCard extends HTMLElement {
     this._busy = false;
     this._browseLoading = false;
     this._dialog?.close();
+    this._resetApple();
   }
 
   _ensureDOM() {
@@ -752,10 +777,28 @@ class MusicManagerCard extends HTMLElement {
         <div id="music-radio-status" aria-live="polite"></div>
         <div id="music-radio-path"></div>
         <div id="music-radio-results" class="music-results" aria-label="Radiosender und Kategorien"></div>
+      </div>`})}
+      ${dialog({id:'music-apple-dialog',title:'Apple Music',content:`<div class="music-browser">
+        <div id="music-apple-account"></div>
+        <form id="music-apple-search-form" class="music-browser">
+          ${field({id:'music-apple-query',label:'Apple Music durchsuchen',type:'search',placeholder:'Titel, Album oder Playlist',maxLength:200,autocomplete:'off'})}
+          <div class="toolbar">${button({label:'Suchen',action:'apple-search',variant:'primary'})}${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}</div>
+        </form>
+        <div id="music-apple-status" aria-live="polite"></div>
+        <div id="music-apple-results" class="music-results music-apple-results" aria-label="Apple-Music-Einträge"></div>
+        <div id="music-apple-more"></div>
       </div>`})}`;
     this._player = this.shadowRoot.getElementById('player');
     this._dialog = this.shadowRoot.getElementById('music-radio-dialog');
     this._searchInput = this.shadowRoot.getElementById('music-radio-query');
+    this._appleDialog=this.shadowRoot.getElementById('music-apple-dialog');
+    this._appleQuery=this.shadowRoot.getElementById('music-apple-query');
+    this.shadowRoot.getElementById('music-apple-search-form').addEventListener('submit',event=>{event.preventDefault();void this._loadApple('search');});
+    this._appleDialog.addEventListener('close',()=>{
+      this._appleRequest++;this._appleLoading=false;
+      const active=this.shadowRoot.activeElement;
+      if(!active || this._appleDialog.contains(active))this._player.querySelector('[data-action="open-apple"]')?.focus();
+    });
     this.shadowRoot.addEventListener('change',event=>{
       const input=event.target;
       if(!input.matches?.('input[data-managed-favorite-id]') || input.checked || input.disabled)return;
@@ -931,14 +974,14 @@ class MusicManagerCard extends HTMLElement {
     if (controls.next) transport.push(musicButton({label:'Weiter',icon:'next',action:'next',disabled:disabled||!hasFeature(state,'next')}));
     const vol=attrs.is_volume_muted?0:volumePercent(attrs.volume_level);
     this._player.innerHTML = `
-      <div class="music-box">${row({title:attrs.friendly_name || this._config.entity})}</div>
+      <div class="music-box">${row({title:this._hass?.states?.[this._config.entity]?.attributes?.friendly_name || this._config.entity})}</div>
       ${row({title,description:detail})}
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
       <div class="music-controls">
         ${transport.length ? `<div class="music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}
         ${controls.volume ? `<div class="music-volume">${this._volumeMarkup(vol??0,disabled||vol===null||!hasFeature(state,'volume'))}</div>` : ''}
       </div>
-      <div id="music-favorites" class="music-favorites" aria-label="Favoritensender">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:disabled||!hasFeature(state,'playMedia')}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}</div>
+      <div id="music-favorites" class="music-favorites" aria-label="Musik und Favoritensender">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:disabled||!hasFeature(state,'playMedia')}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}${button({label:'Apple Music',action:'open-apple',disabled:this._busy}).replace('class=""','class="music-favorite music-apple-tile"').replace('<span>',APPLE_MUSIC_LOGO+'<span>')}</div>
       <div class="toolbar">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}</div>
       <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Im Radio Browser mit dem Stern Sender zu deinen Favoriten hinzufügen.'):''}</div>
       <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState('Befehl wird gesendet …') : ''}</div>`;
@@ -948,6 +991,11 @@ class MusicManagerCard extends HTMLElement {
 
   async _action({action,data,value,phase,checked}) {
     switch(action) {
+      case 'open-apple': await this._openApple();break;
+      case 'apple-search': await this._loadApple('search');break;
+      case 'apple-library': this._appleView=data.view;await this._loadApple('library');break;
+      case 'apple-more': await this._loadApple('library',true);break;
+      case 'apple-play': await this._playApple(this._appleItems[Number(data.index)]);break;
       case 'manage-favorites':
         this._request++;this._browseLoading=false;this._favoriteMode=true;this._radioError='';this._error='';this._renderBrowser();break;
       case 'reload-favorites': this._disconnectFavorites();this._connectFavorites();break;
@@ -994,9 +1042,9 @@ class MusicManagerCard extends HTMLElement {
     }
   }
 
-  async _service(service,payload={},onSuccess) {
+  async _service(service,payload={},onSuccess,entityOverride) {
     if(this._busy || !this._hass || !isAvailable(this._state))return false;
-    const epoch=this._epoch, hass=this._hass, entity=this._config.entity;
+    const epoch=this._epoch, hass=this._hass, entity=entityOverride||this._controlEntity;
     this._busy=true;this._error='';this._renderPlayer();
     if(this._dialog.open)this._renderBrowser();
     try {
@@ -1016,13 +1064,103 @@ class MusicManagerCard extends HTMLElement {
   }
 
   async _playStation(station) {
-    if(!hasFeature(this._state,'playMedia'))return;
+    if(!hasFeature(this._hass?.states?.[this._config.entity],'playMedia'))return;
     let payload;
     try {payload=stationPayload(station);} catch(error) {this._radioError=errorText(error);this._renderBrowser();return;}
     await this._service('play_media',payload,()=>{
       this._selectedStation={...station};
+      this._applePreferred=false;
       this._dialog.close();
-    });
+    },this._config.entity);
+  }
+
+  _resetApple() {
+    this._appleRequest++;this._appleItems=[];this._appleAccount='';this._appleError='';
+    this._appleLoading=false;this._appleMore=false;this._applePreferred=false;
+    this._appleDialog?.close();
+    if(this._appleQuery)this._appleQuery.value='';
+    this._renderApple();
+  }
+
+  _appleCommand(action,data={}) {
+    return this._hass.callWS({type:'music_manager/apple_music',action,
+      entity_id:this._config.music_assistant_entity,source_entity:this._config.entity,...data});
+  }
+
+  _appleFailure(error) {
+    return ['unknown_command','not_found'].includes(error?.code)
+      ? 'Der Music-Manager-Connector ist noch nicht installiert oder eingerichtet. '+APPLE_SETUP
+      : 'Apple Music: '+errorText(error);
+  }
+
+  async _openApple() {
+    this._resetApple();
+    if(!this._appleDialog.open)this._appleDialog.showModal();
+    if(!this._config.music_assistant_entity){this._appleError=APPLE_SETUP;this._renderApple();return;}
+    const request=++this._appleRequest;
+    this._appleLoading=true;this._renderApple();
+    try {
+      const status=await this._appleCommand('status');
+      if(request!==this._appleRequest)return;
+      this._appleAccount=status.account||'Dein Konto';
+      this._appleView='playlist';
+      await this._loadApple('library');
+      if(this._appleDialog.open)this._appleQuery.focus();
+    } catch(error) {
+      if(request!==this._appleRequest)return;
+      this._appleError=this._appleFailure(error);this._appleLoading=false;this._renderApple();
+    }
+  }
+
+  async _loadApple(action,append=false) {
+    if(this._busy || !this._config.music_assistant_entity)return;
+    const query=this._appleQuery.value.trim().slice(0,200);
+    if(action==='search'&&!query){this._appleError='Bitte einen Suchbegriff eingeben.';this._renderApple();return;}
+    const request=++this._appleRequest;
+    this._appleLoading=true;this._appleError='';this._appleSearch=action==='search';
+    const offset=append?this._appleOffset||0:0;
+    if(!append)this._appleItems=[];
+    this._appleMore=false;this._renderApple();
+    try {
+      const response=await this._appleCommand(action,action==='search'?{query}:{media_type:this._appleView,offset});
+      if(request!==this._appleRequest)return;
+      const items=(Array.isArray(response.items)?response.items:[]).filter(item=>typeof item.uri==='string'&&typeof item.title==='string');
+      this._appleItems=append?[...this._appleItems,...items]:items;
+      this._appleMore=Boolean(response.more);this._appleOffset=response.next_offset;
+    } catch(error) {
+      if(request!==this._appleRequest)return;
+      this._appleError=this._appleFailure(error);
+    } finally {
+      if(request===this._appleRequest){this._appleLoading=false;this._renderApple();}
+    }
+  }
+
+  async _playApple(item) {
+    if(this._busy||this._appleLoading||!item)return;
+    const epoch=this._epoch;
+    this._busy=true;this._appleError='';this._renderApple();this._renderPlayer();
+    try {
+      await this._appleCommand('play',{uri:item.uri});
+      if(epoch!==this._epoch)return;
+      this._applePreferred=true;this._selectedStation=null;this._appleDialog.close();
+    } catch(error) {
+      if(epoch===this._epoch)this._appleError=this._appleFailure(error);
+    } finally {
+      if(epoch===this._epoch){this._busy=false;this._renderApple();this._renderPlayer();}
+    }
+  }
+
+  _renderApple() {
+    if(!this._appleDialog)return;
+    const configured=Boolean(this._config?.music_assistant_entity), disabled=this._busy||this._appleLoading||!configured;
+    for(const control of this._appleDialog.querySelectorAll('form button,form input'))control.disabled=disabled;
+    for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleSearch&&control.dataset.view===this._appleView));
+    this.shadowRoot.getElementById('music-apple-account').innerHTML=this._appleAccount?row({title:this._appleAccount,description:'Dein Apple-Music-Konto'}):'';
+    this.shadowRoot.getElementById('music-apple-status').innerHTML=(this._appleError?notice(this._appleError,{error:true}):'')+(this._appleLoading?loadingState('Apple Music wird geladen …'):this._busy?loadingState('Wiedergabe wird gestartet …'):'');
+    const results=this.shadowRoot.getElementById('music-apple-results');
+    results.setAttribute('aria-busy',String(this._appleLoading));
+    results.innerHTML=this._appleItems.map((item,index)=>row({title:item.title,description:item.description||'',trailing:button({label:'Abspielen',action:'apple-play',data:{index},disabled})})).join('')||(!this._appleLoading&&!this._appleError?emptyState(this._appleSearch?'Keine passenden Einträge gefunden.':'Keine Einträge. Du kannst Apple Music durchsuchen oder eine andere Mediathekansicht öffnen.'):'');
+    this.shadowRoot.getElementById('music-apple-more').innerHTML=this._appleMore?button({label:'Mehr laden',action:'apple-more',disabled}):'';
   }
 
   async _openRadio() {
@@ -1140,7 +1278,7 @@ class MusicManagerCardEditor extends HTMLElement {
       if(cached.length){this._options=cached;this._render();}
       // Entity registry is read-only; no new access rights or custom services.
       Promise.resolve().then(()=>hass.callWS({type:'config/entity_registry/list'})).then(entries=>{
-        this._options=sonosOptions(this._hass,entries);this._registryError='';this._renderPreservingInput();
+        this._registry=entries;this._options=sonosOptions(this._hass,entries);this._registryError='';this._renderPreservingInput();
       }).catch(()=>{
         this._registryError=this._options.length?'':'Die Sonos-Geräteliste ist nicht verfügbar. Prüfe die Sonos-Integration und deine Berechtigungen.';
         this._renderPreservingInput();
@@ -1164,22 +1302,32 @@ class MusicManagerCardEditor extends HTMLElement {
     const names={play_pause:'Play / Pause',previous:'Vorheriger Titel',stop:'Stop',next:'Nächster Titel',volume:'Lautstärke'};
     const options=[...this._options];
     const selected=options.find(o=>o.value===this._config.entity);
+    const maOptions=[{value:'',label:'Noch nicht eingerichtet'},...musicAssistantOptions(this._hass,this._registry,this._config.entity)];
+    this._maOptions=maOptions;
+    let maSelected=maOptions.find(o=>o.value===(this._config.music_assistant_entity||''));
+    if(!maSelected && this._config.music_assistant_entity){maSelected={value:this._config.music_assistant_entity,label:this._config.music_assistant_entity,description:'Zuordnung zur Sonos-Box prüfen'};maOptions.push(maSelected);}
     if(this._config.entity&&!selected)options.push({value:this._config.entity,label:this._hass?.states?.[this._config.entity]?.attributes?.friendly_name||this._config.entity,description:'Aktuell konfiguriert – Sonos-Zuordnung prüfen'});
     this.shadowRoot.innerHTML=`<style>${UI_CSS}\n${MUSIC_CSS}</style><div class="music-editor">
       ${combobox({id:'music-entity',label:'Sonos-Box',items:options,value:selected?.label||this._config.entity||'',selected:this._config.entity||'',action:'entity-select',placeholder:'Sonos-Box auswählen …',required:true,emptyLabel:'Keine Sonos-Box gefunden.'})}
       ${this._registryError?notice(this._registryError,{error:true}):''}
+      ${combobox({id:'music-ma-entity',label:'Apple Music: Music-Assistant-Entität derselben Box',items:maOptions,value:maSelected?.label||'',selected:this._config.music_assistant_entity||'',action:'ma-entity-select',placeholder:'Optional für Apple Music …',emptyLabel:'Keine passende Music-Assistant-Box gefunden.'})}
       ${section({id:'music-editor-controls',title:'Bedienelemente anzeigen',content:Object.entries(names).map(([key,label])=>row({title:label,trailing:toggle({label,action:'control-toggle',checked:this._config.controls[key],iconOnly:true,data:{key}})})).join('')})}
-      ${notice('Die Box wird pro Karte festgelegt. Radiosender wählst du direkt in der Karte. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Für die globale Suche wird Home Assistant 2026.11 oder neuer benötigt.')}
+      ${notice('Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Apple Music benötigt Music Assistant und den Music-Manager-Connector. Die Apple-Music-Kontozuordnung erfolgt pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.')}
       ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
     </div>`;
     if(!this._unbind)this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{
       if(action==='entity-select' && (this._options.some(o=>o.value===value)||value===this._config.entity)) {
-        this._config={...this._config,entity:value};
+        this._config={...this._config,entity:value,music_assistant_entity:''};
         // Selection is complete: preserving focus on the replaced search input
         // would reopen the in-flow list and shift the next clicked control.
         this.shadowRoot.activeElement?.blur?.();
         this._emit();
         this.shadowRoot.querySelector('[data-ui-combo-toggle]')?.focus();
+      }
+      if(action==='ma-entity-select' && this._maOptions.some(o=>o.value===value)) {
+        this._config={...this._config,music_assistant_entity:value};
+        this.shadowRoot.activeElement?.blur?.();this._emit();
+        this.shadowRoot.querySelector('#music-ma-entity')?.focus();
       }
       if(action==='control-toggle' && Object.hasOwn(CONTROL_DEFAULTS,data.key)) {
         this._config={...this._config,controls:{...this._config.controls,[data.key]:checked}};this._emit();this._renderPreservingInput();
@@ -1192,5 +1340,5 @@ if(!customElements.get('music-manager-card'))customElements.define('music-manage
 if(!customElements.get('music-manager-card-editor'))customElements.define('music-manager-card-editor',MusicManagerCardEditor);
 window.customCards=window.customCards||[];
 if(!window.customCards.some(card=>card.type==='music-manager-card'))window.customCards.push({
-  type:'music-manager-card',name:'Music Manager',description:'Sonos steuern und Sender aus dem Radio Browser abspielen. Mit HA UI Kit.',preview:true
+  type:'music-manager-card',name:'Music Manager',description:'Sonos, persönliche Radiofavoriten und Apple Music. Mit HA UI Kit.',preview:true
 });

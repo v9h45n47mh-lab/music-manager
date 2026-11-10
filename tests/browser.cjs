@@ -18,7 +18,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await reset();
  const card=()=>page.locator('music-manager-card').first();
  const action=(name)=>card().locator(`[data-action="${name}"]`);
- const dialog=()=>card().locator('dialog');
+ const dialog=()=>card().locator('#music-radio-dialog');
  await check('Play/Pause, previous and next use the configured player',async()=>{
   await action('play-pause').click();await page.waitForFunction(()=>demo.calls.length===1);
   assert.equal(await page.evaluate(()=>demo.calls[0].service),'media_pause');
@@ -110,14 +110,14 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    const editor=document.createElement('music-manager-card-editor');editor.setConfig({type:'custom:music-manager-card',entity:'media_player.wohnzimmer'});editor.hass=demo.makeHass();window.editorEvents=[];editor.addEventListener('config-changed',e=>{editorEvents.push(e.detail.config);editor.setConfig(e.detail.config);});document.querySelector('#editor-host').append(editor);
   });
   assert.equal(await page.locator('music-manager-card').nth(1).locator('[data-action="next"]').count(),0);
-  const editor=page.locator('music-manager-card-editor');await editor.locator('[data-ui-option]').first().waitFor({state:'attached'});
-  const options=await editor.locator('[data-ui-option]').evaluateAll(nodes=>nodes.map(e=>e.dataset.value));
+  const editor=page.locator('music-manager-card-editor');await editor.locator('#music-entity-options [data-ui-option]').first().waitFor({state:'attached'});
+  const options=await editor.locator('#music-entity-options [data-ui-option]').evaluateAll(nodes=>nodes.map(e=>e.dataset.value));
   assert.deepEqual(options.sort(),['media_player.maximilian_sonos','media_player.wohnzimmer']);
-  await editor.locator('#music-entity').fill('Maximilian');await editor.locator('[data-ui-option]').filter({hasText:'Sonos Maximilian'}).click();
+  await editor.locator('#music-entity').fill('Maximilian');await editor.locator('#music-entity-options [data-ui-option]').filter({hasText:'Sonos Maximilian'}).click();
   assert.equal(await page.evaluate(()=>editorEvents.at(-1).entity),'media_player.maximilian_sonos');
   assert.equal(await editor.locator('#music-name').count(),0);
   assert.equal(await editor.getByRole('switch',{name:'Stummschalten',exact:true}).count(),0);
-  assert.equal(await editor.locator('[role=listbox]').isVisible(),false);
+  assert.equal(await editor.locator('#music-entity-options').isVisible(),false);
   await editor.getByRole('switch',{name:'Nächster Titel',exact:true}).click();
   assert.equal(await page.evaluate(()=>editorEvents.at(-1).controls.next),false);
  });
@@ -223,6 +223,38 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   for(let remaining=2;remaining>0;remaining--){await dialog().getByRole('checkbox').first().click();await page.waitForFunction(n=>demo.cards[0]._favorites.length===n,remaining-1);}
   await dialog().getByText('Keine Favoritensender vorhanden.',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
   await page.keyboard.press('Escape');
+ });
+ await check('Apple Music logo tile opens personal playlists, catalog search and selected-box playback',async()=>{
+  await reset();const apple=card().locator('#music-apple-dialog');
+  assert.equal(await card().locator('[data-action="open-apple"] svg.music-apple-logo').count(),1);
+  await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  assert.match(await apple.locator('#music-apple-account').innerText(),/Manuel/);
+  await apple.locator('#music-apple-query').fill('Liebling');await apple.locator('#music-apple-query').press('Enter');
+  await apple.getByText('Beispieltitel: Liebling',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
+  const command=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
+  assert.equal(command.action,'play');assert.equal(command.entity_id,'media_player.ma_wohnzimmer');assert.equal(command.source_entity,'media_player.wohnzimmer');assert.equal(command.user_id,undefined);
+  await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.ma_wohnzimmer');
+ });
+ await check('Apple Music dialog handles missing setup, account changes and rejected playback',async()=>{
+  await reset();await page.evaluate(()=>demo.cards[0].setConfig({entity:'media_player.wohnzimmer'}));await action('open-apple').click();
+  const apple=card().locator('#music-apple-dialog');assert.match(await apple.innerText(),/Connector/);assert(await apple.locator('#music-apple-query').isDisabled());
+  await apple.getByRole('button',{name:'Schließen',exact:true}).click();
+  await page.evaluate(()=>demo.cards[0].setConfig({entity:'media_player.wohnzimmer',music_assistant_entity:'media_player.ma_wohnzimmer'}));
+  await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await page.evaluate(()=>{demo.wsHook=msg=>{if(msg.type==='music_manager/apple_music'&&msg.action==='play')throw new Error('Box nicht erreichbar');};});
+  await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.getByRole('alert').waitFor();assert(await apple.isVisible());
+  await page.evaluate(()=>demo.switchUser('maximilian'));await apple.waitFor({state:'hidden'});assert.equal(await apple.locator('#music-apple-results .setting-row').count(),0);
+ });
+ await check('Apple Music tile and picker fit desktop/mobile and light/dark themes',async()=>{
+  await reset();const apple=card().locator('#music-apple-dialog');
+  for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+   const bounds=await apple.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
+   await page.screenshot({path:path.join(screens,`apple-music-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+   await apple.getByRole('button',{name:'Schließen',exact:true}).click();
+  }
  });
  await check('native HA slider adapter uses the public event contract (test double)',async()=>{
   await reset();await page.evaluate(()=>{

@@ -1,13 +1,14 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.1.2';
+export const MUSIC_VERSION = '1.2.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Die Kartenkonfiguration muss ein Objekt sein.');
   if (typeof config.entity !== 'string' || !/^media_player\.[a-z0-9_]+$/.test(config.entity)) throw new Error('Bitte eine Sonos-Box als media_player auswählen.');
   if (config.name !== undefined && typeof config.name !== 'string') throw new Error('Der Kartenname muss ein Text sein.');
+  if (config.music_assistant_entity && (typeof config.music_assistant_entity !== 'string' || !/^media_player\.[a-z0-9_]+$/.test(config.music_assistant_entity))) throw new Error('Bitte die Music-Assistant-Entität derselben Sonos-Box auswählen.');
   if (config.controls !== undefined && (!config.controls || typeof config.controls !== 'object' || Array.isArray(config.controls))) throw new Error('controls muss ein Objekt sein.');
   const controls = {...CONTROL_DEFAULTS};
   for (const key of Object.keys(controls)) {
@@ -16,7 +17,7 @@ export function normalizeConfig(config) {
       controls[key] = config.controls[key];
     }
   }
-  return {...config,type:'custom:music-manager-card',entity:config.entity,name:config.name ?? '',controls};
+  return {...config,type:'custom:music-manager-card',entity:config.entity,music_assistant_entity:config.music_assistant_entity||'',name:config.name ?? '',controls};
 }
 
 export function hasFeature(state, name) { return Boolean((Number(state?.attributes?.supported_features) || 0) & FEATURES[name]); }
@@ -50,6 +51,15 @@ export function sonosOptions(hass, entries) {
   const registry = entries || Object.values(hass?.entities || {});
   return registry.filter(e => e.platform === 'sonos' && e.entity_id?.startsWith('media_player.') && !e.disabled_by && hass?.states?.[e.entity_id])
     .map(e => ({value:e.entity_id,label:hass.states[e.entity_id].attributes?.friendly_name || e.entity_id,description:e.entity_id}))
+    .sort((a,b)=>a.label.localeCompare(b.label));
+}
+
+export function musicAssistantOptions(hass, entries, sourceEntity) {
+  const registry=entries || Object.values(hass?.entities || {});
+  const uid=id=>String(id||'').toLowerCase().match(/rincon_[a-z0-9]+/)?.[0];
+  const source=registry.find(e=>e.entity_id===sourceEntity), sourceUid=uid(source?.unique_id);
+  return registry.filter(e=>e.platform==='music_assistant' && e.entity_id?.startsWith('media_player.') && !e.disabled_by && hass?.states?.[e.entity_id] && (!sourceUid || uid(e.unique_id)===sourceUid))
+    .map(e=>({value:e.entity_id,label:hass.states[e.entity_id].attributes?.friendly_name||e.entity_id,description:e.entity_id}))
     .sort((a,b)=>a.label.localeCompare(b.label));
 }
 

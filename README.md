@@ -1,4 +1,4 @@
-# Music Manager 1.1.2
+# Music Manager 1.2.0
 
 ![Music Manager](brand/icon.png)
 
@@ -6,7 +6,7 @@
 
 Dashboard-Karte für Home Assistant mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
-Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Es wird keine eigene Python-Integration benötigt.
+Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Radio und Favoriten funktionieren weiter als eigenständige Karte. Für Apple Music gibt es zusätzlich einen optionalen HA-Connector und eine eigene Kachel mit Logo.
 
 ## Installation aus dem ZIP
 
@@ -17,7 +17,7 @@ Voraussetzungen: Home Assistant **2026.11 oder neuer** sowie die offiziellen Int
 3. Füge diese Ressource mit Typ **JavaScript-Modul** hinzu:
 
    ```text
-   /local/music-manager/music-manager-card.js?v=1.1.2
+   /local/music-manager/music-manager-card.js?v=1.2.0
    ```
 
 4. Lade die Home-Assistant-Seite vollständig neu. Öffne dein Dashboard im Bearbeitungsmodus und füge die Karte **Music Manager** hinzu. Wähle im Karteneditor die **Sonos-Box** und die gewünschten Bedienelemente.
@@ -43,6 +43,36 @@ controls:
 ```
 
 Für einen weiteren Raum kannst du eine zweite Karte mit einer anderen Sonos-Entität anlegen. Prüfe die Entitätsnamen in deinem aktuellen HA-System. Du kannst die Einstellungen anschließend im visuellen Karteneditor ändern. Alle fünf Bedienelemente sind standardmäßig sichtbar.
+
+## Apple Music
+
+Die **Apple-Music-Kachel mit Logo** steht direkt unter den Bedienelementen bei den Senderfavoriten. Sie öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
+
+Apple Music benötigt einen aktiven Zugang und **Music Assistant mit Apple-Music-Anbieter, Benutzerverwaltung und Musikquellenfiltern**. Die normale HA-Sonos-Integration allein stellt keinen persönlichen Apple-Music-Katalog bereit. Die Apple-Anmeldung erfolgt ausschließlich in Music Assistant; in der Karte oder in Music Manager werden keine Apple-Passwörter, Cookies oder Tokens eingetragen.
+
+### Einmalige Einrichtung
+
+1. Richte den Music-Assistant-Server und die offizielle **Music Assistant**-Integration in HA ein. Füge die Box über den nativen **Sonos-Player-Anbieter** in Music Assistant hinzu. Verwende für diese Karte die MA-Entität dieser Sonos-Box, keine allgemeine Weiterleitung eines HA-Players.
+2. Füge unter **Music Assistant → Einstellungen → Musikquellen** für jede Person eine eigene Apple-Music-Instanz hinzu und melde dort das jeweilige Apple-Konto an. Vergib eindeutige Namen, zum Beispiel „Apple Music Manuel“.
+3. Lege in Music Assistant für jede Person einen aktiven Benutzer mit der Rolle **Benutzer** an. Beschränke dessen **Musikquellen** auf **genau die zugehörige Apple-Music-Instanz**. Ein Administrator oder ein Benutzer mit leerem Quellenfilter ist für diese Zuordnung nicht geeignet. Optionale Playerbeschränkungen müssen die Box freigeben.
+4. Kopiere aus dem Release-ZIP **`custom_components/music_manager`** nach **`/config/custom_components/music_manager`** und starte HA neu. Diesen zusätzlichen Connector musst du auch bei einer vorhandenen HACS-Dashboard-Installation einmalig installieren; HACS lädt als Dashboard nur die Karte herunter.
+5. Füge unter **Einstellungen → Geräte & Dienste → Integration hinzufügen → Music Manager** die bestehende Music-Assistant-Verbindung hinzu. Sie benötigt administrative Rechte zum Lesen und Prüfen der MA-Benutzer. Öffne danach **Music Manager → Konfigurieren → Benutzerzuordnung hinzufügen oder ändern** und wähle **HA-Benutzer, MA-Benutzer und Apple-Music-Konto**.
+6. Wähle im visuellen Karteneditor unter **Apple Music: Music-Assistant-Entität derselben Box** den passenden Player. Native Sonos- und MA-Entität werden anhand ihrer Sonos-Hardwarekennung geprüft. Bei der Auswahl einer anderen Sonos-Box wird diese zusätzliche Entität zurückgesetzt.
+7. Öffne die **Apple-Music-Kachel**. Suche Musik oder wähle Playlists, Alben bzw. Titel und tippe auf **Abspielen**.
+
+Die Zuordnung ist **1:1 pro HA-Benutzer**, unabhängig von Box oder Dashboard. Ein MA-Benutzer und eine Apple-Music-Instanz können nicht zwei HA-Benutzern zugeordnet werden. Änderungen und Entfernungen erfolgen unter **Music Manager → Konfigurieren**. Die Karte übergibt keine Benutzer- oder Konto-ID; der Connector bestimmt den aktuellen Benutzer anhand der authentifizierten HA-Verbindung und prüft die Zuordnung bei jeder Anfrage erneut. Gelöschte oder nicht verfügbare Konten, leere Quellenfilter und fehlende Zuordnungen führen zu einem Einrichtungshinweis. Es gibt keinen Wechsel auf ein anderes Konto. Beim Benutzerwechsel werden offene Apple-Music-Ergebnisse entfernt.
+
+Fehlt die Einrichtung, zeigt die Kachel die erforderlichen Schritte. Radio und persönliche Senderfavoriten bleiben verfügbar. Für spätere Connector-Updates den Ordner aus dem jeweiligen ZIP erneut kopieren und HA neu starten; die Benutzerzuordnungen bleiben als HA-Konfigurationsoptionen erhalten.
+
+Beispiel mit Apple Music:
+
+```yaml
+type: custom:music-manager-card
+entity: media_player.wohnzimmer
+music_assistant_entity: media_player.sonos_wohnzimmer_music_assistant
+```
+
+Der zweite Entitätsname ist ein Beispiel: Wähle den tatsächlich von Music Assistant angelegten Player derselben Sonos-Box.
 
 ## Persönliche Favoriten
 
@@ -70,7 +100,7 @@ Das Quellprojekt enthält `hacs.json` für die Bereitstellung als **Dashboard-/L
 
 ## Vorschau und Quellcode
 
-`Vorschau.html` lässt sich direkt im Browser öffnen. Sie enthält zwei unabhängige Beispielkarten, Beispielsender und einen Schalter für helle/dunkle Darstellung. Die Vorschau steuert keine echten Boxen. Das vollständige Projekt im Ordner `source/` enthält Quellcode, die unveränderte UI-Kit-Version, Prüfsummen, Buildskripte und Tests.
+`Vorschau.html` lässt sich direkt im Browser öffnen. Sie enthält zwei unabhängige Beispielkarten, Beispielsender und einen Schalter für helle/dunkle Darstellung. Die Vorschau zeigt auch die Apple-Music-Kachel und simulierte Mediathek. Sie steuert keine echten Boxen und meldet kein echtes Apple-Konto an. Das vollständige Projekt im Ordner `source/` enthält Quellcode, die unveränderte UI-Kit-Version, Prüfsummen, Buildskripte und Tests.
 
 Der UI-Baukasten stammt aus [v9h45n47mh-lab/ha-ui-kit](https://github.com/v9h45n47mh-lab/ha-ui-kit), Release 1.2.2, Commit `6e398ba9415ed5a0b64e9703d11ab935ee7ea47d`. Schrift, Formulare, Buttons, Listenzeilen, Schalter, Reglerlogik und Dialoge stammen aus dem Kit. Die vier Medientasten, der originale HA-Lautstärkeregler und die Favoritenkacheln erhalten eine auf den vorgegebenen Screenshot abgestimmte Musikdarstellung mit Home-Assistant-Themefarben. Der Lautstärkeregler wird direkt von Home Assistant bereitgestellt. Beim Laden und in der Offline-Vorschau dient der unveränderte UI-Kit-Regler mit Prozentanzeige als Ersatz. Diese Ergänzung ist auf die Musikkomponenten begrenzt; die Kit-Dateien bleiben unverändert. Es gibt keinen Laufzeitdownload des Kits und kein CDN.
 
@@ -89,16 +119,19 @@ npm run test:browser
 
 `npm run build:icons` erzeugt die PNG-Logos aus der SVG-Vorlage. `python3 scripts/package.py` erstellt das Installationspaket einschließlich Vorschau.
 
-**Durchgeführt:** Build, Prüfsummenprüfung der fest eingebundenen UI-Kit-Dateien und 28 erfolgreiche Funktions-/DOM-Tests mit simuliertem Home Assistant. Geprüft wurden insbesondere Service-Ziele, Radio-Browser-Payloads, Regler, Editor, parallele Karten, persönliche Favoriten, Synchronisierung, Benutzerwechsel, Speicherfehler, Logos, Fehler, verspätete Antworten und sichere Textausgabe.
+**Durchgeführt:** Build, Prüfsummenprüfung der fest eingebundenen UI-Kit-Dateien und 34 erfolgreiche Testfälle (darin 13 Python-Prüfungen zur Kontotrennung) mit simuliertem Home Assistant. Geprüft wurden insbesondere Service-Ziele, Radio-Browser-Payloads, Regler, Editor, parallele Karten, persönliche Favoriten, Synchronisierung, Benutzerwechsel, Speicherfehler, Logos, Fehler, verspätete Antworten und sichere Textausgabe.
 
-**Browserprüfung:** GitHub Actions führt zusätzlich 17 Browser-Szenarien mit Chromium aus, einschließlich Desktop-/Handyansicht bei 320, 375, 390, 430 und 1100 Pixeln, hellen/dunklen Themes, Editor, Fokusverhalten und Schriftvergleich mit unveränderten UI-Kit-Komponenten. Der aktuelle Prüfstatus ist über das Badge oben erreichbar; die Ansichten stehen als Workflow-Artefakte bereit.
+**Browserprüfung:** GitHub Actions führt zusätzlich 20 Browser-Szenarien mit Chromium aus, einschließlich Desktop-/Handyansicht bei 320, 375, 390, 430 und 1100 Pixeln, hellen/dunklen Themes, Apple-Music-Kachel und -Dialog, Editor, Fokusverhalten und Schriftvergleich mit unveränderten UI-Kit-Komponenten. Der aktuelle Prüfstatus ist über das Badge oben erreichbar; die Ansichten stehen als Workflow-Artefakte bereit.
 
-**Noch offen:** Wiedergabe auf echter Sonos-Hardware. Tests mit simulierten HA-Daten ersetzen keinen Test an deiner Box.
+**Noch offen:** Einrichtung in einer echten HA-Instanz, Apple-OAuth-Anmeldung und Wiedergabe auf echter Sonos-Hardware. Tests mit simulierten HA-Daten ersetzen keinen Test an deiner Box.
 
 ## Technische Referenzen
 
 - [HA-Benutzerspeicher und Live-Synchronisierung](https://github.com/home-assistant/core/blob/2026.11.1/homeassistant/components/frontend/storage.py)
 - [Home Assistant: Radio Browser](https://www.home-assistant.io/integrations/radio_browser/)
+- [Music Assistant: Apple Music](https://www.music-assistant.io/music-providers/apple-music/)
+- [Music Assistant: Benutzer und Musikquellenfilter](https://www.music-assistant.io/settings/user-management/)
+- [Home Assistant: Music Assistant](https://www.home-assistant.io/integrations/music_assistant/)
 - [Home Assistant: Sonos](https://www.home-assistant.io/integrations/sonos/)
 - [Home Assistant: Media Player](https://www.home-assistant.io/integrations/media_player/)
 - [Radio-Browser-Implementierung in HA 2026.11.1](https://github.com/home-assistant/core/blob/2026.11.1/homeassistant/components/radio_browser/media_source.py)
