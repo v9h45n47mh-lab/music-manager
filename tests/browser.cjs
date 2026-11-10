@@ -80,7 +80,9 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.keyboard.press('Escape');
   await card().locator('#music-volume').focus();
   await card().locator('#music-volume').evaluate(input=>{input.value='63';input.dataset.preserved='yes';input.dispatchEvent(new Event('input',{bubbles:true}));});
+  console.log('SLIDER BEFORE',await card().evaluate(c=>({active:c.shadowRoot.activeElement?.outerHTML,slider:c.shadowRoot.querySelector('#music-volume').outerHTML,deferred:c._deferredPlayer,busy:c._busy})));
   await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{volume_level:0.1}}));
+  console.log('SLIDER AFTER',await card().evaluate(c=>({active:c.shadowRoot.activeElement?.outerHTML,slider:c.shadowRoot.querySelector('#music-volume').outerHTML,deferred:c._deferredPlayer,busy:c._busy})));
   assert.equal(await card().locator('#music-volume').getAttribute('data-preserved'),'yes');assert.equal(await card().locator('#music-volume').inputValue(),'63');
   await action('open-radio').focus();assert.equal(await card().locator('#music-volume').inputValue(),'10');
  });
