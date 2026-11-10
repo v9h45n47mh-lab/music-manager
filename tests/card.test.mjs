@@ -185,3 +185,24 @@ test('standard fallback shows percentage immediately during input without a serv
  slider.dispatchEvent(new env.window.Event('input',{bubbles:true}));await flush();
  assert.equal(a.shadowRoot.querySelector('output').textContent,'64 %');assert.equal(slider.getAttribute('aria-valuetext'),'64 %');assert.equal(env.calls.length,0);
 });
+test('favorite management lists every user favorite and removes it from all cards without Radio Browser',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');await flush();
+ env.favoriteData.set('manuel',[station('one','Eins'),station('two','Zwei'),station('three','Drei')]);env.notifyFavorites('manuel');
+ env.failBrowse=true;env.update('media_player.a',{state:'unavailable'});env.click(a,'open-radio');await flush();env.click(a,'manage-favorites');
+ const boxes=()=>[...a.shadowRoot.querySelectorAll('[data-managed-favorite-id]')];
+ assert.equal(boxes().length,3);assert(boxes().every(input=>input.hasAttribute('checked')&&!input.disabled));assert.equal(a.shadowRoot.querySelector('#search-field').hidden,true);
+ for(let remaining=3;remaining>0;remaining--){const input=boxes()[0];input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(boxes().length,remaining-1);assert.equal(b._favorites.length,remaining-1);}
+ assert.match(a.shadowRoot.querySelector('#music-radio-results').textContent,/Keine Favoritensender/);assert.equal(env.calls.length,0);
+ env.favoriteData.set('manuel',[station('private','Privater Sender')]);env.notifyFavorites('manuel');env.switchUser('paul');
+ assert(!a.shadowRoot.querySelector('#music-radio-results').textContent.includes('Privater Sender'));await flush();assert.equal(boxes().length,0);
+});
+test('favorite management ignores late browse results and retains checked favorite after write failure',async()=>{
+ const env=setup(),a=env.add();await flush();env.favoriteData.set('manuel',[station('one','Eins')]);env.notifyFavorites('manuel');
+ env.click(a,'open-radio');await flush();let finish;
+ env.wsHook=msg=>msg.media_content_id===ROOT+'/popular'?new Promise(r=>{finish=()=>r({children:[station('other','Anderer Sender')]})}):undefined;
+ env.click(a,'popular');await flush();env.click(a,'manage-favorites');finish();await flush();
+ assert.equal(a._favoriteMode,true);assert(!a.shadowRoot.querySelector('#music-radio-results').textContent.includes('Anderer Sender'));
+ env.failFavorites=true;let input=a.shadowRoot.querySelector('[data-managed-favorite-id]');input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();
+ assert.match(a.shadowRoot.querySelector('#music-radio-status').textContent,/nicht gespeichert/);assert.equal(a._favorites.length,1);assert(a.shadowRoot.querySelector('[data-managed-favorite-id]').hasAttribute('checked'));
+ env.failFavorites=false;input=a.shadowRoot.querySelector('[data-managed-favorite-id]');input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(a._favorites.length,0);
+});

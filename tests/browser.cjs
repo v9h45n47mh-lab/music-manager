@@ -201,6 +201,29 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    await page.screenshot({path:path.join(screens,`radio-${width}-${dark?'dark':'light'}.png`),fullPage:true});await page.keyboard.press('Escape');
   }
  });
+ await check('favorite management lists checked favorites, persists removal and works without Radio Browser',async()=>{
+  await reset();await page.evaluate(()=>{
+   demo.seedFavorites('manuel',[{...demo.station('swr3','SWR3'),thumbnail:'/brand/icon.png'},demo.station('bigfm','bigFM Deutschland'),demo.station('energy','Radio Energy Stuttgart')]);
+   demo.failBrowse=true;demo.update('media_player.wohnzimmer',{state:'unavailable'});
+  });
+  await action('open-radio').click();await dialog().getByRole('alert').waitFor();
+  await dialog().getByRole('button',{name:'Favoriten verwalten',exact:true}).click();
+  assert.equal(await dialog().getByRole('checkbox').count(),3);assert(await dialog().getByRole('checkbox').first().isChecked());
+  for(const width of [375,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   assert(!await dialog().evaluate(el=>el.scrollWidth>el.clientWidth));
+   await page.screenshot({path:path.join(screens,`favorites-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+  }
+  await dialog().getByRole('checkbox',{name:'Favorit behalten: SWR3',exact:true}).uncheck();
+  await page.waitForFunction(()=>demo.cards.every(c=>c._favorites.length===2));
+  assert.equal(await dialog().getByRole('checkbox').count(),2);assert.equal(await page.evaluate(()=>demo.favoriteData.get('manuel').length),2);
+  await page.evaluate(()=>demo.failFavorites=true);await dialog().getByRole('checkbox').first().uncheck();await dialog().getByRole('alert').waitFor();
+  assert(await dialog().getByRole('checkbox').first().isChecked());
+  await page.evaluate(()=>demo.failFavorites=false);
+  for(let remaining=2;remaining>0;remaining--){await dialog().getByRole('checkbox').first().uncheck();await page.waitForFunction(n=>demo.cards[0]._favorites.length===n,remaining-1);}
+  await dialog().getByText('Keine Favoritensender vorhanden.',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
+  await page.keyboard.press('Escape');
+ });
  await check('native HA slider adapter uses the public event contract (test double)',async()=>{
   await reset();await page.evaluate(()=>{
    customElements.define('ha-control-slider',class extends HTMLElement {});

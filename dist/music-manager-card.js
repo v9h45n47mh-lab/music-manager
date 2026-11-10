@@ -1,4 +1,4 @@
-/* Music Manager 1.1.1 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 1.1.2 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.2.2 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.2.2";
@@ -530,7 +530,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.1.1';
+export const MUSIC_VERSION = '1.1.2';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -671,6 +671,7 @@ class MusicManagerCard extends HTMLElement {
     super();
     this.attachShadow({mode:'open'});
     this._favorites = [];
+    this._favoriteMode = false;
     this._favoriteEpoch = 0;
     this._favoriteLoading = false;
     this._favoriteBusy = false;
@@ -746,7 +747,7 @@ class MusicManagerCard extends HTMLElement {
       ${dialog({id:'music-radio-dialog',title:'Radio Browser',content:`<div class="music-browser">
         <form id="music-search-form" class="music-browser">
           <div id="search-field">${field({id:'music-radio-query',label:'Sender suchen',type:'search',placeholder:'z. B. SWR3 oder Rock',maxLength:200,autocomplete:'off'})}</div>
-          <div class="toolbar">${button({label:'Suchen',action:'search',variant:'primary'})}${button({label:'Beliebt',action:'popular'})}${button({label:'Deutschland',action:'germany'})}${button({label:'Kategorien',action:'root'})}</div>
+          <div class="toolbar">${button({label:'Suchen',action:'search',variant:'primary'})}${button({label:'Beliebt',action:'popular'})}${button({label:'Deutschland',action:'germany'})}${button({label:'Kategorien',action:'root'})}${button({label:'Favoriten verwalten',action:'manage-favorites'})}</div>
         </form>
         <div id="music-radio-status" aria-live="polite"></div>
         <div id="music-radio-path"></div>
@@ -755,6 +756,14 @@ class MusicManagerCard extends HTMLElement {
     this._player = this.shadowRoot.getElementById('player');
     this._dialog = this.shadowRoot.getElementById('music-radio-dialog');
     this._searchInput = this.shadowRoot.getElementById('music-radio-query');
+    this.shadowRoot.addEventListener('change',event=>{
+      const input=event.target;
+      if(!input.matches?.('input[data-managed-favorite-id]') || input.checked || input.disabled)return;
+      const station=this._favorites.find(s=>s.media_content_id===input.dataset.managedFavoriteId);
+      if(!station)return;
+      this._pendingFavoriteFocus={id:station.media_content_id,index:this._favorites.indexOf(station)};
+      void this._toggleFavorite(station,false);
+    });
     this._searchInput.addEventListener('input',()=>{this._query=this._searchInput.value;});
     this.shadowRoot.getElementById('music-search-form').addEventListener('submit',event=>{event.preventDefault();void this._search();});
     this._dialog.addEventListener('close',()=>{
@@ -784,6 +793,7 @@ class MusicManagerCard extends HTMLElement {
     this._favoriteUser=null;
     this._favoriteConnection=null;
     this._favoriteBusy=false;
+    this._favoriteRemovingId=null;this._pendingFavoriteFocus=null;
     this._favorites=[];
   }
 
@@ -799,7 +809,7 @@ class MusicManagerCard extends HTMLElement {
     const epoch=this._favoriteEpoch;
     // Clear the previous user's shortcuts immediately, even during a drag.
     this.shadowRoot.activeElement?.blur?.();
-    this._renderPlayer();
+    this._renderPlayer();if(this._dialog.open)this._renderBrowser();
     if(!user)return;
     const apply=response=>{
       if(epoch!==this._favoriteEpoch)return;
@@ -823,10 +833,11 @@ class MusicManagerCard extends HTMLElement {
     })();
   }
 
-  async _toggleFavorite(station) {
+  async _toggleFavorite(station,enabled) {
     if(this._favoriteBusy || this._favoriteLoading || !station?.can_play)return;
     const epoch=this._favoriteEpoch, hass=this._hass;
-    const enabled=!this._favorites.some(s=>s.media_content_id===station.media_content_id);
+    enabled??=!this._favorites.some(s=>s.media_content_id===station.media_content_id);
+    this._favoriteRemovingId=enabled?null:station.media_content_id;
     this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();
     try {
       const favorites=await saveFavorite(hass,station,enabled);
@@ -834,7 +845,7 @@ class MusicManagerCard extends HTMLElement {
     } catch(error) {
       if(epoch===this._favoriteEpoch)this._favoriteError='Favoriten konnten nicht gespeichert werden: '+errorText(error);
     } finally {
-      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._renderPlayer();this._renderBrowser();}
+      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._favoriteRemovingId=null;this._renderPlayer();this._renderBrowser();}
     }
   }
 
@@ -937,6 +948,8 @@ class MusicManagerCard extends HTMLElement {
 
   async _action({action,data,value,phase,checked}) {
     switch(action) {
+      case 'manage-favorites':
+        this._request++;this._browseLoading=false;this._favoriteMode=true;this._radioError='';this._error='';this._renderBrowser();break;
       case 'reload-favorites': this._disconnectFavorites();this._connectFavorites();break;
       case 'toggle-favorite': await this._toggleFavorite(this._browserItems[Number(data.index)]);break;
       case 'play-favorite': {const station=this._favorites[Number(data.index)];if(station)await this._playStation(station);break;}
@@ -1015,13 +1028,14 @@ class MusicManagerCard extends HTMLElement {
   async _openRadio() {
     if(!this._dialog.open)this._dialog.showModal();
     this._error='';this._radioError='';
-    if(!this._browseReady)await this._browse(RADIO_ROOT,'Kategorien',true);
+    if(!this._browseReady&&!this._favoriteMode)await this._browse(RADIO_ROOT,'Kategorien',true);
     else this._renderBrowser();
-    if(this._dialog.open)this._searchInput.focus();
+    if(this._dialog.open&&!this._favoriteMode)this._searchInput.focus();
   }
 
   async _browse(id,title,reset=false,explicitPath) {
     if(!this._hass || !isRadioId(id))return;
+    this._favoriteMode=false;this._pendingFavoriteFocus=null;
     const token=++this._request;
     this._browseLoading=true;this._radioError='';this._error='';
     this._query='';this._searchInput.value='';
@@ -1047,6 +1061,7 @@ class MusicManagerCard extends HTMLElement {
     const query=this._searchInput.value.trim().slice(0,200);
     this._query=query;
     if(!query){await this._browse(RADIO_ROOT,'Kategorien',true);return;}
+    this._favoriteMode=false;this._pendingFavoriteFocus=null;
     const token=++this._request;
     this._browseLoading=true;this._radioError='';this._error='';this._renderBrowser();
     try {
@@ -1074,7 +1089,29 @@ class MusicManagerCard extends HTMLElement {
     const status=this.shadowRoot.getElementById('music-radio-status');
     const results=this.shadowRoot.getElementById('music-radio-results');
     const path=this.shadowRoot.getElementById('music-radio-path');
-    status.innerHTML=(this._favoriteError?notice(this._favoriteError,{error:true}):'')+(this._radioError?notice(this._radioError,{error:true}):'')+(this._error?notice(this._error,{error:true}):'')+(this._browseLoading?loadingState('Radiosender werden geladen …'):this._busy?loadingState('Sender wird gestartet …'):'');
+    const manager=this._favoriteMode;
+    this.shadowRoot.getElementById('music-radio-dialog-title').textContent=manager?'Favoriten verwalten':'Radio Browser';
+    this.shadowRoot.getElementById('search-field').hidden=manager;
+    this._dialog.querySelector('[data-action="search"]').hidden=manager;
+    this._dialog.querySelector('[data-action="manage-favorites"]').setAttribute('aria-pressed',String(manager));
+    for(const control of this._dialog.querySelectorAll('form button'))control.disabled=this._busy;
+    this._searchInput.disabled=this._busy||manager;
+    status.innerHTML=(this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):'')+(this._radioError?notice(this._radioError,{error:true}):'')+(this._error?notice(this._error,{error:true}):'')+(manager&&this._favoriteLoading?loadingState('Favoriten werden geladen …'):this._favoriteBusy?loadingState('Favoriten werden gespeichert …'):this._browseLoading?loadingState('Radiosender werden geladen …'):this._busy?loadingState('Sender wird gestartet …'):'');
+    results.setAttribute('aria-label',manager?'Favoritensender verwalten':'Radiosender und Kategorien');
+    if(manager) {
+      path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Häkchen entfernen, um einen Sender aus deinen Favoriten und der Kurzwahl zu entfernen.'});
+      results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
+      results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map(item=>`<div class="music-station-row">${logoMarkup(item)}${row({
+        title:item.title,
+        trailing:`<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label>`
+      })}</div>`).join(''):emptyState('Keine Favoritensender vorhanden. Über den Stern in der Sendersuche kannst du Favoriten hinzufügen.');
+      if(this._pendingFavoriteFocus&&!this._favoriteBusy) {
+        const {id,index}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
+        (inputs.find(input=>input.dataset.managedFavoriteId===id)||inputs[Math.min(index,inputs.length-1)]||this._dialog.querySelector('[data-action="manage-favorites"]')).focus();
+        this._pendingFavoriteFocus=null;
+      }
+      return;
+    }
     const pathLabel=this._searchMode ? `Suchergebnisse: ${this._resultQuery}` : this._path.map(p=>p.title).join(' / ');
     path.innerHTML=row({title:pathLabel||'Radio Browser',description:this._browseLoading?'':`${this._browserItems.length} Einträge`,trailing:this._path.length>1||this._searchMode?iconButton({icon:'left',label:'Zurück zu den Kategorien',action:'back',disabled:this._busy}):''});
     results.setAttribute('aria-busy',String(this._browseLoading));
@@ -1083,8 +1120,6 @@ class MusicManagerCard extends HTMLElement {
       description:item.can_expand?'Kategorie':'Radiosender',
       trailing:item.can_expand ? iconButton({icon:'right',label:'Kategorie öffnen: '+item.title,action:'browse-item',data:{index},disabled:this._busy}) : musicButton({label:(this._favorites.some(s=>s.media_content_id===item.media_content_id)?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'toggle-favorite',data:{index},pressed:this._favorites.some(s=>s.media_content_id===item.media_content_id),disabled:this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id})+button({label:'Abspielen',action:'play-station',data:{index},disabled:this._busy||!isAvailable(this._state)||!hasFeature(this._state,'playMedia')})
     })}</div>`).join(''):this._radioError?'':emptyState(this._searchMode?'Keine passenden Sender gefunden. Versuche einen anderen Namen.':'Keine Einträge in dieser Kategorie.');
-    for(const control of this._dialog.querySelectorAll('form button'))control.disabled=this._busy;
-    this._searchInput.disabled=this._busy;
   }
 }
 

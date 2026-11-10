@@ -1,6 +1,6 @@
 {
   "name": "music-manager-card",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -11,5 +11,9 @@
     "test:browser": "node tests/browser.cjs",
     "build:icons": "node scripts/build-icons.cjs"
   },
-  "devDependencies": { "playwright": "1.62.1", "sharp": "0.35.5", "linkedom": "0.18.15" }
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "sharp": "0.35.5",
+    "linkedom": "0.18.15"
+  }
 }

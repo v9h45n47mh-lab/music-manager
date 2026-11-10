@@ -1,11 +1,12 @@
-Der Lautstärkeregler verwendet jetzt das originale Home-Assistant-Bedienelement (`ha-control-slider`).
+Unter „Sender wählen“ gibt es jetzt den Punkt „Favoriten verwalten“.
 
-- Standarddarstellung und Themefarben von Home Assistant, ohne lokale Nachbildung des Balkens oder Griffs.
-- Prozentanzeige während des Ziehens und bei Tastaturbedienung.
-- Lautstärkebefehl erst beim Loslassen bzw. Bestätigen.
-- Keine separate Stumm-Taste; 0 schaltet lautlos.
-- Persönliche Favoriten, Senderlogos und Wiedergabetasten bleiben erhalten.
+- Liste aller Favoriten des angemeldeten Benutzers mit Logo, Namen und Häkchen.
+- Häkchen entfernen, um einen Sender aus den Favoriten und der Kurzwahl abzuwählen.
+- Änderungen werden auf die anderen Karten und Geräte desselben Benutzers übertragen.
+- Verwaltung auch bei nicht erreichbarer Box oder nicht verfügbarem Radio Browser.
+- Fehler beim Speichern bleiben sichtbar; der Favorit bleibt bei einem Fehler erhalten.
+- Standard-Lautstärkeregler mit Prozentanzeige und Wiedergabetasten bleiben erhalten.
 
-Installation: In HACS auf 1.1.1 aktualisieren und das Dashboard vollständig neu laden. Manuell: JS-Datei ersetzen und Ressourcenparameter `?v=1.1.1` verwenden. Der UI-Kit-Standardregler mit Prozentanzeige bleibt während des Ladens und in der Offline-Vorschau als Ersatz verfügbar.
+In HACS auf 1.1.2 aktualisieren und das Dashboard vollständig neu laden. Manuell: JS-Datei ersetzen und Ressourcenparameter `?v=1.1.2` verwenden.
 
-Funktions- und Browserprüfungen prüfen Reglerereignisse, die Prozentanzeige, Senderfavoriten und die Darstellung bei 320, 375, 390, 430 und 1100 Pixeln in hellen und dunklen Themes. Ein Test auf echter Sonos-Hardware steht weiterhin aus.
+Funktions- und Browserprüfungen einschließlich Favoritenverwaltung, Benutzertrennung, Fehlerbehandlung und Handy-/Desktopansichten in hellen und dunklen Themes. Ein Test auf echter Sonos-Hardware steht weiterhin aus.
