@@ -2,6 +2,8 @@
 
 ![Music Manager](brand/icon.png)
 
+[![Prüfungen](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml/badge.svg)](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml)
+
 Dashboard-Karte für Home Assistant mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
 Play/Pause, vorheriger/nächster Titel, Lautstärkeregler und Stummschalten lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Es wird keine eigene Python-Integration benötigt.
@@ -71,7 +73,7 @@ Der UI-Baukasten stammt aus [v9h45n47mh-lab/ha-ui-kit](https://github.com/v9h45n
 Im Quellprojekt:
 
 ```sh
-npm install
+npm ci
 npm run build
 npm run check
 npm test
@@ -83,7 +85,9 @@ npm run test:browser
 
 **Durchgeführt:** Build, Prüfsummenprüfung der fest eingebundenen UI-Kit-Dateien und 16 erfolgreiche Funktions-/DOM-Tests mit simuliertem Home Assistant. Geprüft wurden insbesondere Service-Ziele, Radio-Browser-Payloads, Regler, Editor, parallele Karten, Fehler, verspätete Antworten und sichere Textausgabe.
 
-**Noch offen:** Ein echter Browserdurchlauf mit Desktop-/Handyansicht und hellen/dunklen Themes sowie Wiedergabe auf echter Sonos-Hardware. Der lokale Browserstart war in der Erstellungsumgebung technisch blockiert; der separate Vorschauzugriff wurde von der Browser-Sicherheitsrichtlinie abgelehnt. Die vorbereitete Browser-Testdatei enthält diese Ansichts- und Interaktionsprüfungen. Tests mit simulierten HA-Daten ersetzen keinen Test an deiner Box.
+**Browserprüfung:** GitHub Actions führt zusätzlich zwölf Browser-Szenarien mit Chromium aus, einschließlich Desktop-/Handyansicht bei 375, 390, 430 und 1100 Pixeln, hellen/dunklen Themes, Editor, Fokusverhalten und Schriftvergleich mit unveränderten UI-Kit-Komponenten. Der aktuelle Prüfstatus ist über das Badge oben erreichbar; die Ansichten stehen als Workflow-Artefakte bereit.
+
+**Noch offen:** Wiedergabe auf echter Sonos-Hardware. Tests mit simulierten HA-Daten ersetzen keinen Test an deiner Box.
 
 ## Technische Referenzen
 
