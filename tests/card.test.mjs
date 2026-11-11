@@ -228,6 +228,35 @@ test('Apple Music automatically resolves every card box without a manual MA enti
  a.setConfig({entity:'media_player.b'});assert.equal(a._appleEntity,'');assert.equal(a._controlEntity,'media_player.b');
  env.switchUser('maximilian');assert.equal(b._appleEntity,'');assert.equal(b._appleAccount,'');
 });
+test('filtered Apple status stays actionable without a player fallback and retries after access is granted',async()=>{
+ for(const manual of [false,true])for(const response of [null,{},[],{entity_id:null}]){
+  const env=setup();env.wsHook=msg=>msg.type==='music_manager/apple_music'?response:undefined;
+  const card=env.add();if(manual)card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+  env.switchUser('paul');await flush();
+  env.click(card,'open-apple');await flush();
+  assert.equal(card._appleDialog.open,true);assert.equal(card._appleLoading,false);assert.equal(card._appleReady,false);
+  assert.equal(card._appleEntity,'');assert.equal(card._appleAccount,'');assert.equal(card._appleItems.length,0);
+  assert.match(card._appleDialog.textContent,/Music-Assistant-Entität.*Access Control.*Label/);
+  assert(!card._appleDialog.textContent.includes('Cannot read properties'));
+  assert.equal(card._appleQuery.disabled,true);assert.equal(card._controlEntity,'media_player.a');
+  assert(env.wsCalls.filter(m=>m.type==='music_manager/apple_music').every(m=>m.action==='status'));
+  assert.equal(env.calls.length,0);
+  env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Paul',entity_id:'media_player.ma_a'}:{items:[{uri:'apple_music--paul://playlist/42',title:'Pauls Playlist'}]}:undefined;
+  card._appleDialog.close();env.click(card,'open-apple');await flush();
+  assert.equal(card._appleAccount,'Paul');assert.equal(card._appleReady,true);assert.equal(card._appleQuery.disabled,false);
+  assert.equal(card._appleItems[0].title,'Pauls Playlist');assert.equal(card._appleError,'');card.remove();
+ }
+});
+test('filtered Apple catalog and play results never become a false empty library or successful start',async()=>{
+ const env=setup();env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Paul',entity_id:'media_player.ma_a'}:null:undefined;
+ const card=env.add();env.click(card,'open-apple');await flush();
+ assert.match(card._appleError,/leer oder unvollständig/);assert.equal(card._appleLoading,false);assert.equal(card._appleItems.length,0);
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Paul',entity_id:'media_player.ma_a'}:msg.action==='play'?null:{items:[null,{uri:'apple_music--paul://playlist/42',title:'Pauls Playlist'}]}:undefined;
+ card._appleDialog.close();env.click(card,'open-apple');await flush();assert.equal(card._appleItems.length,1);
+ env.click(card,'apple-play');await flush();
+ assert.equal(card._appleDialog.open,true);assert.equal(card._applePreferred,false);assert.notEqual(card._playbackSource,'apple');
+ assert.match(card._appleError,/Access Control/);assert.equal(card._busy,false);assert.equal(env.calls.length,0);card.remove();
+});
 test('automatic MA queue controls are restored without opening the Apple Music picker',async()=>{
  const env=setup();
  env.wsHook=msg=>msg.type==='music_manager/apple_music'?(msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{skipped:true}):undefined;
@@ -240,7 +269,7 @@ test('automatic MA queue controls are restored without opening the Apple Music p
 });
 test('Apple Music catalog and library use the authenticated gateway and selected speaker, never a user ID',async()=>{
  const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
- env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel'}:msg.action==='play'?{started:true}:{items:[{uri:'apple_music--a://track/42',title:'Ein Titel',description:'Interpret · Titel'}],more:false}:undefined;
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:msg.action==='play'?{started:true}:{items:[{uri:'apple_music--a://track/42',title:'Ein Titel',description:'Interpret · Titel'}],more:false}:undefined;
  env.click(card,'open-apple');await flush();assert.equal(card._appleAccount,'Manuel');assert.equal(card._appleItems.length,1);
  card._appleQuery.value='Mein Titel';env.click(card,'apple-search');await flush();
  const search=env.wsCalls.at(-1);assert.equal(search.action,'search');assert.equal(search.query,'Mein Titel');assert.equal(search.entity_id,'media_player.ma_a');assert.equal(search.source_entity,'media_player.a');assert.equal(search.user_id,undefined);assert.equal(search.provider_id,undefined);
@@ -251,7 +280,7 @@ test('Apple Music catalog and library use the authenticated gateway and selected
 test('Apple Music user changes and box changes discard pending private catalog results',async()=>{
  const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
  let finish;
- env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel'}:new Promise(resolve=>{finish=()=>resolve({items:[{uri:'apple_music--a://track/1',title:'Privater Titel'}]});}):undefined;
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:new Promise(resolve=>{finish=()=>resolve({items:[{uri:'apple_music--a://track/1',title:'Privater Titel'}]});}):undefined;
  env.click(card,'open-apple');await flush();assert.equal(card._appleLoading,true);env.switchUser('maximilian');finish();await flush();
  assert.equal(card._appleDialog.open,false);assert.equal(card._appleItems.length,0);assert.equal(card._appleAccount,'');assert(!card._appleDialog.textContent.includes('Privater Titel'));
  env.click(card,'open-apple');await flush();card.setConfig({entity:'media_player.b',music_assistant_entity:'media_player.ma_b'});finish();await flush();assert.equal(card._appleItems.length,0);assert.equal(card._appleDialog.open,false);
@@ -260,12 +289,12 @@ test('Apple Music setup and playback errors keep the picker open, escaped and re
  const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
  env.wsHook=msg=>{if(msg.type==='music_manager/apple_music')throw {code:'unknown_command'};};
  env.click(card,'open-apple');await flush();assert.match(card._appleDialog.textContent,/Connector/);assert.equal(card._appleLoading,false);
- env.wsHook=msg=>{if(msg.type!=='music_manager/apple_music')return;if(msg.action==='status')return {account:'Manuel'};if(msg.action==='play')throw new Error('Box nicht erreichbar');return {items:[{uri:'apple_music--a://track/1',title:'<img src=x onerror=bad()>',description:'<script>bad()</script>'}]};};
+ env.wsHook=msg=>{if(msg.type!=='music_manager/apple_music')return;if(msg.action==='status')return {account:'Manuel',entity_id:'media_player.ma_a'};if(msg.action==='play')throw new Error('Box nicht erreichbar');return {items:[{uri:'apple_music--a://track/1',title:'<img src=x onerror=bad()>',description:'<script>bad()</script>'}]};};
  env.click(card,'open-apple');await flush();assert.equal(card._appleDialog.querySelector('img,script'),null);env.click(card,'apple-play');await flush();assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Box nicht erreichbar/);assert.equal(card._busy,false);assert.equal(card._appleItems.length,1);
 });
 test('Apple Music library pagination preserves items and editor offers only the same Sonos hardware',async()=>{
  const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
- env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel'}:{items:[{uri:'apple_music--a://playlist/'+(msg.offset||0),title:'Playlist '+(msg.offset||0)}],more:!msg.offset,next_offset:50}:undefined;
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{items:[{uri:'apple_music--a://playlist/'+(msg.offset||0),title:'Playlist '+(msg.offset||0)}],more:!msg.offset,next_offset:50}:undefined;
  env.click(card,'open-apple');await flush();env.click(card,'apple-more');await flush();assert.equal(card._appleItems.length,2);assert.equal(env.wsCalls.at(-1).offset,50);
  const editor=env.document.createElement('music-manager-card-editor');editor.setConfig({entity:'media_player.a'});editor.hass=env.makeHass();env.document.body.append(editor);await flush();
  assert.deepEqual([...editor.shadowRoot.querySelectorAll('#music-ma-entity-options [data-ui-option]')].map(o=>o.dataset.value),['','media_player.ma_a']);

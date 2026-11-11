@@ -583,16 +583,25 @@ class MusicManagerCard extends HTMLElement {
 
   _resetApple() {
     this._appleRequest++;this._appleItems=[];this._appleAccount='';this._appleError='';
-    this._appleLoading=false;this._appleMore=false;this._applePreferred=false;this._appleEntity='';
+    this._appleLoading=false;this._appleMore=false;this._applePreferred=false;this._appleEntity='';this._appleReady=false;
     this._appleDialog?.close();
     if(this._appleQuery)this._appleQuery.value='';
     this._renderApple();
   }
 
-  _appleCommand(action,data={}) {
-    return this._hass.callWS({type:'music_manager/apple_music',action,
+  async _appleCommand(action,data={}) {
+    const response=await this._hass.callWS({type:'music_manager/apple_music',action,
       ...(this._config.music_assistant_entity?{entity_id:this._config.music_assistant_entity}:{}),
       source_entity:this._config.entity,...data});
+    // Access Control can replace a successful result with null when its
+    // entity_id is hidden. Keep that boundary intact and explain the missing
+    // response instead of dereferencing it or falling back to another player.
+    if(!response || typeof response!=='object' || Array.isArray(response)
+      || (action==='status' && !/^media_player\.[a-z0-9_]+$/.test(response.entity_id||''))
+      || (['library','search'].includes(action) && !Array.isArray(response.items))) {
+      throw {code:'apple_response_unavailable',message:'Die Apple-Music-Antwort ist leer oder unvollständig. Bitte als Administrator die Zugriffsrechte für die Sonos-Entität und die zusätzliche Music-Assistant-Entität dieser Box prüfen. In Access Control müssen beide zum Anzeigen und Bedienen freigegeben sein, beispielsweise über dasselbe Label.'};
+    }
+    return response;
   }
 
   _resolveApplePlayer() {
@@ -624,6 +633,7 @@ class MusicManagerCard extends HTMLElement {
       if(request!==this._appleRequest)return;
       this._appleEntity=status.entity_id||this._config.music_assistant_entity||'';
       this._appleAccount=status.account||'Dein Konto';
+      this._appleReady=true;
       this._renderPlayer();
       this._appleView='playlist';
       await this._loadApple('library');
@@ -646,7 +656,7 @@ class MusicManagerCard extends HTMLElement {
     try {
       const response=await this._appleCommand(action,action==='search'?{query}:{media_type:this._appleView,offset});
       if(request!==this._appleRequest)return;
-      const items=(Array.isArray(response.items)?response.items:[]).filter(item=>typeof item.uri==='string'&&typeof item.title==='string');
+      const items=response.items.filter(item=>item && typeof item.uri==='string'&&typeof item.title==='string');
       this._appleItems=append?[...this._appleItems,...items]:items;
       this._appleMore=Boolean(response.more);this._appleOffset=response.next_offset;
     } catch(error) {
@@ -680,7 +690,7 @@ class MusicManagerCard extends HTMLElement {
 
   _renderApple() {
     if(!this._appleDialog)return;
-    const configured=Boolean(this._musicAssistantEntity), disabled=this._busy||this._appleLoading||!configured;
+    const configured=Boolean(this._appleReady&&this._musicAssistantEntity), disabled=this._busy||this._appleLoading||!configured;
     for(const control of this._appleDialog.querySelectorAll('form button,form input'))control.disabled=disabled;
     for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleSearch&&control.dataset.view===this._appleView));
     this.shadowRoot.getElementById('music-apple-account').innerHTML=this._appleAccount?row({title:this._appleAccount,description:'Dein Apple-Music-Konto'}):'';

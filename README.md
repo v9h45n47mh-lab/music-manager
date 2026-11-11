@@ -1,4 +1,4 @@
-# Music Manager 1.7.0
+# Music Manager 1.7.1
 
 ![Music Manager](brand/icon.png)
 
@@ -145,6 +145,12 @@ entity: media_player.wohnzimmer
 ```
 
 Der zweite Entitätsname ist ein Beispiel: Wähle den tatsächlich von Music Assistant angelegten Player derselben Sonos-Box.
+
+### Apple Music mit Access Control freigeben
+
+Radio steuert die native Sonos-Entität. Apple Music verwendet zusätzlich die von der offiziellen Music-Assistant-Integration angelegte Playerentität **derselben Box**. Für eingeschränkte Benutzer müssen beide Entitäten zum Anzeigen und Bedienen freigegeben sein. Wird die Freigabe über Labels gesteuert, unter **Einstellungen → Geräte & Dienste → Entitäten** beim zusätzlichen Music-Assistant-Player das passende freigegebene Label setzen. Eine Labelfreigabe auf der nativen Sonos-Entität gilt nicht automatisch für den zweiten Player.
+
+Access Control kann eine Statusantwort zu einer ausgeblendeten Entität vollständig auf `null` filtern, ohne einen zusätzlichen abgewiesenen Befehl zu protokollieren. Ab 1.7.1 erklärt die Karte diesen Fall, statt `Cannot read properties of null (reading 'entity_id')` anzuzeigen. Suche und Wiedergabe werden erst nach einem gültigen Status freigeschaltet. Nach der Rechteänderung Apple Music schließen und erneut öffnen. Die Kontozuordnung im Music Manager und die Playerfreigabe in Music Assistant müssen ebenfalls stimmen; es werden keine Rechte automatisch erweitert und kein Ersatzkonto oder Ersatzplayer gewählt.
 
 ## Persönliche Favoriten
 

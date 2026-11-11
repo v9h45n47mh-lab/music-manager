@@ -262,6 +262,20 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.getByRole('alert').waitFor();assert(await apple.isVisible());
   await page.evaluate(()=>demo.switchUser('maximilian'));await apple.waitFor({state:'hidden'});assert.equal(await apple.locator('#music-apple-results .setting-row').count(),0);
  });
+ await check('hidden MA player gives a permission hint and recovers after the label is granted',async()=>{
+  await reset();await page.evaluate(()=>{demo.switchUser('paul');demo.wsHook=msg=>msg.type==='music_manager/apple_music'?null:undefined;});
+  await action('open-apple').click();const apple=card().locator('#music-apple-dialog');
+  await apple.getByRole('alert').waitFor();assert.match(await apple.getByRole('alert').innerText(),/Music-Assistant-Entität.*Access Control.*Label/);
+  assert(await apple.locator('#music-apple-query').isDisabled());assert.equal(await apple.locator('[data-action="apple-play"]').count(),0);
+  assert.equal(await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music'&&m.action!=='status').length),0);
+  for(const width of [375,1100]){
+   await page.setViewportSize({width,height:900});const bounds=await apple.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);
+   assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
+   await page.screenshot({path:path.join(screens,`apple-permission-${width}.png`),fullPage:true});
+  }
+  await apple.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.wsHook=null);
+  await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();assert(await apple.locator('#music-apple-query').isEnabled());
+ });
  await check('Apple Music footer and picker fit desktop/mobile and light/dark themes',async()=>{
   await reset();const apple=card().locator('#music-apple-dialog');
   for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
