@@ -20,10 +20,9 @@ class MusicManagerAlarmRow extends HTMLElement {
     if(!this._config)return;
     if(!this._dialog){
       this.shadowRoot.innerHTML=`<style>${UI_CSS}${MUSIC_DIALOG_CSS}
-        :host{display:block;min-width:0}
-        .alarm-row .setting-row{border:0;padding:0;min-height:48px}
-        .alarm-row .row-text{min-width:0}.alarm-row .row-text small{overflow-wrap:anywhere}
-        .alarm-row button{min-height:44px}
+        :host{min-width:0;width:100%;max-width:100%}
+        .alarm-row{min-width:0;max-width:100%}
+        .alarm-row>.setting-row{min-width:0;width:100%}
         .alarm-browser{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
         .alarm-song-list{display:grid;gap:8px;list-style:none;margin:0;padding:0;min-width:0}
         .alarm-song-list button{display:flex;align-items:center;gap:12px;text-align:start;width:100%;min-height:64px;padding:12px;border:1px solid var(--divider-color,#ddd);border-radius:12px;color:var(--primary-text-color,#212121)}
@@ -32,7 +31,7 @@ class MusicManagerAlarmRow extends HTMLElement {
         [aria-pressed="true"] .alarm-choice-mark{border-color:var(--primary-color,#03a9f4);background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff)}
         .alarm-choice-name{min-width:0;overflow-wrap:anywhere}.alarm-choice-name small{display:block}
         #alarm-current .setting-row{align-items:flex-start;flex-wrap:wrap;gap:8px}#alarm-current .row-text{flex-basis:200px}
-        @media(max-width:600px){.alarm-row .setting-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.alarm-row button{width:100%}#alarm-current button{width:100%}}
+        @media(max-width:600px){#alarm-current button{width:100%}}
       </style><div class="alarm-row" id="alarm-row"></div>${dialog({id:'alarm-dialog',title:'Weckmusik auswählen',content:'<div class="alarm-browser" id="alarm-content"></div>'})}`;
       this._dialog=this.shadowRoot.getElementById('alarm-dialog');
       this.shadowRoot.addEventListener('input',event=>{if(event.target.id==='alarm-song-query'){this._query=event.target.value;this._renderChoices();}});

@@ -1,4 +1,4 @@
-# Music Manager 1.10.0
+# Music Manager 1.10.1
 
 ![Music Manager](brand/icon.png)
 
@@ -78,6 +78,8 @@ Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutig
 ## Handyansicht
 
 Radio- und Apple-Music-Dialoge nutzen auf kleinen Bildschirmen die gesamte verfügbare Höhe. Der Schließen-Button bleibt oben erreichbar; es gibt einen durchgehenden Scrollbereich. Suchfeld, Mediathek-Tabs und Verwaltung sind getrennt angeordnet. Cover und Liednamen haben eine eigene Zeile, Aktionen darunter mindestens 44 Pixel große Bedienflächen. Sender wählen und Apple Music stehen nebeneinander; Favoriten und Wecklieder in der nächsten Zeile.
+
+Die Weckmusik-Zeile verwendet unverändert die gemeinsame UI-Kit-Zeile und deren Button. „Auswählen“ bleibt auch auf schmalen Handys rechts neben dem Text. Der Text kann umbrechen; der Button bleibt vollständig innerhalb der Karte.
 
 Die Weckerauswahl zeigt die markierten Lieder direkt als durchsuchbare Liste, ohne zusätzliches Dropdown. Ein Tipp auf eine Liedzeile speichert die Auswahl. Lange Titel umbrechen, das aktuelle Lied ist gekennzeichnet. „Auswahl zurücksetzen“ bleibt separat erreichbar. Das Weckersymbol ist bei ausgewählten Liedern ausgefüllt, sonst umrandet – entsprechend dem Favoritenstern.
 

@@ -543,6 +543,27 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.evaluate(()=>demo.failAlarmSave=true);await picker.getByRole('button',{name:'Wecklied auswählen: Guten Morgen',exact:true}).click();await picker.getByRole('alert').waitFor();assert.equal(await page.evaluate(()=>demo.alarmSelections.get('school_alarm').title),'Meine Weckmusik');
   await page.keyboard.press('Escape');await page.evaluate(()=>demo.switchUser('paul'));await alarm.locator('#alarm-row').getByText('Dieser Wecker gehört einem anderen Benutzer.',{exact:true}).waitFor();assert(!(await alarm.locator('#alarm-row').innerText()).includes('Meine Weckmusik'));
  });
+ await check('alarm entities row keeps the untouched UI Kit button inline and within a narrow HA card',async()=>{
+  await reset();await page.evaluate(async()=>{
+   const song={kind:'apple_music',uri:'apple_music--demo://track/long',media_type:'track',title:'Skifahrt (Chicken Fajita) und ein sehr langer zusammenhängender Liedname'};demo.seedAlarmSongs('maximilian',[song]);demo.alarmSelections.set('school_alarm',song);demo.addAlarmRow();
+   const host=document.querySelector('#alarm-host');host.style.display='grid';host.style.gridTemplateColumns='40px minmax(0,1fr)';host.style.gap='16px';host.style.overflow='hidden';host.prepend(document.createElement('span'));
+   const kit=await import('/src/family-ui/1.3.1/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
+   ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Weckmusik',description:'Lied',trailing:kit.button({label:'Auswählen',action:'reference'})})}`;
+  });
+  const alarm=page.locator('music-manager-alarm-row').first();await alarm.getByRole('button',{name:'Auswählen',exact:true}).waitFor();
+  for(const width of [320,375,390,430,768,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:800});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   const report=await alarm.evaluate(el=>{
+    const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;
+    const props=['fontFamily','fontSize','fontWeight','lineHeight','color','paddingTop','paddingRight','paddingBottom','paddingLeft','borderRadius','minHeight','backgroundColor'];
+    const styles=(r,s)=>Object.fromEntries(props.map(p=>[p,getComputedStyle(r.querySelector(s))[p]]));
+    const button=root.querySelector('#alarm-row button').getBoundingClientRect(),text=root.querySelector('#alarm-row .row-text').getBoundingClientRect(),host=el.getBoundingClientRect(),row=root.querySelector('#alarm-row .setting-row').getBoundingClientRect();
+    return {inline:button.left>=text.right&&button.top>=row.top&&button.bottom<=row.bottom,contained:button.right<=host.right+1&&host.right<=document.querySelector('#alarm-host').getBoundingClientRect().right,button:styles(root,'#alarm-row button'),reference:styles(ref,'button'),row:styles(root,'#alarm-row .setting-row'),referenceRow:styles(ref,'.setting-row')};
+   });
+   assert(report.inline,`${width}: select button must remain to the right of the text`);assert(report.contained,`${width}: select button must not be clipped`);assert.deepEqual(report.button,report.reference);assert.deepEqual(report.row,report.referenceRow);
+   await alarm.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(screens,`alarm-inline-ui-kit-${width}-${dark?'dark':'light'}.png`),fullPage:false});
+  }
+ });
  await check('alarm picker fits mobile desktop and both themes with long favorite names',async()=>{
   await reset();await page.evaluate(()=>{demo.seedAlarmSongs('maximilian',[{kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',alarm_song:true,title:'Mein Lieblingslied zum sanften Aufwachen am Morgen'}]);demo.addAlarmRow();});
   const alarm=page.locator('music-manager-alarm-row').first(),picker=alarm.locator('#alarm-dialog');
