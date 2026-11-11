@@ -16,11 +16,12 @@ const uiImport = /import\s*\{([\s\S]*?)\}\s*from '\.\/family-ui\/1\.3\.1\/family
 const cardSource = await read('src/music-manager-card.js');
 const names = cardSource.match(uiImport)?.[1];
 if (!names) throw new Error('Expected pinned UI Kit import');
-const card = cardSource.replace(uiImport,`const {${names}} = MusicManagerUI;`).replace(/import\s*\{[\s\S]*?\}\s*from '\.\/core\.js';/,'');
+const layoutImport = /import \{MUSIC_DIALOG_CSS\} from '\.\/music-layout\.js';/;
+const card = cardSource.replace(uiImport,`const {${names}} = MusicManagerUI;`).replace(/import\s*\{[\s\S]*?\}\s*from '\.\/core\.js';/,'').replace(layoutImport,'');
 const alarmSource = await read('src/music-manager-alarm-row.js');
 const alarmNames = alarmSource.match(uiImport)?.[1];
 if (!alarmNames) throw new Error('Expected pinned alarm row UI import');
-const alarmRow = '(() => {\n'+alarmSource.replace(uiImport,`const {${alarmNames}} = MusicManagerUI;`)+'\n})();';
+const alarmRow = '(() => {\n'+alarmSource.replace(uiImport,`const {${alarmNames}} = MusicManagerUI;`).replace(layoutImport,'')+'\n})();';
 const panelSource = await read('src/music-manager-panel.js');
 const panelNames = panelSource.match(uiImport)?.[1];
 if (!panelNames) throw new Error('Expected pinned panel UI import');
@@ -28,7 +29,7 @@ const panel = '(() => {\n'+panelSource.replace(uiImport,`const {${panelNames}} =
 const packageVersion = JSON.parse(await read('package.json')).version;
 const backendManifest = JSON.parse(await read('custom_components/music_manager/manifest.json'));
 if (backendManifest.version !== packageVersion || !(await read('custom_components/music_manager/const.py')).includes(`VERSION = "${packageVersion}"`) || !(await read('src/core.js')).includes(`MUSIC_VERSION = '${packageVersion}'`)) throw new Error('Frontend/backend version mismatch');
-const output = `/* Music Manager ${JSON.parse(await read('package.json')).version} | MIT | HA UI Kit ${lock.version} bundled locally, unchanged | See LICENSES.txt */\nconst MusicManagerUI = (() => {\n${kit.replace(/^export /gm,'')}\nreturn {${kitExports.join(',')}};\n})();\n${await read('src/core.js')}\n${card}\n${alarmRow}\n${panel}`;
+const output = `/* Music Manager ${JSON.parse(await read('package.json')).version} | MIT | HA UI Kit ${lock.version} bundled locally, unchanged | See LICENSES.txt */\nconst MusicManagerUI = (() => {\n${kit.replace(/^export /gm,'')}\nreturn {${kitExports.join(',')}};\n})();\n${await read('src/core.js')}\n${await read('src/music-layout.js')}\n${card}\n${alarmRow}\n${panel}`;
 const licenses = `Music Manager\n${await read('LICENSE')}\n\nHA UI Kit ${lock.version}\n${await read('src/family-ui/1.3.1/LICENSE')}`;
 const manifest = JSON.stringify({version:JSON.parse(await read('package.json')).version,ui_version:lock.version,ui_source_commit:lock.sourceCommit,files:{'music-manager-card.js':hash(output),'LICENSES.txt':hash(licenses)}},null,2)+'\n';
 const integrationFrontend = 'custom_components/music_manager/frontend';

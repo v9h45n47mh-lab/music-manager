@@ -1,4 +1,4 @@
-# Music Manager 1.9.1
+# Music Manager 1.10.0
 
 ![Music Manager](brand/icon.png)
 
@@ -6,7 +6,7 @@
 
 **Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.3.1**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
-Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
+Zurück, Play/Pause und Weiter erscheinen als gleich breite Symboltasten. Bei Apple Music steht Shuffle als Symbol ohne Text in derselben Reihe, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
 
 ## Installation über den Marketplace
 
@@ -50,10 +50,10 @@ controls:
   previous: true
   next: true
   volume: true
-  stop: true
+  shuffle: true
 ```
 
-Für einen weiteren Raum kannst du eine zweite Karte mit einer anderen Sonos-Entität anlegen. Prüfe die Entitätsnamen in deinem aktuellen HA-System. Du kannst die Einstellungen anschließend im visuellen Karteneditor ändern. Alle fünf Bedienelemente sind standardmäßig sichtbar.
+Für einen weiteren Raum kannst du eine zweite Karte mit einer anderen Sonos-Entität anlegen. Prüfe die Entitätsnamen in deinem aktuellen HA-System. Du kannst die Einstellungen anschließend im visuellen Karteneditor ändern. Wiedergabe, Titelwechsel, Lautstärke und Shuffle sind standardmäßig aktiviert. Shuffle erscheint bei Apple Music, wenn die Box es unterstützt. Alte `controls.stop`-Einträge werden ignoriert.
 
 ## Persönliche Favoriten und Reihenfolge
 
@@ -75,9 +75,15 @@ Die Seite verwendet das fest eingebundene **HA UI Kit 1.3.1** für Kopfbereich, 
 
 Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutige Konten, Quellenfilter, Benutzer- und Boxfreigaben werden weiterhin serverseitig geprüft. Die neue Übersichtsabfrage ist nur lesend und nur für aktive HA-Administratoren zugelassen. Sie liefert keine Zugangsdaten, Tokens oder Favoriten-URIs. Gespeicherte Zuordnungen bleiben auch bei nicht erreichbarem MA-Server sichtbar. Nach einem Benutzerwechsel werden offene Eingaben und Daten des vorherigen Benutzers verworfen.
 
+## Handyansicht
+
+Radio- und Apple-Music-Dialoge nutzen auf kleinen Bildschirmen die gesamte verfügbare Höhe. Der Schließen-Button bleibt oben erreichbar; es gibt einen durchgehenden Scrollbereich. Suchfeld, Mediathek-Tabs und Verwaltung sind getrennt angeordnet. Cover und Liednamen haben eine eigene Zeile, Aktionen darunter mindestens 44 Pixel große Bedienflächen. Sender wählen und Apple Music stehen nebeneinander; Favoriten und Wecklieder in der nächsten Zeile.
+
+Die Weckerauswahl zeigt die markierten Lieder direkt als durchsuchbare Liste, ohne zusätzliches Dropdown. Ein Tipp auf eine Liedzeile speichert die Auswahl. Lange Titel umbrechen, das aktuelle Lied ist gekennzeichnet. „Auswahl zurücksetzen“ bleibt separat erreichbar. Das Weckersymbol ist bei ausgewählten Liedern ausgefüllt, sonst umrandet – entsprechend dem Favoritenstern.
+
 ## Persönliche Wecklieder
 
-Wecklieder sind eine eigene Liste pro HA-Benutzer, unabhängig von den Favoriten. Bei einem einzelnen Apple-Music-Titel das **Weckersymbol** betätigen. Das speichert ihn ausschließlich unter **Apple Music → Wecklieder**; es entsteht keine Kurzwahlkachel. Das Weckersymbol dort entfernt ihn wieder aus der Liste. Ein Titel kann zusätzlich über den Stern ausdrücklich als normaler Favorit gespeichert werden. Beide Listen lassen sich unabhängig ändern.
+Wecklieder sind eine eigene Liste pro HA-Benutzer, unabhängig von den Favoriten. Bei einem einzelnen Apple-Music-Titel das **Weckersymbol** betätigen. Das speichert ihn ausschließlich unter **Wecklieder** direkt unter den Bedienelementen oder unter **Apple Music → Wecklieder**; es entsteht keine Kurzwahlkachel. In der Verwaltung lassen sich Lieder durchsuchen und über **Entfernen** einzeln aus der Liste nehmen. Diese Verwaltung benötigt keine erreichbare Music-Assistant-Verbindung. Ein Titel kann zusätzlich über den Stern ausdrücklich als normaler Favorit gespeichert werden. Beide Listen lassen sich unabhängig ändern.
 
 Auch Titel aus Alben und Playlists sind auswählbar: **Album oder Playlist öffnen → Titel anzeigen → Weckersymbol beim gewünschten Lied**. Alben, Playlists und Radiosender selbst werden nicht als Wecklieder angeboten. Bisher mit dem Weckersymbol markierte Favoriten werden beim nächsten Laden einer Music-Manager-Karte automatisch in die getrennte Wecklied-Liste übernommen und aus der bisherigen Favoritenliste entfernt. Gespeicherte Weckerauswahlen bleiben erhalten.
 
@@ -118,7 +124,7 @@ Der Hintergrundstart akzeptiert ausschließlich die vorher vom Administrator kon
 
 Die Schaltfläche **Apple Music** steht unten neben **Sender wählen**. In der Kachelreihe stehen ausschließlich persönliche Sender-, Album- und Playlistfavoriten. **Apple Music** öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
 
-Während Apple Music läuft, zeigt die Karte zusätzlich **Shuffle** und eine **Zeitleiste mit verstrichener Zeit und Gesamtdauer**. Die Zeitleiste lässt sich vorwärts und rückwärts ziehen; der Spulbefehl wird erst beim Loslassen gesendet. Während des Ziehens bleiben Position und Zeitangabe stabil. Bei einem Titel- oder Boxwechsel wird eine begonnene Eingabe verworfen. Die Position läuft während der Wiedergabe weiter und bleibt bei Pause stehen. Ohne bekannte Dauer wird keine Zeitleiste angezeigt.
+Während Apple Music läuft, zeigt die Tastenreihe zusätzlich **Shuffle als Symbol** und darunter eine **Zeitleiste mit verstrichener Zeit und Gesamtdauer**, ohne die zusätzliche Beschriftung „Titelposition“. Die Zeitleiste lässt sich vorwärts und rückwärts ziehen; der Spulbefehl wird erst beim Loslassen gesendet. Während des Ziehens bleiben Position und Zeitangabe stabil. Bei einem Titel- oder Boxwechsel wird eine begonnene Eingabe verworfen. Die Position läuft während der Wiedergabe weiter und bleibt bei Pause stehen. Ohne bekannte Dauer wird keine Zeitleiste angezeigt.
 
 **Weiter** startet einen bereits bekannten nächsten Titel der eigenen aktiven MA-Warteschlange direkt und vermeidet dadurch deren zusätzliche Ein-Sekunden-Verzögerung. Die vorhandene Shuffle-Reihenfolge bleibt erhalten. Bei Gruppen, unbekanntem nächsten Eintrag oder Wiederholung des aktuellen Titels wird der normale MA-Befehl verwendet. Ein ausstehender Wechsel zeigt „Nächster Titel wird geladen …“ und wird nicht doppelt gesendet. Die eigentliche Ladezeit des Apple-Music-Streams bleibt von MA und Apple abhängig; MA dokumentiert mögliche Pausen bis etwa fünf Sekunden.
 
@@ -171,9 +177,9 @@ Favoriten gehören dem **angemeldeten Home-Assistant-Benutzer**, unabhängig von
 
 ## Wiedergabe
 
-- **Play/Pause** verwendet die aktuell verfügbaren Funktionen der Box. Unterstützt die Quelle nur Stop, zeigt die Karte stattdessen **Stop**. Live-Radio setzt beim Fortsetzen am aktuellen Live-Programm an.
+- **Play/Pause** verwendet die aktuell verfügbaren Funktionen der Box. Unterstützt die Quelle zum Unterbrechen nur Stop, verwendet dieselbe Play/Pause-Taste intern `media_stop`. Live-Radio setzt beim Fortsetzen am aktuellen Live-Programm an.
 - **Zurück/Weiter** steuern Titel der Sonos-Warteschlange. Ein Live-Radiosender bietet keinen Titelwechsel; diese Buttons springen nicht zwischen Radiosendern.
-- **Stop** beendet die aktuelle Wiedergabe über `media_stop`.
+- Eine separate **Stop-Taste** entfällt. **Shuffle** steht bei Apple Music als Symbol direkt neben den Wiedergabetasten; der aktive Zustand wird hervorgehoben.
 - **Lautstärke** wirkt auf die konfigurierte Box; der Regler zeigt während des Ziehens oder der Tastaturbedienung den Prozentwert an und sendet erst beim Loslassen bzw. Bestätigen. Der linke Anschlag (0) schaltet lautlos. Ist die Box über eine andere App stummgeschaltet, hebt ein positiver Reglerwert die Stummschaltung auf.
 - **Sonos-Gruppen** behalten ihr normales Wiedergabeverhalten. Die Karte erstellt oder trennt keine Gruppen.
 - Die Karte zeigt den aktuellen Zustand der Box an, auch wenn die Wiedergabe über die Sonos-App gestartet wurde.

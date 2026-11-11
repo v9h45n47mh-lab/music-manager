@@ -60,7 +60,7 @@ const connectionFor=user=>{
 }
 test('actual card controls call HA media services and preserve per-card targets',async()=>{
  const env=setup(),a=env.add(),b=env.add('media_player.b');
- for(const [action,service] of [['previous','media_previous_track'],['next','media_next_track'],['play-pause','media_pause'],['stop','media_stop']]){env.click(a,action);await flush();assert.equal(env.calls.at(-1).service,service);assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');}
+ for(const [action,service] of [['previous','media_previous_track'],['next','media_next_track'],['play-pause','media_pause']]){env.click(a,action);await flush();assert.equal(env.calls.at(-1).service,service);assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');}
  env.update('media_player.b',{state:'paused'});env.click(b,'play-pause');await flush();assert.equal(env.calls.at(-1).service,'media_play');assert.equal(env.calls.at(-1).data.entity_id,'media_player.b');
  assert.equal(a.shadowRoot.querySelector('[data-action="mute"]'),null);
 });
@@ -98,8 +98,8 @@ test('changing configured box during a pending command cannot overwrite the new 
 });
 test('unsupported features and unavailable states disable controls, configuration hides switches',async()=>{
  const env=setup(),card=env.add();env.update('media_player.a',{state:'unavailable'});
- for(const action of ['next','previous','play-pause','stop'])assert.equal(card.shadowRoot.querySelector(`[data-action="${action}"]`).disabled,true);
- env.update('media_player.a',{state:'playing',attributes:{supported_features:4096}});assert.equal(card.shadowRoot.querySelector('[data-action="next"]').disabled,true);assert.equal(card.shadowRoot.querySelector('[data-action="play-pause"]').getAttribute('aria-label'),'Stop');
+ for(const action of ['next','previous','play-pause'])assert.equal(card.shadowRoot.querySelector(`[data-action="${action}"]`).disabled,true);
+ env.update('media_player.a',{state:'playing',attributes:{supported_features:4096}});assert.equal(card.shadowRoot.querySelector('[data-action="next"]').disabled,true);assert.equal(card.shadowRoot.querySelector('[data-action="play-pause"]').getAttribute('aria-label'),'Pause');
  env.click(card,'play-pause');await flush();assert.equal(env.calls.at(-1).service,'media_stop');
  card.setConfig({entity:'media_player.a',controls:{next:false,previous:false,volume:false,mute:false}});for(const selector of ['[data-action="next"]','[data-action="previous"]','[data-action="mute"]','input[type=range]'])assert.equal(card.shadowRoot.querySelector(selector),null);
 });
@@ -216,7 +216,7 @@ test('Apple Music opens beside radio below the favorites and missing setup stays
  const env=setup(),card=env.add();await flush();
  const favorites=card.shadowRoot.querySelector('#music-favorites'),toolbar=favorites.nextElementSibling;
  assert.equal(favorites.children.length,0);assert.equal(favorites.querySelector('[data-action="open-apple"]'),null);
- assert.deepEqual([...toolbar.querySelectorAll('button')].map(b=>b.dataset.action),['open-radio','open-apple','manage-favorites']);
+ assert.deepEqual([...toolbar.querySelectorAll('button')].map(b=>b.dataset.action),['open-radio','open-apple','manage-favorites','open-alarm-songs']);
  const before=env.wsCalls.length;toolbar.querySelector('[data-action="open-apple"]').click();await flush();
  assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Music-Manager-Connector/);assert.equal(env.wsCalls.length,before+1);
  assert.equal(card._appleQuery.disabled,true);assert.equal(Boolean(card._dialog.open),false);
@@ -413,7 +413,7 @@ test('a real MA flow remains controllable after recreation and a new Apple start
 test('Apple shuffle controls the selected MA player and reflects confirmed state and service errors',async()=>{
  const env=setup(),card=env.add(),other=env.add('media_player.b');card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
  env.update('media_player.ma_a',{attributes:{active_queue:'queue',shuffle:false}});
- env.click(card,'shuffle');await flush();assert.equal(env.calls.at(-1).service,'shuffle_set');assert.equal(env.calls.at(-1).data.shuffle,true);assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
+ assert.equal(card.shadowRoot.querySelector('[data-action="stop"]'),null);assert.deepEqual([...card.shadowRoot.querySelectorAll('.music-transport button')].map(b=>b.dataset.action),['previous','play-pause','next','shuffle']);assert.equal(card.shadowRoot.querySelector('[data-action="shuffle"]').textContent,'');env.click(card,'shuffle');await flush();assert.equal(env.calls.at(-1).service,'shuffle_set');assert.equal(env.calls.at(-1).data.shuffle,true);assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
  env.update('media_player.ma_a',{attributes:{shuffle:true}});assert.equal(card.shadowRoot.querySelector('[data-action="shuffle"]').getAttribute('aria-pressed'),'true');
  env.failService=true;env.click(card,'shuffle');await flush();assert.equal(env.calls.at(-1).data.shuffle,false);assert.match(card.shadowRoot.querySelector('#music-player-status').textContent,/Keine Berechtigung/);
  assert.equal(other.shadowRoot.querySelector('[data-action="shuffle"]'),null);card.remove();other.remove();
@@ -480,6 +480,45 @@ test('Apple tracks can be marked as alarm songs while failed writes preserve fav
  env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();env.click(card,'apple-alarm-song');await flush();assert.equal(card._favorites.length,0);assert.equal(card._alarmSongs[0].media_type,'track');assert.equal(env.alarmSongData.get('manuel').length,1);assert.equal(card._appleDialog.querySelector('[data-action="apple-alarm-song"]').getAttribute('aria-pressed'),'true');env.click(card,'apple-alarm-song');await flush();assert.equal(card._alarmSongs.length,0);assert.equal(card._favorites.length,0);card.remove();
 });
 
+
+test('wake-song management opens without MA setup, filters and removes independently of favorites',async()=>{
+ const env=setup(),songs=[{kind:'apple_music',uri:'apple_music--a://track/morning',media_type:'track',title:'Guten Morgen'},{kind:'apple_music',uri:'apple_music--a://track/sun',media_type:'track',title:'Sonne'}];
+ env.alarmSongData.set('manuel',songs);env.favoriteData.set('manuel',[station('swr3')]);
+ const a=env.add(),b=env.add('media_player.b');await flush();const before=env.wsCalls.filter(m=>m.type==='music_manager/apple_music').length;
+ env.click(a,'open-alarm-songs');await flush();
+ assert.equal(a._appleDialog.open,true);assert.match(a._appleDialog.textContent,/Wecklieder verwalten/);
+ assert.equal(a._appleDialog.querySelectorAll('[data-action="remove-alarm-song"]').length,2);
+ assert.equal(env.wsCalls.filter(m=>m.type==='music_manager/apple_music').length,before);
+ const search=a._alarmSongInput;search.focus();search.value='morgen';search.dispatchEvent(new env.window.Event('input',{bubbles:true}));
+ assert.equal(a._appleDialog.querySelectorAll('[data-action="remove-alarm-song"]').length,1);assert.equal(a.shadowRoot.querySelector('#music-alarm-song-query'),search);
+ env.failFavorites=true;env.click(a,'remove-alarm-song');await flush();assert.equal(a._alarmSongs.length,2);assert.match(a._appleDialog.textContent,/nicht gespeichert/);
+ env.failFavorites=false;env.click(a,'remove-alarm-song');await flush();assert.equal(a._alarmSongs.length,1);assert.equal(b._alarmSongs.length,1);assert.equal(env.favoriteData.get('manuel').length,1);assert.equal(env.calls.length,0);
+ assert.match(a.shadowRoot.getElementById('music-apple-results').textContent,/Keine passenden/);
+ env.switchUser('paul');await flush();assert.equal(a._alarmSongs.length,0);assert.equal(a._alarmSongInput.value,'');assert.equal(a._appleDialog.open,false);
+ a.remove();b.remove();
+});
+
+test('wake-song clocks use an outline when off and a filled face when selected, like favorite stars',async()=>{
+ const env=setup(),card=env.add();env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{items:[{uri:'apple_music--a://track/song',media_type:'track',title:'Lied'}]}:undefined;
+ await flush();env.click(card,'open-apple');await flush();
+ const clock=()=>card._appleDialog.querySelector('[data-action="apple-alarm-song"]');
+ assert.equal(clock().getAttribute('aria-pressed'),'false');assert.equal(clock().querySelector('svg').dataset.musicIcon,'alarm');
+ env.click(card,'apple-alarm-song');await flush();assert.equal(clock().getAttribute('aria-pressed'),'true');assert.equal(clock().querySelector('svg').dataset.musicIcon,'alarmFilled');
+ assert.equal(card._appleDialog.querySelector('[data-action="apple-favorite"]').getAttribute('aria-pressed'),'false');
+ env.click(card,'apple-favorite');await flush();assert.equal(card._appleDialog.querySelector('[data-action="apple-favorite"]').getAttribute('aria-pressed'),'true');assert.equal(clock().querySelector('svg').dataset.musicIcon,'alarmFilled');
+ env.click(card,'apple-alarm-song');await flush();assert.equal(clock().querySelector('svg').dataset.musicIcon,'alarm');assert.equal(card._favorites.length,1);card.remove();
+});
+
+test('alarm row searches a visible list without replacing its focused input and saves only an owned song',async()=>{
+ const env=setup(),row=env.document.createElement('music-manager-alarm-row');let selected=null;
+ const songs=[{uri:'apple_music--a://track/morning',media_type:'track',title:'Guten Morgen'},{uri:'apple_music--a://track/sun',media_type:'track',title:'Sonne'}];
+ env.wsHook=msg=>msg.type==='music_manager/alarm'?(msg.action==='select'&&(selected=songs.find(s=>s.uri===msg.uri)),{owner:'Maximilian',source:'Sonos',songs,selection:selected,in_songs:true}):undefined;
+ row.setConfig({alarm_id:'school_alarm'});env.document.body.append(row);row.hass=env.makeHass();await flush();env.click(row,'alarm-open');await flush();
+ assert.equal(row._dialog.querySelectorAll('[data-action="alarm-select"]').length,2);assert.equal(row._dialog.querySelector('[role="combobox"]'),null);
+ const search=row.shadowRoot.getElementById('alarm-song-query');search.focus();search.value='son';search.dispatchEvent(new env.window.Event('input',{bubbles:true}));
+ assert.equal(row.shadowRoot.querySelector('#alarm-song-query'),search);assert.equal(row._dialog.querySelectorAll('[data-action="alarm-select"]').length,1);
+ env.click(row,'alarm-select');await flush();assert.equal(row._data.selection.uri,songs[1].uri);assert.equal(row._dialog.open,false);assert.equal(env.calls.length,0);row.remove();
+});
 
 test('alarm row loads its configured owner, persists an exact favorite and keeps the previous choice after save errors',async()=>{
  const env=setup(), row=env.document.createElement('music-manager-alarm-row');
