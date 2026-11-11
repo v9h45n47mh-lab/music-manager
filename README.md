@@ -1,4 +1,4 @@
-# Music Manager 1.9.0
+# Music Manager 1.9.1
 
 ![Music Manager](brand/icon.png)
 
@@ -80,6 +80,8 @@ Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutig
 Wecklieder sind eine eigene Liste pro HA-Benutzer, unabhängig von den Favoriten. Bei einem einzelnen Apple-Music-Titel das **Weckersymbol** betätigen. Das speichert ihn ausschließlich unter **Apple Music → Wecklieder**; es entsteht keine Kurzwahlkachel. Das Weckersymbol dort entfernt ihn wieder aus der Liste. Ein Titel kann zusätzlich über den Stern ausdrücklich als normaler Favorit gespeichert werden. Beide Listen lassen sich unabhängig ändern.
 
 Auch Titel aus Alben und Playlists sind auswählbar: **Album oder Playlist öffnen → Titel anzeigen → Weckersymbol beim gewünschten Lied**. Alben, Playlists und Radiosender selbst werden nicht als Wecklieder angeboten. Bisher mit dem Weckersymbol markierte Favoriten werden beim nächsten Laden einer Music-Manager-Karte automatisch in die getrennte Wecklied-Liste übernommen und aus der bisherigen Favoritenliste entfernt. Gespeicherte Weckerauswahlen bleiben erhalten.
+
+**Kompatibilität:** „Titel anzeigen“ unterstützt auch den Music-Assistant-Client 1.6.0 aus Home Assistant 2026.11 sowie 1.5.1 aus 2026.10. Diese Clients liefern die vollständige Album-/Playlist-Titelliste; Music Manager zeigt sie in Seiten mit 50 Einträgen an. Neue Parameter für Benutzerausführung und serverseitiges Nachladen werden nur verwendet, wenn Client und Server sie unterstützen. Quelle und sichtbare Titel bleiben auf das exakt zugeordnete Apple-Music-Konto begrenzt.
 
 Du kannst mehrere Wecker für verschiedene Personen sowie mehrere pro Person verwalten. Unter **Music Manager → Konfigurieren → Wecker → Wecker hinzufügen** werden sie einzeln angelegt. Jeder Wecker hat eine eindeutige Kennung, einen HA-Benutzer, seine Sonos-Box und getrennt gespeicherte persönliche Weckmusik. Neue Kennungen werden frei vorgeschlagen; eine doppelte Kennung wird mit Hinweis abgelehnt und überschreibt keinen bestehenden Wecker. Für Änderungen am vorhandenen Eintrag das Stiftsymbol verwenden.
 

@@ -1,5 +1,6 @@
 """Regression tests for per-user account isolation against MA client contracts."""
 import importlib.util
+from inspect import signature
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest import IsolatedAsyncioTestCase, TestCase
@@ -17,11 +18,15 @@ def account(user='ha-a', ma='ma-a', provider='apple_music--a'):
 
 
 def mass_client():
-    return NS(auth=NS(get_user=AsyncMock(return_value=NS(enabled=True, role='user', provider_filter=['apple_music--a']))),
+    async def album_tracks(item_id, provider_instance_id_or_domain, in_library_only=False, *, limit=None, offset=None, user=None): pass
+    async def playlist_tracks(item_id, provider_instance_id_or_domain, force_refresh=False, *, strict_provider_instance=False, limit=None, offset=None, user=None): pass
+    albums, playlists = AsyncMock(), AsyncMock()
+    albums.__signature__, playlists.__signature__ = signature(album_tracks), signature(playlist_tracks)
+    return NS(server_info=NS(schema_version=101), auth=NS(get_user=AsyncMock(return_value=NS(enabled=True, role='user', provider_filter=['apple_music--a']))),
               providers=[NS(instance_id='apple_music--a', domain='apple_music', available=True),
                          NS(instance_id='apple_music--b', domain='apple_music', available=True)],
               music=NS(search=AsyncMock(), get_library_tracks=AsyncMock(),
-                       get_library_albums=AsyncMock(), get_library_playlists=AsyncMock(), get_album_tracks=AsyncMock(), get_playlist_tracks=AsyncMock()))
+                       get_library_albums=AsyncMock(), get_library_playlists=AsyncMock(), get_album_tracks=albums, get_playlist_tracks=playlists))
 
 
 def item(provider='apple_music--a', item_id='42', kind='track', **changes):
@@ -83,6 +88,45 @@ class AssignmentTests(TestCase):
 
 
 class AccountTests(IsolatedAsyncioTestCase):
+    async def test_ha_shipped_client_1_6_track_signatures_support_both_collections_and_local_paging(self):
+        # Signatures verified against music-assistant/client v1.6.0, the
+        # requirement in home-assistant/core 2026.11.1. No **kwargs mock can
+        # hide unsupported user, limit, offset or strict-provider arguments.
+        class ShippedClientMusic:
+            def __init__(self): self.calls = []
+            async def get_album_tracks(self, item_id, provider_instance_id_or_domain, in_library_only=False):
+                self.calls.append(('album', item_id, provider_instance_id_or_domain, in_library_only))
+                return tracks
+            async def get_playlist_tracks(self, item_id, provider_instance_id_or_domain, force_refresh=False):
+                self.calls.append(('playlist', item_id, provider_instance_id_or_domain, force_refresh))
+                return tracks
+        mass = mass_client()
+        mass.server_info.schema_version = 46
+        mass.music = ShippedClientMusic()
+        tracks = [item(item_id=str(n)) for n in range(107)]
+        tracks[51] = item('apple_music--b', item_id='private')
+        for kind in ('album', 'playlist'):
+            pages = [await access.container_tracks(mass, account(), f'apple_music--a://{kind}/collection', offset) for offset in (0, 50, 100, 150)]
+            self.assertEqual([len(p['items']) for p in pages], [50, 49, 7, 0])
+            self.assertEqual([p['more'] for p in pages], [True, True, False, False])
+            self.assertEqual([p['next_offset'] for p in pages[:3]], [50, 100, 107])
+            self.assertTrue(all(i['uri'].startswith('apple_music--a://track/') for p in pages for i in p['items']))
+            self.assertEqual(mass.music.calls[-1], (kind, 'collection', 'apple_music--a', False))
+        tracks = tracks[:50]
+        page = await access.container_tracks(mass, account(), 'apple_music--a://playlist/exact-page')
+        self.assertFalse(page['more'])
+
+    async def test_new_client_with_older_server_uses_only_supported_collection_options(self):
+        mass = mass_client()
+        mass.server_info.schema_version = 46
+        for kind in ('album', 'playlist'):
+            method = getattr(mass.music, f'get_{kind}_tracks')
+            method.return_value = [item(item_id=str(n)) for n in range(70)]
+            result = await access.container_tracks(mass, account(), f'apple_music--a://{kind}/collection', 50)
+            method.assert_awaited_once_with(item_id='collection', provider_instance_id_or_domain='apple_music--a')
+            self.assertEqual(len(result['items']), 20)
+            self.assertFalse(result['more'])
+
     async def test_album_and_playlist_tracks_use_exact_account_impersonation_and_native_paging(self):
         mass = mass_client()
         for kind in ('album', 'playlist'):
@@ -248,6 +292,23 @@ class GatewayTests(IsolatedAsyncioTestCase):
         await self.gateway.websocket_apple_music(hass, connection, request)
         self.assertEqual(connection.error[0], 'account_filter')
         hass.mass.music.get_album_tracks.assert_not_awaited()
+
+    async def test_show_tracks_gateway_works_with_the_ha_shipped_client_without_new_keywords(self):
+        hass, connection, msg, _, _ = self.setup_gateway()
+        calls = []
+        async def get_playlist_tracks(item_id, provider_instance_id_or_domain, force_refresh=False):
+            calls.append((item_id, provider_instance_id_or_domain, force_refresh))
+            return [item(item_id=str(n)) for n in range(51)]
+        hass.mass.server_info.schema_version = 46
+        hass.mass.music.get_playlist_tracks = get_playlist_tracks
+        connection.user.permissions.check_entity = lambda entity, policy: policy == 'read'
+        await self.gateway.websocket_apple_music(hass, connection,
+            {**msg, 'action': 'tracks', 'uri': 'apple_music--a://playlist/deutschrap', 'offset': 50})
+        self.assertIsNone(connection.error)
+        self.assertEqual(connection.result['items'][0]['uri'], 'apple_music--a://track/50')
+        self.assertFalse(connection.result['more'])
+        self.assertEqual(calls, [('deutschrap', 'apple_music--a', False)])
+        hass.mass.player_queues.play_media.assert_not_awaited()
 
     async def test_play_uses_server_resolved_user_and_selected_sonos_queue(self):
         hass, connection, msg, _, _ = self.setup_gateway()

@@ -6,7 +6,7 @@ body.dark{background:#11151b;color:#f1f3f5;--primary-text-color:#f1f3f5;--second
 .demo-shell{max-width:1000px;margin:auto;padding:20px 12px}.demo-head{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:20px}.demo-head h1{font-size:20px;margin:0}.demo-head p{font-size:13px;line-height:1.5}.demo-head button{border:0;border-radius:18px;padding:10px 16px;cursor:pointer}.demo-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:20px}#editor-host{margin-top:20px}#reference{display:none}
 </style>
 <div class="demo-shell"><header class="demo-head"><div><h1>Music Manager</h1><p>Interaktive Vorschau mit Beispieldaten.<br>Die Demo steuert keine echten Lautsprecher.</p></div><button id="theme">Hell / Dunkel</button></header><div class="demo-cards" id="cards"></div><div id="alarm-host"></div><div id="editor-host"></div><div id="reference"></div></div>
-<script type="module">/* Music Manager 1.9.0 | MIT | HA UI Kit 1.3.1 bundled locally, unchanged | See LICENSES.txt */
+<script type="module">/* Music Manager 1.9.1 | MIT | HA UI Kit 1.3.1 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.3.1 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.3.1";
@@ -548,7 +548,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.9.0';
+export const MUSIC_VERSION = '1.9.1';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {

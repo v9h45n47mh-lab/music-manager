@@ -1,6 +1,7 @@
 """Account isolation and catalog adapter, independent of HA's transport."""
 
 import re
+from inspect import signature
 from urllib.parse import urlsplit
 
 
@@ -140,13 +141,27 @@ async def container_tracks(mass, account, uri, offset=0):
     kind, item_id = uri.partition("://")[2].split("/", 1)
     if kind not in {"album", "playlist"}:
         raise AccessError("invalid_media", "Öffne ein Album oder eine Playlist, um die einzelnen Titel anzuzeigen.")
-    kwargs = {"item_id": item_id, "provider_instance_id_or_domain": account["provider_id"],
-              "user": account["ma_user_id"], "limit": 50, "offset": offset}
-    if kind == "playlist":
-        items = await mass.music.get_playlist_tracks(**kwargs, strict_provider_instance=True)
+    method = getattr(mass.music, f"get_{kind}_tracks")
+    parameters = signature(method).parameters
+    schema = value(value(mass, "server_info"), "schema_version", 0) or 0
+    # HA 2026.11 ships client 1.6.0: both methods return the whole collection
+    # and accept only its ID, exact provider and a refresh/library flag.
+    # Newer client/server pairs can page and impersonate on these endpoints.
+    kwargs = {"item_id": item_id, "provider_instance_id_or_domain": account["provider_id"]}
+    native_paging = {"limit", "offset"} <= parameters.keys() and schema >= (93 if kind == "playlist" else 89)
+    if native_paging:
+        kwargs.update(limit=50, offset=offset)
+    if "user" in parameters and schema >= 101:
+        kwargs["user"] = account["ma_user_id"]
+    if kind == "playlist" and "strict_provider_instance" in parameters and schema >= 93:
+        kwargs["strict_provider_instance"] = True
+    items = await method(**kwargs)
+    if native_paging:
+        more = len(items) == 50
     else:
-        items = await mass.music.get_album_tracks(**kwargs)
+        more = len(items) > offset + 50
+        items = items[offset:offset + 50]
     return {"items": [result for item in items
                       if enum_value(value(item, "media_type")) == "track"
                       and (result := catalog_item(item, account["provider_id"]))],
-            "more": len(items) == 50, "next_offset": offset + len(items)}
+            "more": more, "next_offset": offset + len(items)}
