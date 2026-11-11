@@ -427,6 +427,47 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertEqual(saved['data']['unrelated'], {'keep': True})
         self.assertEqual((await flow.async_step_alarm_edit({'alarm_id': 'missing'}))['reason'], 'invalid_alarm')
 
+    async def test_adding_multiple_alarms_never_overwrites_another_users_alarm(self):
+        from unittest.mock import patch
+        flow, _, _, _ = self.configured_options_flow()
+        original = [dict(a) for a in flow.config_entry.options['alarms']]
+        # Keep both people's existing alarms, then add another for each person.
+        alarm_module = importlib.import_module('installation_test.alarms')
+        with patch.object(alarm_module, 'apple_target', new=AsyncMock()) as check:
+            for user in ('one', 'two'):
+                form = await flow.async_step_alarm()
+                defaults = {str(k): k.default() for k in form['data_schema']}
+                expected = 'school_alarm' if user == 'one' else 'school_alarm_2'
+                self.assertEqual(defaults['alarm_id'], expected)
+                mapping = {'alarm_id': expected, 'ha_user_id': 'ha-' + user, 'source_entity': 'media_player.box_' + user}
+                saved = await flow.async_step_alarm(mapping)
+                self.assertEqual(saved['type'], 'create_entry')
+                flow.config_entry.options = saved['data']
+            before = [dict(a) for a in flow.config_entry.options['alarms']]
+            refused = await flow.async_step_alarm({**before[0], 'ha_user_id': 'ha-two'})
+            self.assertEqual(refused['errors']['base'], 'duplicate_alarm')
+            self.assertEqual(flow.config_entry.options['alarms'], before)
+            self.assertEqual(check.await_count, 2)
+        self.assertEqual(before[:2], original)
+        self.assertEqual(len(before), 4)
+        self.assertEqual({a['ha_user_id'] for a in before}, {'ha-one', 'ha-two'})
+        self.assertEqual(flow.config_entry.options['unrelated'], {'keep': True})
+        removed = await flow.async_step_alarm_remove({'alarm_id': 'school_alarm_2'})
+        self.assertEqual(removed['data']['alarms'], before[:3])
+
+    async def test_alarm_id_claimed_during_validation_cannot_be_overwritten(self):
+        from unittest.mock import patch
+        flow, _, _, _ = self.configured_options_flow()
+        alarm_module = importlib.import_module('installation_test.alarms')
+        mapping = {'alarm_id': 'new_alarm', 'ha_user_id': 'ha-one', 'source_entity': 'media_player.box_one'}
+        other = {**mapping, 'ha_user_id': 'ha-two', 'source_entity': 'media_player.box_two'}
+        async def claim(*args):
+            flow.config_entry.options['alarms'].append(other)
+        with patch.object(alarm_module, 'apple_target', new=AsyncMock(side_effect=claim)):
+            refused = await flow.async_step_alarm(mapping)
+        self.assertEqual(refused['errors']['base'], 'duplicate_alarm')
+        self.assertEqual(flow.config_entry.options['alarms'][-1], other)
+
     async def test_configuration_panel_snapshot_is_admin_only_read_only_and_hides_credentials(self):
         import copy
         from unittest.mock import patch

@@ -78,6 +78,45 @@ class AlarmTests(IsolatedAsyncioTestCase):
                 await self.alarms.alarm_data(hass, owner, 'school_alarm', uri)
         self.assertEqual(store.async_set_item.await_count, 1)
 
+    async def test_multiple_people_and_multiple_alarms_keep_music_accounts_and_speakers_separate(self):
+        hass, owner, admin, other, first_store, first_favorite, call, _, entry = self.setup_alarm()
+        second_uid = 'RINCON_11223344556601400'
+        entities = hass.registry.entities
+        entities['media_player.other_sonos'] = NS(entity_id='media_player.other_sonos', platform='sonos', unique_id=second_uid, disabled_by=None)
+        entities['media_player.other_mass'] = NS(entity_id='media_player.other_mass', platform='music_assistant', unique_id=second_uid, config_entry_id='mass-entry', disabled_by=None)
+        other.permissions = NS(check_entity=lambda entity, policy: entity.startswith('media_player.other_'))
+        entry.options['accounts'].append(account('ha-b', 'ma-b', 'apple_music--b'))
+        entry.options['alarms'] += [
+            {'alarm_id': 'second_alarm', 'ha_user_id': other.id, 'source_entity': 'media_player.other_sonos'},
+            {'alarm_id': 'weekend_alarm', 'ha_user_id': owner.id, 'source_entity': 'media_player.sonos'}]
+        second_favorite = dict(first_favorite, uri='apple_music--b://playlist/second', title='Second playlist')
+        second_store = NS(data={self.alarms.FAVORITES_KEY: [second_favorite]})
+        async def save(key, value):
+            second_store.data[key] = value
+        second_store.async_set_item = AsyncMock(side_effect=save)
+        hass.user_stores[other.id] = second_store
+        weekend = dict(first_favorite, uri='apple_music--a://album/weekend', media_type='album', title='Weekend album')
+        first_store.data[self.alarms.FAVORITES_KEY].append(weekend)
+        hass.mass.auth.get_user.side_effect = lambda uid: NS(enabled=True, role='user', provider_filter=['apple_music--a' if uid=='ma-a' else 'apple_music--b'])
+        hass.mass.players[second_uid] = NS(available=True)
+        for person, alarm_id, favorite in [(owner, 'school_alarm', first_favorite), (other, 'second_alarm', second_favorite), (owner, 'weekend_alarm', weekend)]:
+            await self.alarms.alarm_data(hass, person, alarm_id, favorite['uri'])
+        self.assertEqual(set(first_store.data[self.alarms.SELECTION_KEY]), {'school_alarm', 'weekend_alarm'})
+        self.assertEqual(set(second_store.data[self.alarms.SELECTION_KEY]), {'second_alarm'})
+        for person, forbidden in [(owner, 'second_alarm'), (other, 'school_alarm')]:
+            with self.assertRaises(self.alarms.AccessError):
+                await self.alarms.alarm_data(hass, person, forbidden)
+        self.assertEqual((await self.alarms.alarm_data(hass, admin, 'second_alarm'))['selection']['uri'], second_favorite['uri'])
+        for alarm_id, favorite, uid, ma_user in [
+            ('school_alarm', first_favorite, 'RINCON_AABBCCDDEEFF01400', 'ma-a'),
+            ('second_alarm', second_favorite, second_uid, 'ma-b'),
+            ('weekend_alarm', weekend, 'RINCON_AABBCCDDEEFF01400', 'ma-a')]:
+            call.data['alarm_id'] = alarm_id
+            await self.alarms.play_alarm(hass, call)
+            hass.mass.player_queues.play_media.assert_awaited_with(queue_id=uid, media=favorite['uri'], option='replace', user=ma_user)
+        self.assertEqual(hass.mass.player_queues.play_media.await_count, 3)
+        hass.services.async_call.assert_not_awaited()
+
     async def test_saved_music_starts_without_browser_and_survives_unstarring(self):
         hass, owner, _, _, store, favorite, call, _, _ = self.setup_alarm()
         await self.alarms.alarm_data(hass, owner, 'school_alarm', favorite['uri'])

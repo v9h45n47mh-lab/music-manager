@@ -456,6 +456,29 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await editor().locator('#config-source_entity').selectOption('media_player.office');await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().waitFor({state:'hidden'});
   assert.equal(await page.evaluate(()=>configurationDemo.data.alarms[0].source_entity),'media_player.office');
  });
+ await check('configuration adds separate alarms for two people and never replaces an existing alarm',async()=>{
+  await openConfiguration();const original=await page.evaluate(()=>JSON.parse(JSON.stringify(configurationDemo.data.alarms[0])));
+  await panel().getByRole('button',{name:'Wecker hinzufügen',exact:true}).click();await editor().locator('#config-alarm_id').waitFor();
+  assert.equal(await editor().locator('#config-alarm_id').inputValue(),'school_alarm_2');
+  await editor().locator('#config-ha_user_id').selectOption('ha-two');await editor().locator('#config-source_entity').selectOption('media_player.office');
+  await editor().locator('#config-alarm_id').fill('school_alarm');await editor().getByRole('button',{name:'Speichern',exact:true}).click();
+  await editor().getByRole('alert').waitFor();assert.match(await editor().getByRole('alert').innerText(),/bereits vergeben/);
+  assert.deepEqual(await page.evaluate(()=>configurationDemo.data.alarms),[original]);
+  await editor().locator('#config-alarm_id').fill('school_alarm_2');await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().waitFor({state:'hidden'});
+  await panel().getByText('Wecker (2)',{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>configurationDemo.data.alarms[0]),original);
+  assert.equal(await page.evaluate(()=>configurationDemo.data.alarms[1].ha_user_id),'ha-two');
+  assert.equal(await page.evaluate(()=>configurationDemo.data.alarms[1].source_entity),'media_player.office');
+  for(const width of [375,1100]){
+   await page.setViewportSize({width,height:900});assert(!await panel().evaluate(el=>el.scrollWidth>el.clientWidth));
+   await page.screenshot({path:path.join(screens,`configuration-two-alarms-${width}.png`),fullPage:true});
+  }
+  await panel().getByRole('button',{name:'Wecker hinzufügen',exact:true}).click();await editor().locator('#config-alarm_id').waitFor();
+  assert.equal(await editor().locator('#config-alarm_id').inputValue(),'school_alarm_3');await editor().getByRole('button',{name:'Abbrechen',exact:true}).click();
+  await panel().locator('[data-action="alarm_edit"][data-id="school_alarm_2"]').click();await editor().locator('#config-source_entity').selectOption('media_player.bedroom');await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().waitFor({state:'hidden'});
+  assert.deepEqual(await page.evaluate(()=>configurationDemo.data.alarms[0]),original);assert.equal(await page.evaluate(()=>configurationDemo.data.alarms[1].source_entity),'media_player.bedroom');
+  await panel().locator('[data-action="alarm_remove"][data-id="school_alarm_2"]').click();await editor().getByRole('button',{name:'Entfernen',exact:true}).click();await editor().waitFor({state:'hidden'});
+  assert.deepEqual(await page.evaluate(()=>configurationDemo.data.alarms),[original]);
+ });
  await check('configuration connection changes require explicit confirmation and late responses do not leak after user switch',async()=>{
   await openConfiguration();await panel().locator('[data-action="connect"]').click();await editor().locator('#config-music_assistant_entry').selectOption('');
   await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().getByRole('button',{name:'Verbindung wechseln',exact:true}).waitFor();assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),2);

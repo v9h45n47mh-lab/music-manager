@@ -76,10 +76,14 @@ Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutig
 
 ## Weckmusik aus persönlichen Apple-Music-Favoriten
 
+Du kannst mehrere Wecker für verschiedene Personen sowie mehrere pro Person verwalten. Unter **Music Manager → Konfigurieren → Wecker → Wecker hinzufügen** werden sie einzeln angelegt. Jeder Wecker hat eine eindeutige Kennung, einen HA-Benutzer, seine Sonos-Box und getrennt gespeicherte persönliche Weckmusik. Neue Kennungen werden frei vorgeschlagen; eine doppelte Kennung wird mit Hinweis abgelehnt und überschreibt keinen bestehenden Wecker. Für Änderungen am vorhandenen Eintrag das Stiftsymbol verwenden.
+
+Beispiel: `kind_1_wecker` mit Benutzer 1 und dessen Sonos-Box sowie `kind_2_wecker` mit Benutzer 2 und dessen Box. Für Schultag, Wochenende oder Ferien lassen sich bei Bedarf zusätzliche Kennungen je Person verwenden. In der jeweiligen Dashboard-Zeile und Automation muss genau die zugehörige `alarm_id` stehen. Zeiten, Licht und Rollläden werden weiterhin von der vorhandenen HA-Automation gesteuert.
+
 Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm-row` und die Aktion `music_manager.play_alarm`. Die Auswahl wird serverseitig im HA-Benutzerspeicher gesichert; die Automation funktioniert auch bei geschlossenem Dashboard und nach einem HA-Neustart.
 
 1. In Music Manager die Apple-Music-Zuordnung des Wecker-Benutzers einrichten und gewünschte **Alben oder Playlists favorisieren**.
-2. Als Administrator unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren → Wecker hinzufügen oder ändern** die Kennung `school_alarm`, den HA-Benutzer **Wecker-Benutzer** und **seine Sonos-Box** auswählen. Bei mehreren Weckern muss jede Kennung eindeutig sein. Die Zuordnung kann später über dieselbe Kennung geändert werden.
+2. Als Administrator unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren → Wecker hinzufügen** die Kennung `school_alarm`, den HA-Benutzer **Wecker-Benutzer** und **seine Sonos-Box** auswählen. Bei mehreren Weckern muss jede Kennung eindeutig sein. Die Zuordnung kann später über das Stiftsymbol bearbeitet werden; die Kennung bleibt dabei erhalten.
 3. Die passende Entities-Zeile in die vorhandene Weckerkarte einfügen:
 
 ```yaml

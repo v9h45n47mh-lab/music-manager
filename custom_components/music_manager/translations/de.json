@@ -26,7 +26,7 @@
           "connect": "Music-Assistant-Verbindung",
           "add": "Benutzerzuordnung hinzufügen oder ändern",
           "remove": "Benutzerzuordnung entfernen",
-          "alarm": "Wecker hinzufügen oder ändern",
+          "alarm": "Wecker hinzufügen",
           "alarm_remove": "Weckerzuordnung entfernen",
           "edit": "Vorhandene Benutzerzuordnung bearbeiten",
           "alarm_edit": "Vorhandenen Wecker bearbeiten"
@@ -57,8 +57,8 @@
         }
       },
       "alarm": {
-        "title": "Wecker zuordnen",
-        "description": "Lege eine feste Kennung fest (z. B. school_alarm) und wähle den Benutzer, dessen Favoriten und Apple-Music-Konto verwendet werden, sowie seine Sonos-Box. Dieselbe Kennung muss in der Wecker-Kachel und Automation stehen. Eine vorhandene Kennung wird aktualisiert.",
+        "title": "Wecker hinzufügen",
+        "description": "Füge für jede Person eigene Wecker hinzu, auch mehrere pro Person. Die vorgeschlagene Kennung ist noch frei; du kannst eine eigene eindeutige Kennung eingeben. Wähle den Benutzer für persönliche Favoriten und Apple Music sowie seine Sonos-Box. Dieselbe Kennung gehört in die Weckerkarte und Automation. Bestehende Wecker bleiben erhalten; Änderungen erfolgen über Bearbeiten.",
         "data": {
           "alarm_id": "Weckerkennung",
           "ha_user_id": "Home-Assistant-Benutzer",
@@ -111,7 +111,8 @@
       "cannot_connect": "Music Assistant ist nicht bereit oder die Verbindung darf keine Benutzer lesen.",
       "account_disabled": "Das MA-Konto muss aktiv sein und die Rolle Benutzer oder Administrator haben. Lade die Auswahl neu und prüfe das Konto in Music Assistant.",
       "provider_unavailable": "Das gewählte Apple-Music-Konto ist nicht mehr verfügbar. Prüfe die Anmeldung in Music Assistant und lade die Auswahl neu.",
-      "invalid_alarm": "Kennung (a–z, 0–9, Unterstrich), Benutzer, Apple-Music-Zuordnung und Boxfreigaben prüfen."
+      "invalid_alarm": "Kennung (a–z, 0–9, Unterstrich), Benutzer, Apple-Music-Zuordnung und Boxfreigaben prüfen.",
+      "duplicate_alarm": "Diese Weckerkennung ist bereits vergeben. Wähle für den neuen Wecker eine andere Kennung oder bearbeite den vorhandenen Wecker über das Stiftsymbol."
     },
     "abort": {
       "accounts_missing": "Richte in Music Assistant mindestens ein Apple-Music-Konto und ein aktives Konto mit der Rolle Benutzer oder Administrator ein.",

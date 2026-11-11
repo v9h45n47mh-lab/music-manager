@@ -30,7 +30,7 @@ def configured_alarm(hass, alarm_id):
     entry = entries[0]
     alarms = [a for a in entry.options.get(CONF_ALARMS, []) if a.get("alarm_id") == alarm_id]
     if len(alarms) != 1:
-        raise AccessError("alarm_missing", "Ordne diesen Wecker unter Geräte & Dienste → Music Manager → Konfigurieren → Wecker hinzufügen oder ändern einem Benutzer und einer Box zu.")
+        raise AccessError("alarm_missing", "Ordne diesen Wecker unter Geräte & Dienste → Music Manager → Konfigurieren → Wecker hinzufügen einem Benutzer und einer Box zu.")
     return entry, alarms[0]
 
 

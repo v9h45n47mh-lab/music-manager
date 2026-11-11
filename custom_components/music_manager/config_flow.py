@@ -264,7 +264,12 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
         saved = next((a for a in self.config_entry.options.get(CONF_ALARMS, []) if a["alarm_id"] == editing), {})
         if editing and not saved:
             return self.async_abort(reason="invalid_alarm")
-        defaults = {"alarm_id": "school_alarm", **saved, **(user_input or {})}
+        existing_ids = {a["alarm_id"] for a in self.config_entry.options.get(CONF_ALARMS, [])}
+        suggested_id, suffix = "school_alarm", 2
+        while suggested_id in existing_ids:
+            suggested_id = f"school_alarm_{suffix}"
+            suffix += 1
+        defaults = {"alarm_id": suggested_id, **saved, **(user_input or {})}
         if editing:
             defaults["alarm_id"] = editing
         users = {u.id: u for u in await self.hass.auth.async_get_users()
@@ -278,7 +283,9 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
                    for e in er.async_get(self.hass).entities.values()
                    if e.platform == "sonos" and not e.disabled_by and e.entity_id.startswith("media_player.")]
         errors = {}
-        if user_input is not None:
+        if user_input is not None and not editing and user_input.get("alarm_id") in existing_ids:
+            errors["base"] = "duplicate_alarm"
+        elif user_input is not None:
             try:
                 if (not ALARM_ID.fullmatch(user_input.get("alarm_id", ""))
                     or (editing and user_input.get("alarm_id") != editing)
@@ -291,11 +298,19 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
             except Exception:
                 errors["base"] = "invalid_alarm"
             else:
-                alarms = [dict(user_input) if a["alarm_id"] == user_input["alarm_id"] else a
-                          for a in self.config_entry.options.get(CONF_ALARMS, [])]
-                if not any(a["alarm_id"] == user_input["alarm_id"] for a in alarms):
-                    alarms.append(dict(user_input))
-                return self.async_create_entry(title="", data={**self.config_entry.options, CONF_ALARMS: alarms})
+                # Re-read after the awaited MA checks: another options flow may
+                # have added this ID or removed the edited alarm in the meantime.
+                alarms = list(self.config_entry.options.get(CONF_ALARMS, []))
+                if not editing and any(a["alarm_id"] == user_input["alarm_id"] for a in alarms):
+                    errors["base"] = "duplicate_alarm"
+                elif editing and not any(a["alarm_id"] == editing for a in alarms):
+                    return self.async_abort(reason="invalid_alarm")
+                else:
+                    if editing:
+                        alarms = [dict(user_input) if a["alarm_id"] == editing else a for a in alarms]
+                    else:
+                        alarms.append(dict(user_input))
+                    return self.async_create_entry(title="", data={**self.config_entry.options, CONF_ALARMS: alarms})
         return self.async_show_form(step_id="alarm_update" if editing else "alarm", data_schema=vol.Schema({
             vol.Required("alarm_id", default=defaults["alarm_id"]): select([{"value": editing, "label": editing}]) if editing else str,
             required_with_default("ha_user_id", defaults): select(with_saved_choice(owners, defaults.get("ha_user_id"))),

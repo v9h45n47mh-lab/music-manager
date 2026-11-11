@@ -26,7 +26,7 @@
           "connect": "Music Assistant connection",
           "add": "Add or change user assignment",
           "remove": "Remove user assignment",
-          "alarm": "Add or change alarm",
+          "alarm": "Add alarm",
           "alarm_remove": "Remove alarm assignment",
           "edit": "Edit existing user assignment",
           "alarm_edit": "Edit existing alarm"
@@ -57,8 +57,8 @@
         }
       },
       "alarm": {
-        "title": "Assign alarm",
-        "description": "Choose a fixed ID (e.g. school_alarm), the owner whose favorites and Apple Music account are used, and their Sonos speaker. Use the same ID in the alarm row and automation. An existing ID is updated.",
+        "title": "Add alarm",
+        "description": "Add separate alarms for each person, including multiple alarms per person. The suggested ID is unused; you can enter your own unique ID. Choose the owner whose favorites and Apple Music account are used and their Sonos speaker. Use the same ID in the alarm row and automation. Existing alarms are preserved; use Edit to change them.",
         "data": {
           "alarm_id": "Alarm ID",
           "ha_user_id": "Home Assistant user",
@@ -111,7 +111,8 @@
       "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
       "account_disabled": "The MA account must be active with the user or administrator role. Reload the selection and check the account in Music Assistant.",
       "provider_unavailable": "The selected Apple Music account is no longer available. Check its login in Music Assistant and reload the selection.",
-      "invalid_alarm": "Check the ID (a-z, 0-9, underscore), owner, Apple Music assignment and speaker permissions."
+      "invalid_alarm": "Check the ID (a-z, 0-9, underscore), owner, Apple Music assignment and speaker permissions.",
+      "duplicate_alarm": "This alarm ID is already in use. Choose a different ID for the new alarm or edit the existing alarm using the pencil icon."
     },
     "abort": {
       "accounts_missing": "Add an Apple Music provider instance and an active user or administrator account in Music Assistant first.",

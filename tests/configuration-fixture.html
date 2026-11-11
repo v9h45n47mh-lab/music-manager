@@ -9,6 +9,7 @@ const data={entry_id:'manager',version:'1.7.1',connection:{id:'mass',name:'Music
 const connections=new Map();let admin=true;
 const select=(name,options,value)=>({name,required:true,type:'selector',selector:{select:{options}},...(value===undefined?{}:{default:value})});
 const accountForm=record=>[select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name})),record?.ha_user_id),select('ma_user_id',data.accounts.map(a=>({value:a.ma_user_id,label:a.ma_name})),record?.ma_user_id),select('provider_id',data.accounts.map(a=>({value:a.provider_id,label:a.provider_name})),record?.provider_id)];
+const alarmForm=()=>{let id='school_alarm',suffix=2;while(data.alarms.some(a=>a.alarm_id===id))id='school_alarm_'+suffix++;return [{name:'alarm_id',required:true,type:'string',default:id},select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name}))),select('source_entity',[{value:'media_player.bedroom',label:'Kinderzimmer'},{value:'media_player.office',label:'Büro'}])];};
 const makeHass=()=>({user:{id:admin?'admin':'child',is_admin:admin},connection:connections.get(admin)||connections.set(admin,{}).get(admin),
  async callWS(msg){requests.push({ws:copy(msg)});if(msg.type!=='music_manager/configuration'||!admin)throw Error('Denied');return copy(data);},
  async callApi(method,path,body){requests.push({method,path,body:body?copy(body):null});
@@ -24,12 +25,16 @@ const makeHass=()=>({user:{id:admin?'admin':'child',is_admin:admin},connection:c
    if(flow.action==='edit'||flow.action==='remove')flow.data_schema=[select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name})))];
    if(flow.action==='alarm_edit'||flow.action==='alarm_remove')flow.data_schema=[select('alarm_id',data.alarms.map(a=>({value:a.alarm_id,label:a.alarm_id})))];
    if(flow.action==='add')flow.data_schema=accountForm();
-   if(flow.action==='alarm')flow.data_schema=[{name:'alarm_id',required:true,type:'string',default:'school_alarm'},select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name}))),select('source_entity',[{value:'media_player.bedroom',label:'Kinderzimmer'}])];
+   if(flow.action==='alarm')flow.data_schema=alarmForm();
    return copy(flow);
   }
   if(flow.step_id==='edit'){flow.step_id='account_edit';flow.data_schema=accountForm(data.accounts.find(a=>a.ha_user_id===body.ha_user_id));return copy(flow);}
   if(flow.step_id==='alarm_edit'){const alarm=data.alarms.find(a=>a.alarm_id===body.alarm_id);flow.step_id='alarm_update';flow.data_schema=[select('alarm_id',[{value:alarm.alarm_id,label:alarm.alarm_id}],alarm.alarm_id),select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name})),alarm.ha_user_id),select('source_entity',[{value:'media_player.bedroom',label:'Kinderzimmer'},{value:'media_player.office',label:'Büro'}],alarm.source_entity)];return copy(flow);}
   if(failSave){flow.errors={base:'invalid_account'};return copy(flow);}
+  if(flow.action==='alarm'){
+   if(data.alarms.some(a=>a.alarm_id===body.alarm_id)){flow.errors={base:'duplicate_alarm'};return copy(flow);}
+   data.alarms.push({...body,owner_name:data.accounts.find(a=>a.ha_user_id===body.ha_user_id).ha_name,source_name:body.source_entity==='media_player.office'?'Büro':'Kinderzimmer',music_title:null,music_readable:true});
+  }
   if(flow.action==='remove')data.accounts=data.accounts.filter(a=>a.ha_user_id!==body.ha_user_id);
   if(flow.action==='alarm_remove')data.alarms=data.alarms.filter(a=>a.alarm_id!==body.alarm_id);
   if(flow.action==='edit'){Object.assign(data.accounts.find(a=>a.ha_user_id===body.ha_user_id),body);}
