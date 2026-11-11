@@ -18,7 +18,7 @@ class MusicManagerAlarmRow extends HTMLElement {
   _ensure() {
     if(!this._config)return;
     if(!this._dialog){
-      this.shadowRoot.innerHTML=`<style>${UI_CSS}:host{display:block;min-width:0}.alarm-row .setting-row{border:0;padding:0;min-height:48px}.alarm-row .row-text{min-width:0}.alarm-row .row-text small{overflow-wrap:anywhere}.alarm-browser{display:grid;gap:16px;min-width:0}</style><div class="alarm-row" id="alarm-row"></div>${dialog({id:'alarm-dialog',title:'Weckmusik auswählen',content:'<div class="alarm-browser" id="alarm-content"></div>'})}`;
+      this.shadowRoot.innerHTML=`<style>${UI_CSS}:host{display:block;min-width:0}.alarm-row .setting-row{border:0;padding:0;min-height:48px}.alarm-row .row-text{min-width:0}.alarm-row .row-text small{overflow-wrap:anywhere}.alarm-browser{display:grid;gap:16px;min-width:0}#alarm-dialog{margin:24px auto auto;max-height:calc(100dvh - 48px)}</style><div class="alarm-row" id="alarm-row"></div>${dialog({id:'alarm-dialog',title:'Weckmusik auswählen',content:'<div class="alarm-browser" id="alarm-content"></div>'})}`;
       this._dialog=this.shadowRoot.getElementById('alarm-dialog');
       this._dialog.addEventListener('close',()=>{this._epoch++;this._loading=false;this._saving=false;this._render();this.shadowRoot.querySelector('[data-action="alarm-open"]')?.focus();});
     }
