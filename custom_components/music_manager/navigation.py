@@ -1,4 +1,4 @@
-"""Personal beta-player navigation; changing a card never changes its configuration."""
+"""Personal player navigation; changing a card never changes its configuration."""
 
 import asyncio
 import re

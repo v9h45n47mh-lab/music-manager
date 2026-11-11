@@ -30,9 +30,9 @@
           "alarm_remove": "Remove alarm assignment",
           "edit": "Edit existing user assignment",
           "alarm_edit": "Edit existing alarm",
-          "speaker_users": "Speaker selection (beta)"
+          "speaker_users": "Speaker selection"
         },
-        "description": "[Open configuration panel](/music-manager)\n\n**Music Assistant**\n{connection}\n\n**Account assignments · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Alarms · {alarm_count}**\nID · user → speaker · alarm music\n{alarms}\n\n— means no assignment or, for alarm music, the last Sonos playback. ⚠ means the saved alarm music could not be read. When Music Assistant is unavailable, saved IDs appear instead of account names.\n\n**Speaker selection · beta**\n{speaker_users}"
+        "description": "[Open configuration panel](/music-manager)\n\n**Music Assistant**\n{connection}\n\n**Account assignments · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Alarms · {alarm_count}**\nID · user → speaker · alarm music\n{alarms}\n\n— means no assignment or, for alarm music, the last Sonos playback. ⚠ means the saved alarm music could not be read. When Music Assistant is unavailable, saved IDs appear instead of account names.\n\n**Speaker selection**\n{speaker_users}"
       },
       "add": {
         "title": "Assign personal Apple Music account",
@@ -105,8 +105,8 @@
         }
       },
       "speaker_users": {
-        "title": "Speaker selection · beta",
-        "description": "These users can change the speaker in the beta card. Each user has a saved selection. Initially, uniquely named active HA users Vera and Manuel are selected. Other users use the configured speaker. Existing HA permissions still apply.",
+        "title": "Speaker selection",
+        "description": "These users can change the speaker in the Music Manager card. Each user has a saved selection. Initially, uniquely named active HA users Vera and Manuel are selected. Other users use the configured speaker. Existing HA permissions still apply.",
         "data": {
           "speaker_selection_users": "Users with speaker selection"
         }

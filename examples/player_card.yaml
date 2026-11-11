@@ -1,4 +1,4 @@
 # Die Entität durch deine tatsächliche native Sonos-Entität ersetzen.
-type: custom:music-manager-beta-card
+type: custom:music-manager-card
 entity: media_player.sonos_wohnzimmer
 navigation_id: hauptplayer

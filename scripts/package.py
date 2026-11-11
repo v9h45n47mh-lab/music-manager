@@ -10,7 +10,6 @@ out = root.parent / f"Music-Manager-{version}.zip"
 fixture = (root / "tests/fixture.html").read_text()
 script = (root / "dist/music-manager-card.js").read_text()
 preview = fixture.replace('<script type="module" src="../custom_components/music_manager/frontend/music-manager-card.js"></script>', '<script type="module">' + script.replace('</script', '<\\/script') + '</script>')
-preview = preview.replace("addCard('media_player.wohnzimmer','Music Manager');", "addBeta('media_player.wohnzimmer');").replace('<h1>Music Manager</h1>', '<h1>Music Manager · Player Beta</h1>')
 # The module providing the card is self-contained, with no fetches or imports.
 (root / "Vorschau.html").write_text(preview)
 with ZipFile(out, "w", ZIP_DEFLATED, compresslevel=9) as archive:

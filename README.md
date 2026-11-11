@@ -1,34 +1,31 @@
-# Music Manager 1.12.2
+# Music Manager 2.0.0
 
 ![Music Manager](brand/icon.png)
 
 [![Prüfungen](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml/badge.svg)](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml)
 
-**Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.4.1**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
-
-Zurück, Play/Pause und Weiter erscheinen als gleich breite Symboltasten. Bei Apple Music steht Shuffle als Symbol ohne Text in derselben Reihe, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
-
-## Zusätzliche Player-Karte · Beta (ab 1.12.0)
-
-Die bisherige Karte bleibt erhalten. Zum Ausprobieren eine vorhandene Music-Manager-Karte duplizieren und nur `type` auf `custom:music-manager-beta-card` ändern. Alternativ im Kartenpicker **Music Manager – Player Beta** auswählen. Im Player steht keine Beta-Beschriftung.
+**Home-Assistant-Integration mit Musicplayer, Apple-Music-Connector und persönlichen Favoriten.** Die reguläre Karte verwendet ab 2.0.0 das optimierte Player-Design mit unveränderten Bausteinen aus **HA UI Kit 1.4.1**. Es gibt nur noch eine Karte im Kartenpicker: **Music Manager**.
 
 ```yaml
-type: custom:music-manager-beta-card
+type: custom:music-manager-card
 entity: media_player.sonos_wohnzimmer
 navigation_id: hauptplayer
 ```
 
-`entity` durch deine tatsächliche native Sonos-Entität ersetzen. Sie bleibt die Ausgangsbox. `navigation_id` ist optional und trennt den gespeicherten Zustand mehrerer Karten; ohne Kennung teilen Beta-Karten mit gleicher Ausgangsbox den gespeicherten Stand.
+`entity` durch die tatsächliche native Sonos-Entität ersetzen. Sie bleibt die Ausgangsbox. `navigation_id` ist optional; damit lassen sich die persönlichen Box-Auswahlen mehrerer Karten trennen. Favoriten und Apple-Music-Konto gehören weiterhin dem angemeldeten HA-Benutzer.
 
-- **Vera und Manuel:** Das kompakte Box-Dropdown steht oben links, ohne sichtbare Beschriftung. Die 150 px breite Auswahl zeigt den Raumnamen ohne „Sonos“-Vorsatz; „Schlafzimmer“ passt vollständig hinein. Die persönliche Box wird serverseitig je HA-Benutzer gespeichert und beim nächsten Öffnen wiederhergestellt. Unter Konfiguration → **Box-Auswahl (Beta)** werden die Benutzer angezeigt und verwaltet. Eindeutig benannte aktive HA-Benutzer Vera und Manuel sind die Vorgabe; bei abweichenden Namen einmal die Benutzer auswählen. HA-/MA-Berechtigungen gelten weiterhin.
-- **Maximilian und Paul:** Die Karte bleibt auf der Ausgangsbox und hat kein Box-Dropdown. Der Boxname steht nur in den Einstellungen, nicht im Player-Kopf. Ihre Einstellungen enthalten die gemeinsame Verwaltung **Favoriten & Wecklieder**, einschließlich Suche, Sortierung und Entfernen. Favoriten und Wecklieder bleiben getrennte persönliche Listen. Die beiden aktiven HA-Benutzer werden anhand ihrer eindeutigen Namen Maximilian und Paul erkannt; andere Benutzer bekommen in der Beta keine Wecklied-Funktionen.
-- **Zahnrad oben rechts:** Öffnet **Sender**, **Apple Music** und die Favoritenverwaltung. Für Maximilian und Paul sind Favoriten und Wecklieder zusammengeführt. Beim Schließen von Radio Browser, Apple Music oder Favoriten über X oder Escape erscheinen wieder die Einstellungen. Das gilt auch für die gemeinsame Verwaltung „Favoriten & Wecklieder“ der Kinder sowie nach einer Medienauswahl. Dort stehen auch die installierten Versionen von Oberfläche, Integration und UI Kit. Es gibt keine zusätzliche Auswahlleiste unten. Bei Vera und Manuel entfallen Wecklieder, deren Datenladen, Verwaltung und Markierung einzelner Apple-Music-Titel vollständig in der Beta. Die allgemeine Weckerkonfiguration für Administratoren und die klassische Karte bleiben erhalten.
-- **Favoritenkacheln:** ausschließlich Logo/Cover bzw. Ersatzsymbol, ohne sichtbare Texte. Tooltip und zugänglicher Name bleiben erhalten. Der aktuell abgespielte Favorit wird in der Kurzwahl ausgeblendet, bleibt aber gespeichert und in der Favoritenverwaltung enthalten. Nach einem Wechsel erscheint er wieder. Das gilt für Radio sowie gestartete Apple-Music-Alben und Playlists. Andere Favoriten bleiben bei Status- und Metadatenmeldungen während eines Klicks bedienbar.
-- **Radiowiedergabe:** nur Play/Pause; Vor/Zurück entfallen. Apple Music behält Titelwechsel und Shuffle. Die Hervorhebung der Player-Tasten bleibt auch beim Hover kreisrund.
-- **Lautstärke:** 0–50 % über die gesamte Reglerbreite: 0 links, 25 in der Mitte, 50 ganz rechts. Auch gesendete Befehle und native HA-Slider-Ereignisse werden auf höchstens 50 % begrenzt. Dies ist die Begrenzung der Beta-Karte; andere HA-Karten, direkte HA-Serviceaufrufe und die Sonos-App bleiben unabhängig. Ein höherer extern eingestellter Pegel löst durch das bloße Anzeigen der Karte keinen Lautstärkebefehl aus.
-- **UI Kit 1.4.1:** Kopf, Box-Auswahl, Zahnrad, Medientasten, Symbolfavoriten, Dialoge, Listen und Felder verwenden unveränderte gemeinsame Bausteine und Stile. Die Beta enthält keine eigenen CSS-Regeln. Der native HA-Lautstärkeregler wird weiter unterstützt; der Fallback stammt aus dem UI Kit.
+- **Vera und Manuel:** kompaktes Box-Dropdown oben links, 150 px breit, mit Raumnamen ohne „Sonos“-Vorsatz. Die gewählte Box wird je Benutzer gespeichert. Berechtigte Benutzer lassen sich unter **Konfigurieren → Box-Auswahl** verwalten.
+- **Maximilian und Paul:** feste Ausgangsbox. Der Boxname steht ausschließlich in den Einstellungen. Nur diese beiden Benutzer erhalten die gemeinsame Verwaltung **Favoriten & Wecklieder**. Beide Listen bleiben getrennt gespeichert.
+- **Zahnrad oben rechts:** Sender, Apple Music und Favoritenverwaltung. Beim Schließen eines Dialogs über X oder Escape geht es zurück zu den Einstellungen. Dort stehen auch die installierten Versionen von Oberfläche, Integration und UI Kit.
+- **Wiedergabe:** runde Symboltasten; bei Radio nur Play/Pause. Apple Music bietet zusätzlich Vor/Zurück, Shuffle und die Zeitleiste zum Spulen.
+- **Lautstärke:** 0–50 % über die gesamte Reglerbreite, mit Prozentanzeige beim Bedienen. Auch die von dieser Karte gesendeten Befehle sind auf 50 % begrenzt. Andere HA-Karten, direkte Serviceaufrufe und Sonos bleiben unabhängig.
+- **Favoriten:** Kurzwahl mit Logos bzw. Symbolen ohne Texte. Der aktuell laufende Favorit ist unten ausgeblendet und erscheint beim Wechsel wieder. Er bleibt gespeichert und vollständig in der Verwaltung enthalten. Das gilt auch für gestartete Apple-Music-Alben und Playlists.
 
-Die Auswahl einer anderen Box verschiebt keine laufende Wiedergabe. Bei einem Speicherfehler bleibt die bisherige Box aktiv. Favoriten, Wecklieder und Apple-Music-Konto bleiben beim angemeldeten Benutzer. Die passende MA-Entität wird nach einem Wechsel neu ermittelt.
+### Update von 1.x
+
+Bestehende Karten mit `type: custom:music-manager-card` erhalten das neue Design automatisch. Die separate Beta-Datei und der Beta-Eintrag im Kartenpicker entfallen. Bereits gespeicherte Beta-YAML mit `custom:music-manager-beta-card` wird über einen unsichtbaren Kompatibilitätsnamen auf denselben regulären Player geleitet. Beim nächsten Speichern im visuellen Editor wird der Typ auf `custom:music-manager-card` umgestellt. Es gibt keinen getrennten Beta-Player mehr.
+
+Persönliche Box-Auswahl, Favoriten, Wecklieder, Konto- und Weckerzuordnungen bleiben erhalten. Im Marketplace auf **2.0.0** aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Neue Karten immer mit dem regulären Typ anlegen.
 
 ## Installation über den Marketplace
 
@@ -99,7 +96,7 @@ Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutig
 
 ## Handyansicht
 
-Radio- und Apple-Music-Dialoge nutzen auf kleinen Bildschirmen die gesamte verfügbare Höhe. Der Schließen-Button bleibt oben erreichbar; es gibt einen durchgehenden Scrollbereich. Suchfeld, Mediathek-Tabs und Verwaltung sind getrennt angeordnet. Cover und Liednamen haben eine eigene Zeile, Aktionen darunter mindestens 44 Pixel große Bedienflächen. Sender wählen und Apple Music stehen nebeneinander; Favoriten und Wecklieder in der nächsten Zeile.
+Radio- und Apple-Music-Dialoge nutzen auf kleinen Bildschirmen die gesamte verfügbare Höhe. Der Schließen-Button bleibt oben erreichbar; es gibt einen durchgehenden Scrollbereich. Suchfeld, Mediathek-Tabs und Verwaltung sind getrennt angeordnet. Cover und Liednamen haben eine eigene Zeile, Aktionen darunter mindestens 44 Pixel große Bedienflächen. Sender, Apple Music und Favoriten werden über das Zahnrad in den Einstellungen geöffnet. Bei den Kindern sind Favoriten und Wecklieder dort zusammengefasst.
 
 Die Weckmusik-Zeile verwendet unverändert die gemeinsame UI-Kit-Zeile und deren Button. „Auswählen“ bleibt auch auf schmalen Handys rechts neben dem Text. Der Text kann umbrechen; der Button bleibt vollständig innerhalb der Karte.
 
@@ -146,7 +143,7 @@ Der Hintergrundstart akzeptiert ausschließlich die vorher vom Administrator kon
 
 ## Apple Music
 
-Die Schaltfläche **Apple Music** steht unten neben **Sender wählen**. In der Kachelreihe stehen ausschließlich persönliche Sender-, Album- und Playlistfavoriten. **Apple Music** öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
+**Apple Music** wird über das **Zahnrad → Apple Music** geöffnet. In der Kachelreihe stehen ausschließlich persönliche Sender-, Album- und Playlistfavoriten. **Apple Music** öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
 
 Während Apple Music läuft, zeigt die Tastenreihe zusätzlich **Shuffle als Symbol** und darunter eine **Zeitleiste mit verstrichener Zeit und Gesamtdauer**, ohne die zusätzliche Beschriftung „Titelposition“. Die Zeitleiste lässt sich vorwärts und rückwärts ziehen; der Spulbefehl wird erst beim Loslassen gesendet. Während des Ziehens bleiben Position und Zeitangabe stabil. Bei einem Titel- oder Boxwechsel wird eine begonnene Eingabe verworfen. Die Position läuft während der Wiedergabe weiter und bleibt bei Pause stehen. Ohne bekannte Dauer wird keine Zeitleiste angezeigt.
 
@@ -195,7 +192,7 @@ Access Control kann eine Statusantwort zu einer ausgeblendeten Entität vollstä
 
 ## Persönliche Favoriten
 
-Im Radio Browser markierst du einen Sender mit dem **Stern** als Favoriten. Ein erneuter Tipp entfernt ihn. Unter **Sender wählen → Favoriten verwalten** siehst du außerdem alle gewählten Favoriten mit Logo und Häkchen. Entferne das Häkchen, um einen Sender abzuwählen; die Kurzwahl wird auf allen Karten und Geräten deines Benutzers aktualisiert. Diese Verwaltung funktioniert auch bei nicht erreichbarem Radio Browser oder Lautsprecher. Deine Favoriten erscheinen mit Senderlogo und Name direkt unter den Wiedergabetasten und dem Lautstärkeregler. Ein Tipp auf die Kurzwahl startet den Sender auf der Box dieser Karte. Fehlt das Logo oder kann es nicht geladen werden, erscheint ein Radiosymbol.
+Im Radio Browser markierst du einen Sender mit dem **Stern** als Favoriten. Ein erneuter Tipp entfernt ihn. Unter **Zahnrad → Favoriten** siehst du außerdem alle gewählten Favoriten mit Logo und Häkchen. Entferne das Häkchen, um einen Sender abzuwählen; die Kurzwahl wird auf allen Karten und Geräten deines Benutzers aktualisiert. Diese Verwaltung funktioniert auch bei nicht erreichbarem Radio Browser oder Lautsprecher. Deine Favoriten erscheinen als Logo oder Symbol direkt unter den Bedienelementen. Der laufende Favorit wird dort ausgeblendet, bleibt aber in der Verwaltung enthalten. Ein Tipp auf die Kurzwahl startet den Sender auf der Box dieser Karte. Fehlt das Logo oder kann es nicht geladen werden, erscheint ein Radiosymbol.
 
 Favoriten gehören dem **angemeldeten Home-Assistant-Benutzer**, unabhängig von Karte, Dashboard oder Sonos-Box. Sie werden über Home Assistants Benutzerspeicher dauerhaft gespeichert und mit `frontend/subscribe_user_data` auf andere Karten, Browser und Geräte desselben Benutzers übertragen. Andere Benutzer haben ihre eigene Liste. Es gibt keine Favoriten in der Karten-YAML oder im lokalen Browserspeicher. Die Karte verwendet ausschließlich die authentifizierte Sitzung und übergibt weder Benutzer-ID noch Box-ID an den Speicher.
 

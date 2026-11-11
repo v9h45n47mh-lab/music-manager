@@ -1,4 +1,4 @@
-/* Music Manager 1.12.2 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 2.0.0 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.4.1 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.4.1";
@@ -577,7 +577,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,MUSIC_PLAYER_CSS,escapeHtml,button,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.12.2';
+export const MUSIC_VERSION = '2.0.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -881,7 +881,7 @@ function logoMarkup(station) {
   return `<span class="music-station-logo" aria-hidden="true">${station.kind==='apple_music'?APPLE_MUSIC_LOGO:musicIcon('radio')}${src?`<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>`;
 }
 
-export class MusicManagerCard extends HTMLElement {
+export class MusicPlayerBase extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({mode:'open'});
@@ -1733,7 +1733,7 @@ export class MusicManagerCard extends HTMLElement {
   }
 }
 
-export class MusicManagerCardEditor extends HTMLElement {
+export class MusicPlayerEditorBase extends HTMLElement {
   _editorDescription(){return 'Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Oberfläche und Music-Manager-Connector werden gemeinsam über den Marketplace installiert. Apple Music findet den Music-Assistant-Player derselben Box automatisch. Die Apple-Music-Kontozuordnung erfolgt einmal pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.';}
   constructor() {
     super();this.attachShadow({mode:'open'});this._options=[];
@@ -1809,21 +1809,15 @@ export class MusicManagerCardEditor extends HTMLElement {
   }
 }
 
-if(!customElements.get('music-manager-card'))customElements.define('music-manager-card',MusicManagerCard);
-if(!customElements.get('music-manager-card-editor'))customElements.define('music-manager-card-editor',MusicManagerCardEditor);
-window.customCards=window.customCards||[];
-if(!window.customCards.some(card=>card.type==='music-manager-card'))window.customCards.push({
-  type:'music-manager-card',name:'Music Manager',description:'Sonos, persönliche Radiofavoriten und Apple Music. Mit HA UI Kit.',preview:true
-});
 
 (() => {
 const {UI_CSS, MUSIC_PLAYER_CSS, musicPlayerHeader, musicTransport, musicFavoriteTile, musicActionButton, musicArtwork, notice, button, iconButton, field, section, row, dialog, loadingState, emptyState, versionInfo, UI_VERSION} = MusicManagerUI;
 
 
 
-class MusicManagerBetaCard extends MusicManagerCard {
-  static getConfigElement(){return document.createElement('music-manager-beta-card-editor');}
-  static getStubConfig(hass){return {...super.getStubConfig(hass),type:'custom:music-manager-beta-card'};}
+class MusicManagerCard extends MusicPlayerBase {
+  static getConfigElement(){return document.createElement('music-manager-card-editor');}
+  static getStubConfig(hass){return {...super.getStubConfig(hass),type:'custom:music-manager-card'};}
   setConfig(config){
     const next=normalizeConfig(config);
     if(config.navigation_id!==undefined&&(typeof config.navigation_id!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(config.navigation_id)))throw new Error('navigation_id: 1–64 Buchstaben, Zahlen, Unterstriche oder Bindestriche verwenden.');
@@ -1836,7 +1830,7 @@ class MusicManagerBetaCard extends MusicManagerCard {
     this._finishFavoritePointer?.();this._favoriteInteracting=false;this._playingFavorite=null;
     this._navigationRequest=(this._navigationRequest||0)+1;this._navigationReady=false;
     this._navigationLoading=false;this._navigationSaving=false;this._navigationError='';this._canSelectBox=false;this._boxes=[];
-    this._showWakeSongs=false;this._backendVersion='';this._betaSongQuery='';this._settingsRenderKey='';this._settingsDialog?.close();this._dialog?.close();if(this._alarmSongUser)this._disconnectAlarmSongs();
+    this._showWakeSongs=false;this._backendVersion='';this._playerSongQuery='';this._settingsRenderKey='';this._settingsDialog?.close();this._dialog?.close();if(this._alarmSongUser)this._disconnectAlarmSongs();
   }
   set hass(hass){
     const changed=this._navigationUser!==hass.user?.id||this._navigationConnection!==hass.connection;
@@ -1867,7 +1861,7 @@ class MusicManagerBetaCard extends MusicManagerCard {
         window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',finish);
       });
     }
-    if(!this._settingsDialog){const holder=document.createElement('div');holder.innerHTML=dialog({id:'music-beta-settings',title:'Einstellungen',content:'<div id="beta-settings-list" class="fui-player-settings-list"></div>'});this.shadowRoot.append(...holder.childNodes);this._settingsDialog=this.shadowRoot.getElementById('music-beta-settings');this._settingsDialog.addEventListener('close',()=>{const active=this.shadowRoot.activeElement;if(!active||this._settingsDialog.contains(active))this._player.querySelector('[data-action="beta-settings"]')?.focus();});}
+    if(!this._settingsDialog){const holder=document.createElement('div');holder.innerHTML=dialog({id:'music-player-settings',title:'Einstellungen',content:'<div id="player-settings-list" class="fui-player-settings-list"></div>'});this.shadowRoot.append(...holder.childNodes);this._settingsDialog=this.shadowRoot.getElementById('music-player-settings');this._settingsDialog.addEventListener('close',()=>{const active=this.shadowRoot.activeElement;if(!active||this._settingsDialog.contains(active))this._player.querySelector('[data-action="player-settings"]')?.focus();});}
   }
   _resolveApplePlayer(){if(!this._navigationTransition&&!this._navigationLoading)super._resolveApplePlayer();}
   _applyBox(entity){if(entity!==this._config?.entity)this._playingFavorite=null;if(this._initialConfig)super.setConfig({...this._initialConfig,entity,music_assistant_entity:entity===this._initialConfig.entity?this._initialConfig.music_assistant_entity:''});}
@@ -1960,25 +1954,25 @@ class MusicManagerBetaCard extends MusicManagerCard {
     const current=this._config.entity,name=this._boxName(current);
     const choices=(this._boxes||[]).map(p=>({value:p.entity_id,label:this._shortBoxName(p.name)+(p.available===false?' · Nicht erreichbar':'')}));
     if(!choices.some(p=>p.value===current))choices.unshift({value:current,label:name});
-    return musicPlayerHeader({title,description:detail,speaker:name,hideSpeaker:this._showWakeSongs||!this._navigationReady,speakerSelect:this._canSelectBox?{id:'music-beta-box',value:current,options:choices,compact:true,disabled:this._busy||this._navigationLoading||this._navigationSaving}:null,artwork:stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail),radio,settingsAction:'beta-settings',disabled:this._busy||this._navigationLoading||this._navigationSaving})+
-      `<div class="fui-player-navigation-status" aria-live="polite">${this._navigationError?notice(this._navigationError,{error:true})+button({label:'Erneut laden',action:'beta-reload'}):this._navigationLoading?loadingState('Persönliche Box wird geladen …'):this._navigationSaving?loadingState('Box wird gespeichert …'):''}</div>`;
+    return musicPlayerHeader({title,description:detail,speaker:name,hideSpeaker:this._showWakeSongs||!this._navigationReady,speakerSelect:this._canSelectBox?{id:'music-player-box',value:current,options:choices,compact:true,disabled:this._busy||this._navigationLoading||this._navigationSaving}:null,artwork:stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail),radio,settingsAction:'player-settings',disabled:this._busy||this._navigationLoading||this._navigationSaving})+
+      `<div class="fui-player-navigation-status" aria-live="polite">${this._navigationError?notice(this._navigationError,{error:true})+button({label:'Erneut laden',action:'player-reload'}):this._navigationLoading?loadingState('Persönliche Box wird geladen …'):this._navigationSaving?loadingState('Box wird gespeichert …'):''}</div>`;
   }
   _renderPlayer(){
     if(this._favoriteInteracting&&!this._navigationTransition){this._favoriteDeferred=true;return;}
-    if(this.shadowRoot?.activeElement?.id==='music-beta-box'&&!this._navigationTransition&&!this._navigationSaving){this._betaDeferred=true;return;}
+    if(this.shadowRoot?.activeElement?.id==='music-player-box'&&!this._navigationTransition&&!this._navigationSaving){this._playerDeferred=true;return;}
     if(this._editingVolume()){super._renderPlayer();return;}
     super._renderPlayer();
     this._boundCovers ||= new WeakSet();
     for(const cover of this._player?.querySelectorAll('.fui-music-artwork img')||[])if(!this._boundCovers.has(cover)){this._boundCovers.add(cover);cover.addEventListener('error',()=>cover.remove(),{once:true});}
-    const select=this.shadowRoot?.getElementById('music-beta-box');
+    const select=this.shadowRoot?.getElementById('music-player-box');
     select?.addEventListener('change',()=>{void this._selectBox(select.value);});
-    select?.addEventListener('blur',()=>{if(this._betaDeferred){this._betaDeferred=false;queueMicrotask(()=>this._renderPlayer());}});
+    select?.addEventListener('blur',()=>{if(this._playerDeferred){this._playerDeferred=false;queueMicrotask(()=>this._renderPlayer());}});
     if(this._navigationLoading||this._navigationSaving)for(const control of this._player?.querySelectorAll('button,input,ha-control-slider')||[])control.disabled=true;
     this._renderSettings();
   }
   _renderSettings(){
     if(!this._settingsDialog)return;
-    const host=this.shadowRoot.getElementById('beta-settings-list'),speaker=this._boxName();
+    const host=this.shadowRoot.getElementById('player-settings-list'),speaker=this._boxName();
     const key=[this._hass?.user?.id,this._showWakeSongs,this._backendVersion,this._config?.entity,speaker].join(':');
     const busy=this._busy||this._navigationLoading||this._navigationSaving;
     if(key!==this._settingsRenderKey){
@@ -2006,43 +2000,46 @@ class MusicManagerBetaCard extends MusicManagerCard {
     if(this._showWakeSongs&&this._favoriteMode&&this._dialog?.open)this._renderBrowser();
   }
   _renderBrowser(){
-    const active=this.shadowRoot.activeElement,searching=active?.id==='beta-wake-query',selection=searching?[active.selectionStart,active.selectionEnd]:null;
+    const active=this.shadowRoot.activeElement,searching=active?.id==='player-wake-query',selection=searching?[active.selectionStart,active.selectionEnd]:null;
     super._renderBrowser();if(!this._dialog||!this._favoriteMode||!this._showWakeSongs)return;
     this.shadowRoot.getElementById('music-radio-dialog-title').textContent='Favoriten & Wecklieder';
     const results=this.shadowRoot.getElementById('music-radio-results');results.setAttribute('aria-label','Favoriten und Wecklieder verwalten');
-    results.insertAdjacentHTML('beforeend',section({id:'beta-wake-group',title:`Wecklieder (${this._alarmSongs.length})`,content:`<div class="fui-player-song-tools">${field({id:'beta-wake-query',label:'Wecklieder durchsuchen',type:'search',value:this._betaSongQuery||'',placeholder:'Lied suchen',autocomplete:'off'})}${button({label:'Musik hinzufügen',action:'beta-add-songs',disabled:this._favoriteBusy||this._busy})}<div id="beta-wake-status" aria-live="polite"></div><div id="beta-wake-list" class="fui-player-song-list"></div></div>`}));
-    const input=this.shadowRoot.getElementById('beta-wake-query');input.addEventListener('input',()=>{this._betaSongQuery=input.value;this._renderCombinedSongs();});this._renderCombinedSongs();
+    results.insertAdjacentHTML('beforeend',section({id:'player-wake-group',title:`Wecklieder (${this._alarmSongs.length})`,content:`<div class="fui-player-song-tools">${field({id:'player-wake-query',label:'Wecklieder durchsuchen',type:'search',value:this._playerSongQuery||'',placeholder:'Lied suchen',autocomplete:'off'})}${button({label:'Musik hinzufügen',action:'player-add-songs',disabled:this._favoriteBusy||this._busy})}<div id="player-wake-status" aria-live="polite"></div><div id="player-wake-list" class="fui-player-song-list"></div></div>`}));
+    const input=this.shadowRoot.getElementById('player-wake-query');input.addEventListener('input',()=>{this._playerSongQuery=input.value;this._renderCombinedSongs();});this._renderCombinedSongs();
     if(searching){input.focus();input.setSelectionRange?.(...selection);}
   }
   _renderCombinedSongs(){
-    const host=this.shadowRoot.getElementById('beta-wake-list');if(!host||!this._showWakeSongs)return;
-    const status=this.shadowRoot.getElementById('beta-wake-status');
+    const host=this.shadowRoot.getElementById('player-wake-list');if(!host||!this._showWakeSongs)return;
+    const status=this.shadowRoot.getElementById('player-wake-status');
     status.innerHTML=this._alarmSongError?notice(this._alarmSongError,{error:true})+button({label:'Erneut laden',action:'reload-alarm-songs'}):this._alarmSongLoading?loadingState('Wecklieder werden geladen …'):this._appleError?notice(this._appleError,{error:true}):'';
-    const query=(this._betaSongQuery||'').trim().toLocaleLowerCase(),items=this._alarmSongs.filter(item=>[item.title,item.description].join(' ').toLocaleLowerCase().includes(query));
+    const query=(this._playerSongQuery||'').trim().toLocaleLowerCase(),items=this._alarmSongs.filter(item=>[item.title,item.description].join(' ').toLocaleLowerCase().includes(query));
     const disabled=this._favoriteBusy||this._busy||this._alarmSongLoading;
-    host.innerHTML=items.map(item=>`<div class="music-station-row">${musicArtwork({src:stationLogo(item.thumbnail)})}${row({title:item.title,description:item.description||'',trailing:musicActionButton({label:'Wecklied abspielen: '+item.title,icon:'play',action:'beta-play-wake',data:{uri:item.uri},disabled})+iconButton({label:'Wecklied entfernen: '+item.title,icon:'trash',action:'remove-alarm-song',data:{uri:item.uri},danger:true,disabled})})}</div>`).join('')||(!this._alarmSongLoading?emptyState(query?'Keine passenden Wecklieder.':'Noch keine Wecklieder. In Apple Music kannst du einzelne Titel mit dem Weckersymbol markieren.'):'');
+    host.innerHTML=items.map(item=>`<div class="music-station-row">${musicArtwork({src:stationLogo(item.thumbnail)})}${row({title:item.title,description:item.description||'',trailing:musicActionButton({label:'Wecklied abspielen: '+item.title,icon:'play',action:'player-play-wake',data:{uri:item.uri},disabled})+iconButton({label:'Wecklied entfernen: '+item.title,icon:'trash',action:'remove-alarm-song',data:{uri:item.uri},danger:true,disabled})})}</div>`).join('')||(!this._alarmSongLoading?emptyState(query?'Keine passenden Wecklieder.':'Noch keine Wecklieder. In Apple Music kannst du einzelne Titel mit dem Weckersymbol markieren.'):'');
   }
   async _action(event){
-    if(event.action==='beta-reload'){this._navigationReady=false;await this._loadNavigation();return;}
+    if(event.action==='player-reload'){this._navigationReady=false;await this._loadNavigation();return;}
     if(this._navigationLoading||this._navigationSaving)return;
-    if(event.action==='beta-settings'){this._renderSettings();if(!this._settingsDialog.open)this._settingsDialog.showModal();return;}
-    const wakeActions=['open-alarm-songs','apple-songs','apple-alarm-song','remove-alarm-song','reload-alarm-songs','alarm-songs-add','beta-add-songs','beta-play-wake'];
+    if(event.action==='player-settings'){this._renderSettings();if(!this._settingsDialog.open)this._settingsDialog.showModal();return;}
+    const wakeActions=['open-alarm-songs','apple-songs','apple-alarm-song','remove-alarm-song','reload-alarm-songs','alarm-songs-add','player-add-songs','player-play-wake'];
     if(wakeActions.includes(event.action)&&!this._showWakeSongs)return;
     if(['open-alarm-songs','apple-songs'].includes(event.action)){await super._action({action:'manage-favorites'});return;}
-    if(['beta-add-songs','alarm-songs-add'].includes(event.action)){this._dialog.close();await this._openApple();return;}
-    if(event.action==='beta-play-wake'){const song=this._alarmSongs.find(item=>item.uri===event.data.uri);if(song)await this._playApple(song);return;}
+    if(['player-add-songs','alarm-songs-add'].includes(event.action)){this._dialog.close();await this._openApple();return;}
+    if(event.action==='player-play-wake'){const song=this._alarmSongs.find(item=>item.uri===event.data.uri);if(song)await this._playApple(song);return;}
     if(event.action==='play-favorite'&&event.data?.favorite){const index=this._favorites.findIndex(item=>item.media_content_id===event.data.favorite);if(index<0)return;event={...event,data:{...event.data,index:String(index)}};}
     await super._action(event);
   }
 }
-class MusicManagerBetaCardEditor extends MusicManagerCardEditor {
-  _editorDescription(){return 'Die gewählte Sonos-Box ist die Ausgangsbox. Vera und Manuel können ihre Box persönlich wechseln. Weitere Benutzer bleiben auf der Ausgangsbox. Das Zahnrad öffnet Sender, Apple Music und Favoriten. Maximilian und Paul verwalten dort Favoriten und Wecklieder gemeinsam. Die Lautstärke der Karte ist auf 0–50 % begrenzt. Die bestehende Karte bleibt unverändert verfügbar.';}
-  _emit(){this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config,type:'custom:music-manager-beta-card'}},bubbles:true,composed:true}));}
+class MusicManagerCardEditor extends MusicPlayerEditorBase {
+  _editorDescription(){return 'Die gewählte Sonos-Box ist die Ausgangsbox. Vera und Manuel können ihre Box persönlich wechseln. Weitere Benutzer bleiben auf der Ausgangsbox. Das Zahnrad öffnet Sender, Apple Music und Favoriten. Maximilian und Paul verwalten dort Favoriten und Wecklieder gemeinsam. Die Lautstärke der Karte ist auf 0–50 % begrenzt. ';}
+  _emit(){this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config,type:'custom:music-manager-card'}},bubbles:true,composed:true}));}
 }
-if(!customElements.get('music-manager-beta-card'))customElements.define('music-manager-beta-card',MusicManagerBetaCard);
-if(!customElements.get('music-manager-beta-card-editor'))customElements.define('music-manager-beta-card-editor',MusicManagerBetaCardEditor);
-window.customCards=window.customCards||[];
-if(!window.customCards.some(card=>card.type==='music-manager-beta-card'))window.customCards.push({type:'music-manager-beta-card',name:'Music Manager – Player Beta',description:'Experimenteller Musicplayer mit persönlicher Box-Auswahl. Bestehende Karte bleibt erhalten.',preview:true});
+if(!customElements.get('music-manager-card'))customElements.define('music-manager-card',MusicManagerCard);
+if(!customElements.get('music-manager-card-editor'))customElements.define('music-manager-card-editor',MusicManagerCardEditor);
+// Existing dashboard YAML uses the same player through an unlisted compatibility name.
+// The editor writes the canonical type on the next save; no separate beta player remains.
+if(!customElements.get('music-manager-beta-card'))customElements.define('music-manager-beta-card',class extends MusicManagerCard {});
+window.customCards=(window.customCards||[]).filter(card=>card.type!=='music-manager-beta-card');
+if(!window.customCards.some(card=>card.type==='music-manager-card'))window.customCards.push({type:'music-manager-card',name:'Music Manager',description:'Musicplayer mit persönlicher Box-Auswahl, Radio und Apple Music.',preview:true});
 
 })();
 (() => {
@@ -2178,7 +2175,7 @@ class MusicManagerPanel extends HTMLElement {
       const remove=(action,id,label)=>iconButton({icon:'trash',label,action,data:{id},disabled:busy,danger:true});
       content+=`<ha-card class="configuration-card"><main>`+
         section({id:'connection',title:'Music Assistant',content:row({title:connection.name||'Nur Radio',description:!connection.id?'Apple Music kann später verbunden werden.':connection.reachable?'Verbindung verfügbar':'Verbindung derzeit nicht erreichbar',trailing:edit('connect','','Verbindung bearbeiten')})})+
-        section({id:'speaker-users',title:'Box-Auswahl · Beta',content:row({title:(this._data.speaker_users||[]).map(u=>u.name).join(', ')||'Keine Benutzer',description:'Diese Benutzer können die Box in der Beta-Karte persönlich wechseln. Alle anderen verwenden die konfigurierte Box.',trailing:edit('speaker_users','','Box-Auswahl bearbeiten')})})+
+        section({id:'speaker-users',title:'Box-Auswahl',content:row({title:(this._data.speaker_users||[]).map(u=>u.name).join(', ')||'Keine Benutzer',description:'Diese Benutzer können die Box in der Music-Manager-Karte persönlich wechseln. Alle anderen verwenden die konfigurierte Box.',trailing:edit('speaker_users','','Box-Auswahl bearbeiten')})})+
         section({id:'accounts',title:`Benutzer (${accounts.length})`,trailing:button({label:'Zuordnung',icon:'add',action:'add',disabled:busy}),content:accounts.length?accounts.map(a=>row({title:a.ha_name,description:`Music Assistant: ${a.ma_name} · ${a.provider_name}`,trailing:edit('edit',a.ha_user_id,`Zuordnung bearbeiten: ${a.ha_name}`)+remove('remove',a.ha_user_id,`Zuordnung entfernen: ${a.ha_name}`)})).join(''):emptyState('Noch keine Benutzer zugeordnet. Verbinde persönliche HA- und Apple-Music-Konten.')})+
         section({id:'alarms',title:`Wecker (${alarms.length})`,trailing:button({label:'Wecker hinzufügen',icon:'add',action:'alarm',disabled:busy||!accounts.length}),content:notice('Lege für jede Person eigene Wecker mit eigener Sonos-Box und persönlicher Weckmusik an. Auch mehrere Wecker pro Person sind möglich.')+(alarms.length?alarms.map(a=>row({title:`${a.owner_name} · ${a.alarm_id}`,description:`${a.source_name} · ${a.music_readable?(a.music_title||'Letzte Sonos-Wiedergabe'):'Weckmusik derzeit nicht lesbar'}`,trailing:edit('alarm_edit',a.alarm_id,`Wecker bearbeiten: ${a.alarm_id}`)+remove('alarm_remove',a.alarm_id,`Wecker entfernen: ${a.alarm_id}`)})).join(''):emptyState(accounts.length?'Noch keine Wecker zugeordnet.':'Ordne zuerst ein persönliches Apple-Music-Konto zu.'))})+
         `</main></ha-card>`+versionInfo({frontend:MUSIC_VERSION,backend:this._data.version,ui:UI_VERSION});
@@ -2245,7 +2242,7 @@ class MusicManagerPanel extends HTMLElement {
       return normalized?selectField({id,name,label,value,options:normalized,disabled:this._saving||(normalized.length===1&&['ha_user_id','alarm_id'].includes(name))}):field({id,name,label,value,required:!!item.required,maxLength:64,disabled:this._saving});
     }).join('');
     if(removing){const key=this._flow.action==='remove'?'ha_user_id':'alarm_id';this._draft[key]=this._flow.target;}
-    const descriptions={speaker_users:'Wähle die Benutzer, die in der Beta-Karte die Box wechseln dürfen. Die Auswahl wird je Benutzer gespeichert. Alle anderen bleiben auf der konfigurierten Box. HA-Berechtigungen bleiben maßgeblich.',connect:'Wähle die Music-Assistant-Verbindung. Bei einer anderen Verbindung oder Nur Radio werden die Apple-Music-Benutzerzuordnungen entfernt.',add:'Ordne einen HA-Benutzer seinem MA-Benutzer und persönlichen Apple-Music-Konto zu. In MA muss genau diese Musikquelle für den Benutzer freigegeben sein.',edit:'Die gespeicherten Konten sind vorausgefüllt. Der HA-Benutzer bleibt fest zugeordnet.',remove:'Der Benutzer verliert den Apple-Music-Zugang über Music Manager. Seine Radiofavoriten bleiben erhalten.',alarm:'Füge einen weiteren Wecker hinzu: Die vorgeschlagene Kennung ist noch frei. Du kannst eine eigene eindeutige Kennung eingeben. Wähle die Person und ihre Sonos-Box; persönliche Weckmusik wird getrennt gespeichert. Dieselbe Kennung gehört in die Weckerkarte und die Automation. Bestehende Wecker bleiben erhalten.',alarm_edit:'Benutzer und Sonos-Box sind vorausgefüllt. Die Weckerkennung bleibt erhalten.',alarm_remove:'Die Weckerzuordnung wird entfernt. Zugehörige Automationen können diese Kennung danach nicht mehr starten.'};
+    const descriptions={speaker_users:'Wähle die Benutzer, die in der Music-Manager-Karte die Box wechseln dürfen. Die Auswahl wird je Benutzer gespeichert. Alle anderen bleiben auf der konfigurierten Box. HA-Berechtigungen bleiben maßgeblich.',connect:'Wähle die Music-Assistant-Verbindung. Bei einer anderen Verbindung oder Nur Radio werden die Apple-Music-Benutzerzuordnungen entfernt.',add:'Ordne einen HA-Benutzer seinem MA-Benutzer und persönlichen Apple-Music-Konto zu. In MA muss genau diese Musikquelle für den Benutzer freigegeben sein.',edit:'Die gespeicherten Konten sind vorausgefüllt. Der HA-Benutzer bleibt fest zugeordnet.',remove:'Der Benutzer verliert den Apple-Music-Zugang über Music Manager. Seine Radiofavoriten bleiben erhalten.',alarm:'Füge einen weiteren Wecker hinzu: Die vorgeschlagene Kennung ist noch frei. Du kannst eine eigene eindeutige Kennung eingeben. Wähle die Person und ihre Sonos-Box; persönliche Weckmusik wird getrennt gespeichert. Dieselbe Kennung gehört in die Weckerkarte und die Automation. Bestehende Wecker bleiben erhalten.',alarm_edit:'Benutzer und Sonos-Box sind vorausgefüllt. Die Weckerkennung bleibt erhalten.',alarm_remove:'Die Weckerzuordnung wird entfernt. Zugehörige Automationen können diese Kennung danach nicht mehr starten.'};
     const description=this._text('step',`${step.step_id}.description`,descriptions[this._flow.action]);
     const selected=removing?(this._flow.action==='remove'?this._data.accounts.find(a=>a.ha_user_id===this._flow.target)?.ha_name:this._flow.target):'';
     this._dialog.querySelector('.modal-body').innerHTML=(step.errors?.base?formError(this._flowError(step)):'')+notice(description)+(removing?row({title:selected||'Zuordnung entfernen'}):`<div class="configuration-fields">${fields}</div>`);

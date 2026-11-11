@@ -13,10 +13,10 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  browser=await chromium.launch({...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),headless:true,args:['--no-sandbox']});
  page=await browser.newPage({viewport:{width:1100,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- const url=`http://127.0.0.1:${server.address().port}/tests/fixture.html`;
+ const url=`http://127.0.0.1:${server.address().port}/tests/fixture.html?engine=1`;
  const reset=async()=>{await page.goto(url);await page.waitForFunction(()=>window.demo?.cards.length===2);};
  await reset();
- const card=()=>page.locator('music-manager-card').first();
+ const card=()=>page.locator('music-manager-engine-test-card').first();
  const action=(name)=>card().locator(`[data-action="${name}"]`);
  const dialog=()=>card().locator('#music-radio-dialog');
  await check('Play/Pause, previous and next use the configured player',async()=>{
@@ -56,7 +56,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await dialog().locator('#music-radio-query').fill('leer');await dialog().locator('[data-action="search"]').click();
   await dialog().getByText('Keine passenden Sender gefunden.',{exact:false}).waitFor();
   await page.keyboard.press('Escape');
-  await page.locator('music-manager-card').nth(1).locator('[data-action="play-pause"]').click();
+  await page.locator('music-manager-engine-test-card').nth(1).locator('[data-action="play-pause"]').click();
   assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.maximilian_sonos');
  });
  await check('service rejection stays visible and does not close sender dialog',async()=>{
@@ -109,7 +109,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    const card=demo.cards[1];card.setConfig({entity:'media_player.maximilian_sonos',controls:{next:false,previous:false,mute:false}});
    const editor=document.createElement('music-manager-card-editor');editor.setConfig({type:'custom:music-manager-card',entity:'media_player.wohnzimmer'});editor.hass=demo.makeHass();window.editorEvents=[];editor.addEventListener('config-changed',e=>{editorEvents.push(e.detail.config);editor.setConfig(e.detail.config);});document.querySelector('#editor-host').append(editor);
   });
-  assert.equal(await page.locator('music-manager-card').nth(1).locator('[data-action="next"]').count(),0);
+  assert.equal(await page.locator('music-manager-engine-test-card').nth(1).locator('[data-action="next"]').count(),0);
   const editor=page.locator('music-manager-card-editor');await editor.locator('#music-entity-options [data-ui-option]').first().waitFor({state:'attached'});
   const options=await editor.locator('#music-entity-options [data-ui-option]').evaluateAll(nodes=>nodes.map(e=>e.dataset.value));
   assert.deepEqual(options.sort(),['media_player.maximilian_sonos','media_player.wohnzimmer']);
@@ -142,7 +142,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.waitForFunction(()=>demo.cards.every(c=>c.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length===1));
   assert.equal(await dialog().locator('[data-action="toggle-favorite"]').first().getAttribute('aria-pressed'),'true');
   await dialog().getByRole('button',{name:'Schließen',exact:true}).click();
-  const second=page.locator('music-manager-card').nth(1);await second.locator('[data-action="play-favorite"]').click();
+  const second=page.locator('music-manager-engine-test-card').nth(1);await second.locator('[data-action="play-favorite"]').click();
   assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.maximilian_sonos');
   await page.evaluate(()=>demo.switchUser('paul'));assert.equal(await action('play-favorite').count(),0);
   await page.evaluate(()=>demo.switchUser('manuel'));await action('play-favorite').waitFor();
@@ -243,7 +243,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('one user can play Apple Music on each box without manual MA configuration',async()=>{
   await reset();
   for(const [index,source,target] of [[0,'media_player.wohnzimmer','media_player.ma_wohnzimmer'],[1,'media_player.maximilian_sonos','media_player.ma_maximilian']]){
-   const box=page.locator('music-manager-card').nth(index),apple=box.locator('#music-apple-dialog');
+   const box=page.locator('music-manager-engine-test-card').nth(index),apple=box.locator('#music-apple-dialog');
    await box.locator('[data-action="open-apple"]').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
    assert.match(await apple.locator('#music-apple-account').innerText(),/Manuel/);
    await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
@@ -371,7 +371,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await manager.getByRole('checkbox',{name:'Favorit behalten: Meine Lieblingsmusik',exact:true}).click();
   await page.waitForFunction(()=>demo.cards.every(c=>c._favorites.length===2));
   await manager.getByRole('button',{name:'Schließen',exact:true}).click();
-  const second=page.locator('music-manager-card').nth(1);
+  const second=page.locator('music-manager-engine-test-card').nth(1);
   await second.getByRole('button',{name:'Mein Lieblingsalbum abspielen',exact:true}).click();
   await page.waitForFunction(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1).action==='play');
   const play=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
@@ -421,7 +421,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await apple.getByRole('button',{name:'Als Wecklied markieren: Album Lied 0',exact:true}).click();
   await page.waitForFunction(()=>demo.cards.every(c=>c._alarmSongs.length===2));
   await apple.getByRole('button',{name:'Schließen',exact:true}).click();
-  const second=page.locator('music-manager-card').nth(1),otherApple=second.locator('#music-apple-dialog');
+  const second=page.locator('music-manager-engine-test-card').nth(1),otherApple=second.locator('#music-apple-dialog');
   await second.locator('[data-action="open-apple"]').click();await otherApple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();await otherApple.getByRole('button',{name:'Wecklieder',exact:true}).click();
   await otherApple.getByText('Album Lied 0',{exact:true}).waitFor();await otherApple.getByText('Playlist Lied 0',{exact:true}).waitFor();
   await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.every(c=>c._alarmSongs.length===0));
@@ -602,121 +602,134 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.61);
  });
 
- const beta=()=>page.locator('music-manager-beta-card').first();
- const setupBeta=async()=>{await reset();await page.evaluate(()=>{
+ const player=()=>page.locator('music-manager-card').first();
+ const setupPlayer=async()=>{await reset();await page.evaluate(()=>{
   for(const [id,name,uid] of [['office','Büro Manuel','RINCON_ABC001'],['bedroom','Sonos Schlafzimmer','RINCON_ABC002']]){
    demo.registry.push({entity_id:'media_player.'+id,platform:'sonos',unique_id:uid});
    demo.update('media_player.'+id,{state:'playing',attributes:{friendly_name:name,media_title:'Musik in '+name,volume_level:0.2,supported_features:1|2|4|8|16|32|512|4096|16384|32768}});
   }
-  demo.seedFavorites('manuel',[demo.station('manuel','Manuels Radio')]);demo.seedFavorites('vera',[demo.station('vera','Veras Radio')]);demo.addBeta();
- });await beta().locator('#music-beta-box').waitFor();};
- await check('beta remembers Manuel office and Vera bedroom independently while favorites stay personal',async()=>{
-  await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');
+  demo.seedFavorites('manuel',[demo.station('manuel','Manuels Radio')]);demo.seedFavorites('vera',[demo.station('vera','Veras Radio')]);demo.addPlayer();
+ });await player().locator('#music-player-box').waitFor();};
+ await check('player remembers Manuel office and Vera bedroom independently while favorites stay personal',async()=>{
+  await setupPlayer();await player().getByLabel('Box',{exact:true}).selectOption('media_player.office');
   await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
-  await beta().getByRole('button',{name:'Weiter',exact:true}).click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.office');
-  assert.equal(await beta().locator('[data-action="play-favorite"]').getAttribute('title'),'Manuels Radio');assert.equal(await beta().locator('[data-action="play-favorite"]').innerText(),'');
+  await player().getByRole('button',{name:'Weiter',exact:true}).click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.office');
+  assert.equal(await player().locator('[data-action="play-favorite"]').getAttribute('title'),'Manuels Radio');assert.equal(await player().locator('[data-action="play-favorite"]').innerText(),'');
   await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);
-  assert.equal(await beta().getByLabel('Box',{exact:true}).inputValue(),'media_player.wohnzimmer');
-  await beta().getByLabel('Box',{exact:true}).selectOption('media_player.bedroom');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.bedroom');
-  assert.equal(await beta().locator('[data-action="play-favorite"]').getAttribute('title'),'Veras Radio');
+  assert.equal(await player().getByLabel('Box',{exact:true}).inputValue(),'media_player.wohnzimmer');
+  await player().getByLabel('Box',{exact:true}).selectOption('media_player.bedroom');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.bedroom');
+  assert.equal(await player().locator('[data-action="play-favorite"]').getAttribute('title'),'Veras Radio');
   await page.evaluate(()=>demo.switchUser('manuel'));await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
-  assert.equal(await beta().getByLabel('Box',{exact:true}).inputValue(),'media_player.office');
-  await page.evaluate(()=>{const old=demo.cards.at(-1);old.remove();demo.addBeta();});
+  assert.equal(await player().getByLabel('Box',{exact:true}).inputValue(),'media_player.office');
+  await page.evaluate(()=>{const old=demo.cards.at(-1);old.remove();demo.addPlayer();});
   await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
   assert.equal(await card().locator('.music-box').innerText(),'Sonos Wohnzimmer');
  });
- await check('beta children have no dropdown and use the configured speaker after an adult session',async()=>{
-  await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
+ await check('player children have no dropdown and use the configured speaker after an adult session',async()=>{
+  await setupPlayer();await player().getByLabel('Box',{exact:true}).selectOption('media_player.office');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
   for(const user of ['maximilian','paul']){
    await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);
-   assert.equal(await beta().locator('#music-beta-box').count(),0);assert.equal(await beta().locator('#player .fui-player-name').count(),0);
-   await beta().locator('#player [data-action="play-pause"]').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
+   assert.equal(await player().locator('#music-player-box').count(),0);assert.equal(await player().locator('#player .fui-player-name').count(),0);
+   await player().locator('#player [data-action="play-pause"]').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
   }
  });
- await check('beta keeps the current speaker on failed save and never edits Lovelace configuration',async()=>{
-  await setupBeta();await page.evaluate(()=>{demo.wsHook=msg=>{if(msg.type==='music_manager/player_navigation'&&msg.action==='select')throw new Error('Speichern fehlgeschlagen');};window.betaConfigEvents=[];document.querySelector('music-manager-beta-card').addEventListener('config-changed',e=>betaConfigEvents.push(e.detail));});
-  await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');await beta().getByRole('alert').waitFor();
-  assert.equal(await beta().getByLabel('Box',{exact:true}).inputValue(),'media_player.wohnzimmer');assert.deepEqual(await page.evaluate(()=>betaConfigEvents),[]);
+ await check('player keeps the current speaker on failed save and never edits Lovelace configuration',async()=>{
+  await setupPlayer();await page.evaluate(()=>{demo.wsHook=msg=>{if(msg.type==='music_manager/player_navigation'&&msg.action==='select')throw new Error('Speichern fehlgeschlagen');};window.betaConfigEvents=[];document.querySelector('music-manager-card').addEventListener('config-changed',e=>betaConfigEvents.push(e.detail));});
+  await player().getByLabel('Box',{exact:true}).selectOption('media_player.office');await player().getByRole('alert').waitFor();
+  assert.equal(await player().getByLabel('Box',{exact:true}).inputValue(),'media_player.wohnzimmer');assert.deepEqual(await page.evaluate(()=>betaConfigEvents),[]);
  });
- await check('beta selector keeps native UI Kit styling and the player fits phone desktop light and dark',async()=>{
-  await setupBeta();await page.evaluate(async()=>{
+ await check('player selector keeps native UI Kit styling and the player fits phone desktop light and dark',async()=>{
+  await setupPlayer();await page.evaluate(async()=>{
    const kit=await import('/src/family-ui/1.4.1/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
    demo.update('media_player.wohnzimmer',{attributes:{media_title:'Ein sehr langer Titel für einen responsiven Musicplayer',entity_picture:'/missing-cover.png'}});
   });
-  await page.waitForFunction(()=>!document.querySelector('music-manager-beta-card').shadowRoot.querySelector('.fui-player-heading img'));
+  await page.waitForFunction(()=>!document.querySelector('music-manager-card').shadowRoot.querySelector('.fui-player-heading img'));
   for(const width of [320,390,430,768,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);await page.mouse.move(0,0);
-   const report=await beta().evaluate(el=>{
+   const report=await player().evaluate(el=>{
     const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;
     const properties=['fontFamily','fontSize','fontWeight','color','backgroundColor','paddingTop','paddingRight','paddingBottom','paddingLeft','borderRadius'];
     const style=el=>Object.fromEntries(properties.map(p=>[p,getComputedStyle(el)[p]]));
     return {over:[...root.querySelectorAll('#player *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<0||r.right>innerWidth+1)}).map(e=>e.outerHTML.slice(0,80)),select:style(root.querySelector('select')),reference:style(ref.querySelector('select'))};
    });
-   assert.deepEqual(report.over,[],`${width} beta overflow`);assert.deepEqual(report.select,report.reference);await beta().scrollIntoViewIfNeeded();await beta().screenshot({path:path.join(screens,`beta-player-${width}-${dark?'dark':'light'}.png`)});
+   assert.deepEqual(report.over,[],`${width} player overflow`);assert.deepEqual(report.select,report.reference);await player().scrollIntoViewIfNeeded();await player().screenshot({path:path.join(screens,`player-player-${width}-${dark?'dark':'light'}.png`)});
   }
  });
 
- await check('beta settings gear replaces footer, dropdown is left compact unlabeled, favorite tiles have icons only',async()=>{
-  await setupBeta();
-  assert.equal(await beta().locator('#player .music-source-actions').count(),0);assert(!await beta().locator('#player').innerText().then(t=>t.includes('Beta')));
-  for(const action of ['open-radio','open-apple','manage-favorites','open-alarm-songs'])assert.equal(await beta().locator(`#player [data-action="${action}"]`).count(),0);
-  const geometry=await beta().evaluate(el=>{const root=el.shadowRoot,select=root.querySelector('#music-beta-box'),gear=root.querySelector('[data-action="beta-settings"]'),a=select.getBoundingClientRect(),b=gear.getBoundingClientRect();return {left:a.right<b.left,width:a.width,label:getComputedStyle(select.closest('label').querySelector('span')).position};});assert(geometry.left);assert(geometry.width<=190);assert.equal(geometry.label,'absolute');
-  assert.equal(await beta().locator('[data-action="play-favorite"]').innerText(),'');assert.equal(await beta().locator('[data-action="play-favorite"]').getAttribute('aria-label'),'Manuels Radio abspielen');
-  await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=beta().locator('#music-beta-settings');await settings.waitFor();assert(!await settings.innerText().then(t=>t.includes('Weck')));assert.equal(await settings.locator('.setting-row').count(),3);
-  await settings.getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await beta().locator('#music-apple-dialog [data-action="apple-play"]').first().waitFor();assert(await settings.isVisible());assert.equal(await beta().locator('[data-action="apple-songs"],[data-action="apple-alarm-song"]').count(),0);
-  await beta().locator('#music-apple-dialog').getByRole('button',{name:'Alben',exact:true}).click();await beta().getByRole('button',{name:'Titel anzeigen',exact:true}).click();await beta().locator('#music-apple-results [data-action="apple-play"]').waitFor();assert.equal(await beta().locator('[data-action="apple-alarm-song"]').count(),0);assert(!await beta().locator('#music-apple-location').innerText().then(t=>t.includes('Weck')));
+ await check('player settings gear replaces footer, dropdown is left compact unlabeled, favorite tiles have icons only',async()=>{
+  await setupPlayer();
+  assert.equal(await player().locator('#player .music-source-actions').count(),0);assert(!await player().locator('#player').innerText().then(t=>t.includes('Beta')));
+  for(const action of ['open-radio','open-apple','manage-favorites','open-alarm-songs'])assert.equal(await player().locator(`#player [data-action="${action}"]`).count(),0);
+  const geometry=await player().evaluate(el=>{const root=el.shadowRoot,select=root.querySelector('#music-player-box'),gear=root.querySelector('[data-action="player-settings"]'),a=select.getBoundingClientRect(),b=gear.getBoundingClientRect();return {left:a.right<b.left,width:a.width,label:getComputedStyle(select.closest('label').querySelector('span')).position};});assert(geometry.left);assert(geometry.width<=190);assert.equal(geometry.label,'absolute');
+  assert.equal(await player().locator('[data-action="play-favorite"]').innerText(),'');assert.equal(await player().locator('[data-action="play-favorite"]').getAttribute('aria-label'),'Manuels Radio abspielen');
+  await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');await settings.waitFor();assert(!await settings.innerText().then(t=>t.includes('Weck')));assert.equal(await settings.locator('.setting-row').count(),3);
+  await settings.getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await player().locator('#music-apple-dialog [data-action="apple-play"]').first().waitFor();assert(await settings.isVisible());assert.equal(await player().locator('[data-action="apple-songs"],[data-action="apple-alarm-song"]').count(),0);
+  await player().locator('#music-apple-dialog').getByRole('button',{name:'Alben',exact:true}).click();await player().getByRole('button',{name:'Titel anzeigen',exact:true}).click();await player().locator('#music-apple-results [data-action="apple-play"]').waitFor();assert.equal(await player().locator('[data-action="apple-alarm-song"]').count(),0);assert(!await player().locator('#music-apple-location').innerText().then(t=>t.includes('Weck')));
  });
- await check('beta children combine favorites and wake songs with search remove and independent storage',async()=>{
-  await setupBeta();await page.evaluate(()=>{demo.seedFavorites('paul',[demo.station('kid','Pauls Sender')]);demo.seedAlarmSongs('paul',[{kind:'apple_music',uri:'apple_music--demo://track/wake1',media_type:'track',title:'Erstes Wecklied'},{kind:'apple_music',uri:'apple_music--demo://track/wake2',media_type:'track',title:'Zweites Wecklied'}]);demo.switchUser('paul');});await page.waitForFunction(()=>demo.cards.at(-1)._showWakeSongs&&!demo.cards.at(-1)._alarmSongLoading);
-  await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();await beta().getByRole('button',{name:'Favoriten und Wecklieder verwalten',exact:true}).click();const manager=beta().locator('#music-radio-dialog');await manager.waitFor();assert.equal(await manager.locator('#music-radio-dialog-title').innerText(),'Favoriten & Wecklieder');assert.equal(await manager.locator('#beta-wake-list .music-station-row').count(),2);
-  await manager.getByLabel('Wecklieder durchsuchen', {exact:true}).fill('Zweites');assert.equal(await manager.locator('#beta-wake-list .music-station-row').count(),1);assert(await manager.getByLabel('Wecklieder durchsuchen',{exact:true}).evaluate(e=>e.getRootNode().activeElement===e));await manager.getByLabel('Wecklieder durchsuchen',{exact:true}).fill('');
+ await check('player children combine favorites and wake songs with search remove and independent storage',async()=>{
+  await setupPlayer();await page.evaluate(()=>{demo.seedFavorites('paul',[demo.station('kid','Pauls Sender')]);demo.seedAlarmSongs('paul',[{kind:'apple_music',uri:'apple_music--demo://track/wake1',media_type:'track',title:'Erstes Wecklied'},{kind:'apple_music',uri:'apple_music--demo://track/wake2',media_type:'track',title:'Zweites Wecklied'}]);demo.switchUser('paul');});await page.waitForFunction(()=>demo.cards.at(-1)._showWakeSongs&&!demo.cards.at(-1)._alarmSongLoading);
+  await player().getByRole('button',{name:'Einstellungen',exact:true}).click();await player().getByRole('button',{name:'Favoriten und Wecklieder verwalten',exact:true}).click();const manager=player().locator('#music-radio-dialog');await manager.waitFor();assert.equal(await manager.locator('#music-radio-dialog-title').innerText(),'Favoriten & Wecklieder');assert.equal(await manager.locator('#player-wake-list .music-station-row').count(),2);
+  await manager.getByLabel('Wecklieder durchsuchen', {exact:true}).fill('Zweites');assert.equal(await manager.locator('#player-wake-list .music-station-row').count(),1);assert(await manager.getByLabel('Wecklieder durchsuchen',{exact:true}).evaluate(e=>e.getRootNode().activeElement===e));await manager.getByLabel('Wecklieder durchsuchen',{exact:true}).fill('');
   await manager.getByRole('button',{name:'Wecklied entfernen: Erstes Wecklied',exact:true}).click();await page.waitForFunction(()=>demo.alarmSongData.get('paul').length===1);assert.equal(await page.evaluate(()=>demo.favoriteData.get('paul')[0].title),'Pauls Sender');
   await manager.getByRole('checkbox',{name:'Favorit behalten: Pauls Sender',exact:true}).click();await page.waitForFunction(()=>demo.favoriteData.get('paul').length===0);assert.equal(await page.evaluate(()=>demo.alarmSongData.get('paul')[0].title),'Zweites Wecklied');
-  for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await manager.evaluate(e=>e.scrollWidth>e.clientWidth));await page.screenshot({path:path.join(screens,`beta-combined-${width}-${dark?'dark':'light'}.png`),fullPage:false});}
-  await manager.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();assert(!await beta().locator('#music-beta-settings').innerText().then(t=>t.includes('Weck')));
+  for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await manager.evaluate(e=>e.scrollWidth>e.clientWidth));await page.screenshot({path:path.join(screens,`player-combined-${width}-${dark?'dark':'light'}.png`),fullPage:false});}
+  await manager.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();assert(!await player().locator('#music-player-settings').innerText().then(t=>t.includes('Weck')));
  });
- await check('beta radio has play pause only and Apple restores track navigation and shuffle',async()=>{
-  await setupBeta();await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();await beta().getByRole('button',{name:'Sender wählen',exact:true}).click();const radio=beta().locator('#music-radio-dialog');await radio.getByRole('button',{name:'Beliebt',exact:true}).click();await radio.locator('[data-action="play-station"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._playbackSource==='radio');assert.equal(await beta().locator('#player [data-action="previous"],#player [data-action="next"]').count(),0);assert.equal(await beta().locator('#player [data-action="play-pause"]').count(),1);
-  await beta().locator('#music-beta-settings').waitFor();await beta().getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await beta().locator('#music-apple-dialog [data-action="apple-play"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._isApplePlayback);await beta().locator('#music-beta-settings').getByRole('button',{name:'Schließen',exact:true}).click();assert(await beta().getByRole('button',{name:'Weiter',exact:true}).isVisible());assert(await beta().getByRole('button',{name:'Zurück',exact:true}).isVisible());assert.equal(await beta().locator('#player [data-action="shuffle"]').count(),1);
+ await check('player radio has play pause only and Apple restores track navigation and shuffle',async()=>{
+  await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();await player().getByRole('button',{name:'Sender wählen',exact:true}).click();const radio=player().locator('#music-radio-dialog');await radio.getByRole('button',{name:'Beliebt',exact:true}).click();await radio.locator('[data-action="play-station"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._playbackSource==='radio');assert.equal(await player().locator('#player [data-action="previous"],#player [data-action="next"]').count(),0);assert.equal(await player().locator('#player [data-action="play-pause"]').count(),1);
+  await player().locator('#music-player-settings').waitFor();await player().getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await player().locator('#music-apple-dialog [data-action="apple-play"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._isApplePlayback);await player().locator('#music-player-settings').getByRole('button',{name:'Schließen',exact:true}).click();assert(await player().getByRole('button',{name:'Weiter',exact:true}).isVisible());assert(await player().getByRole('button',{name:'Zurück',exact:true}).isVisible());assert.equal(await player().locator('#player [data-action="shuffle"]').count(),1);
  });
- await check('beta round hover and zero through fifty use the full slider width and exact shared player styles',async()=>{
-  await setupBeta();
+ await check('player round hover and zero through fifty use the full slider width and exact shared player styles',async()=>{
+  await setupPlayer();
   for(const width of [320,390,430,768,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
-   for(const button of await beta().locator('.fui-music-transport button').all()){await button.hover();const box=await button.boundingBox();assert.equal(box.width,box.height);assert.equal(await button.evaluate(e=>getComputedStyle(e).borderRadius),'50%');}
-   const slider=beta().locator('#music-volume');assert.equal(await slider.getAttribute('max'),'50');await slider.evaluate(e=>{e.value='50';e.dispatchEvent(new Event('input',{bubbles:true}));});assert.equal(await slider.evaluate(e=>e.style.getPropertyValue('--range-percent')),'100%');await slider.dispatchEvent('change');await page.waitForFunction(()=>demo.calls.at(-1).data.volume_level===.5);assert.equal(await beta().locator('output').innerText(),'50 %');await page.mouse.move(0,0);await beta().screenshot({path:path.join(screens,`beta-fifty-${width}-${dark?'dark':'light'}.png`)});
+   for(const button of await player().locator('.fui-music-transport button').all()){await button.hover();const box=await button.boundingBox();assert.equal(box.width,box.height);assert.equal(await button.evaluate(e=>getComputedStyle(e).borderRadius),'50%');}
+   const slider=player().locator('#music-volume');assert.equal(await slider.getAttribute('max'),'50');await slider.evaluate(e=>{e.value='50';e.dispatchEvent(new Event('input',{bubbles:true}));});assert.equal(await slider.evaluate(e=>e.style.getPropertyValue('--range-percent')),'100%');await slider.dispatchEvent('change');await page.waitForFunction(()=>demo.calls.at(-1).data.volume_level===.5);assert.equal(await player().locator('output').innerText(),'50 %');await page.mouse.move(0,0);await player().screenshot({path:path.join(screens,`player-fifty-${width}-${dark?'dark':'light'}.png`)});
   }
-  assert(await beta().evaluate(async el=>{const kit=await import('/src/family-ui/1.4.1/family-ui.js');return el.shadowRoot.querySelectorAll('style').length===1&&el.shadowRoot.querySelector('style').textContent===kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS;}));
+  assert(await player().evaluate(async el=>{const kit=await import('/src/family-ui/1.4.1/family-ui.js');return el.shadowRoot.querySelectorAll('style').length===1&&el.shadowRoot.querySelector('style').textContent===kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS;}));
   await page.evaluate(()=>demo.cards.at(-1)._action({action:'volume',phase:'change',value:99}));assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.volume_level),.5);
  });
- await check('beta native slider caps a public committed volume event at fifty',async()=>{
-  await reset();await page.evaluate(()=>{customElements.define('ha-control-slider',class extends HTMLElement{});demo.addBeta();});await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);const slider=beta().locator('ha-control-slider');assert.equal(await slider.evaluate(e=>e.max),50);await slider.evaluate(e=>e.dispatchEvent(new CustomEvent('value-changed',{detail:{value:95},bubbles:true})));await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.5);
+ await check('player native slider caps a public committed volume event at fifty',async()=>{
+  await reset();await page.evaluate(()=>{customElements.define('ha-control-slider',class extends HTMLElement{});demo.addPlayer();});await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);const slider=player().locator('ha-control-slider');assert.equal(await slider.evaluate(e=>e.max),50);await slider.evaluate(e=>e.dispatchEvent(new CustomEvent('value-changed',{detail:{value:95},bubbles:true})));await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.5);
  });
 
- await check('beta hides the playing favorite and keeps other favorites clickable during metadata updates',async()=>{
-  await setupBeta();await page.evaluate(()=>demo.seedFavorites('manuel',[demo.station('one','Eins'),demo.station('two','Zwei')]));
-  const tile=name=>beta().getByRole('button',{name:name+' abspielen',exact:true});
-  await tile('Eins').click();await tile('Eins').waitFor({state:'detached'});assert.equal(await beta().locator('#music-favorites button').count(),1);
+ await check('player hides the playing favorite and keeps other favorites clickable during metadata updates',async()=>{
+  await setupPlayer();await page.evaluate(()=>demo.seedFavorites('manuel',[demo.station('one','Eins'),demo.station('two','Zwei')]));
+  const tile=name=>player().getByRole('button',{name:name+' abspielen',exact:true});
+  await tile('Eins').click();await tile('Eins').waitFor({state:'detached'});assert.equal(await player().locator('#music-favorites button').count(),1);
   await tile('Zwei').scrollIntoViewIfNeeded();const box=await tile('Zwei').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{media_title:'Aktuelle Radiometadaten'}}));await page.mouse.up();await page.waitForFunction(()=>demo.calls.filter(c=>c.service==='play_media').length===2);await tile('Zwei').waitFor({state:'detached'});assert.equal(await tile('Eins').count(),1);assert.equal(await page.evaluate(()=>demo.favoriteData.get('manuel').length),2);
-  await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();await beta().getByRole('button',{name:'Favoriten verwalten',exact:true}).click();const manager=beta().locator('#music-radio-dialog');assert.equal(await manager.getByRole('checkbox').count(),2);await manager.getByRole('button',{name:'Schließen',exact:true}).click();await beta().locator('#music-beta-settings').getByRole('button',{name:'Schließen',exact:true}).click();
+  await player().getByRole('button',{name:'Einstellungen',exact:true}).click();await player().getByRole('button',{name:'Favoriten verwalten',exact:true}).click();const manager=player().locator('#music-radio-dialog');assert.equal(await manager.getByRole('checkbox').count(),2);await manager.getByRole('button',{name:'Schließen',exact:true}).click();await player().locator('#music-player-settings').getByRole('button',{name:'Schließen',exact:true}).click();
   await page.evaluate(()=>demo.seedFavorites('manuel',[{kind:'apple_music',uri:'apple_music--demo://playlist/123',media_type:'playlist',title:'Meine Playlist'},{kind:'apple_music',uri:'apple_music--demo://album/456',media_type:'album',title:'Mein Album'},demo.station('one','Eins')]));
   await tile('Meine Playlist').click();await tile('Meine Playlist').waitFor({state:'detached'});await page.waitForFunction(()=>{const c=demo.cards.at(-1);return !c._busy&&!c._favoriteInteracting&&!c._favoriteDeferred});
   await tile('Mein Album').scrollIntoViewIfNeeded();const album=await tile('Mein Album').boundingBox();await page.mouse.move(album.x+album.width/2,album.y+album.height/2);await page.mouse.down();await page.evaluate(()=>demo.update('media_player.ma_wohnzimmer',{attributes:{media_title:'Neuer Titel in der Playlist'}}));await page.mouse.up();await page.waitForFunction(()=>demo.wsCalls.filter(c=>c.type==='music_manager/apple_music'&&c.action==='play').length===2);await tile('Mein Album').waitFor({state:'detached'});assert.equal(await tile('Meine Playlist').count(),1);assert.equal(await page.evaluate(()=>demo.favoriteData.get('manuel').length),3);
-  for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);await beta().scrollIntoViewIfNeeded();await beta().screenshot({path:path.join(screens,`beta-active-favorite-${width}-${dark?'dark':'light'}.png`)});}
+  for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);await player().scrollIntoViewIfNeeded();await player().screenshot({path:path.join(screens,`player-active-favorite-${width}-${dark?'dark':'light'}.png`)});}
  });
- await check('beta closing radio Apple Music and favorites by X or Escape returns to settings with versions',async()=>{
-  await setupBeta();await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=beta().locator('#music-beta-settings');
+ await check('player closing radio Apple Music and favorites by X or Escape returns to settings with versions',async()=>{
+  await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');
   for(const [name,id] of [['Sender wählen','music-radio-dialog'],['Apple Music öffnen','music-apple-dialog'],['Favoriten verwalten','music-radio-dialog']])for(const close of ['button','escape']){
-   await settings.getByRole('button',{name,exact:true}).click();const child=beta().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 1.12.2 · Integration 1.12.2 · UI 1.4.1');
+   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.0.0 · Integration 2.0.0 · UI 1.4.1');
   }
   await settings.getByRole('button',{name:'Schließen',exact:true}).click();await settings.waitFor({state:'hidden'});
-  await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();
-  for(const close of ['button','escape']){await settings.getByRole('button',{name:'Favoriten und Wecklieder verwalten',exact:true}).click();const combined=beta().locator('#music-radio-dialog');await combined.waitFor();if(close==='button')await combined.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await combined.waitFor({state:'hidden'});assert(await settings.isVisible());}
+  await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();
+  for(const close of ['button','escape']){await settings.getByRole('button',{name:'Favoriten und Wecklieder verwalten',exact:true}).click();const combined=player().locator('#music-radio-dialog');await combined.waitFor();if(close==='button')await combined.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await combined.waitFor({state:'hidden'});assert(await settings.isVisible());}
  });
- await check('beta child speaker names appear only in settings while compact room names remain readable for adults',async()=>{
-  await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.bedroom');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.bedroom');assert.equal(await beta().locator('#music-beta-box option:checked').innerText(),'Schlafzimmer');
-  for(const width of [320,390,1100]){await page.setViewportSize({width,height:850});const box=await beta().locator('#music-beta-box').boundingBox();assert.equal(box.width,150);}
-  for(const user of ['maximilian','paul']){await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);assert.equal(await beta().locator('#player .fui-player-name,#music-beta-box').count(),0);assert(!await beta().locator('.fui-player-toolbar').innerText().then(t=>t.includes('Wohnzimmer')));await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=beta().locator('#music-beta-settings');assert(await settings.getByText('Wohnzimmer',{exact:true}).isVisible());for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await settings.evaluate(e=>e.scrollWidth>e.clientWidth));await page.screenshot({path:path.join(screens,`beta-settings-${user}-${width}-${dark?'dark':'light'}.png`),fullPage:false});}await settings.getByRole('button',{name:'Schließen',exact:true}).click();}
+ await check('player child speaker names appear only in settings while compact room names remain readable for adults',async()=>{
+  await setupPlayer();await player().getByLabel('Box',{exact:true}).selectOption('media_player.bedroom');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.bedroom');assert.equal(await player().locator('#music-player-box option:checked').innerText(),'Schlafzimmer');
+  for(const width of [320,390,1100]){await page.setViewportSize({width,height:850});const box=await player().locator('#music-player-box').boundingBox();assert.equal(box.width,150);}
+  for(const user of ['maximilian','paul']){await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);assert.equal(await player().locator('#player .fui-player-name,#music-player-box').count(),0);assert(!await player().locator('.fui-player-toolbar').innerText().then(t=>t.includes('Wohnzimmer')));await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');assert(await settings.getByText('Wohnzimmer',{exact:true}).isVisible());for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await settings.evaluate(e=>e.scrollWidth>e.clientWidth));await page.screenshot({path:path.join(screens,`player-settings-${user}-${width}-${dark?'dark':'light'}.png`),fullPage:false});}await settings.getByRole('button',{name:'Schließen',exact:true}).click();}
+ });
+ await check('2.0 uses the player for ordinary cards and only keeps an unlisted alias for old beta YAML',async()=>{
+  await page.goto(url.replace('?engine=1',''));await page.waitForFunction(()=>window.demo?.cards.length===2&&demo.cards[0]._navigationReady&&!demo.cards[0]._navigationLoading);
+  assert.equal(await page.locator('music-manager-card').count(),2);assert.equal(await page.locator('music-manager-card').first().locator('.fui-player-toolbar').count(),1);assert.equal(await page.locator('music-manager-card').first().locator('#player .music-source-actions').count(),0);
+  const registration=await page.evaluate(()=>window.customCards.filter(c=>c.type.startsWith('music-manager')&&c.type.endsWith('card')).map(c=>({type:c.type,name:c.name})));assert.deepEqual(registration,[{type:'music-manager-card',name:'Music Manager'}]);
+  await page.evaluate(()=>{
+   const entity='media_player.office';demo.registry.push({entity_id:entity,platform:'sonos',unique_id:'RINCON_ABC001'});demo.update(entity,{state:'playing',attributes:{friendly_name:'Büro Manuel',media_title:'Musik im Büro',volume_level:.15,supported_features:1|2|4|8|16|32|512|4096|16384|32768}});
+   demo.navigationData.set('manuel',{hauptplayer:entity});demo.seedFavorites('manuel',[demo.station('personal','Mein Sender')]);
+   const old=document.createElement('music-manager-beta-card');old.setConfig({type:'custom:music-manager-beta-card',entity:'media_player.wohnzimmer',navigation_id:'hauptplayer'});document.querySelector('#cards').append(old);demo.cards.push(old);old.hass=demo.makeHass();
+  });
+  const alias=page.locator('music-manager-beta-card');await alias.getByLabel('Box',{exact:true}).waitFor();await page.waitForFunction(()=>document.querySelector('music-manager-beta-card')._config.entity==='media_player.office');assert.equal(await alias.getByLabel('Box',{exact:true}).inputValue(),'media_player.office');assert.equal(await alias.locator('#music-favorites button').getAttribute('title'),'Mein Sender');
+  await page.evaluate(()=>{const editor=customElements.get('music-manager-card').getConfigElement();editor.setConfig({type:'custom:music-manager-beta-card',entity:'media_player.wohnzimmer',navigation_id:'hauptplayer'});window.migratedConfig=null;editor.addEventListener('config-changed',e=>migratedConfig=e.detail.config);document.querySelector('#editor-host').append(editor);});
+  await page.locator('music-manager-card-editor [data-key="next"]').click();assert.equal(await page.evaluate(()=>migratedConfig.type),'custom:music-manager-card');assert.equal(await page.evaluate(()=>migratedConfig.navigation_id),'hauptplayer');
  });
  const configURL=url.replace('fixture.html','configuration-fixture.html');
  const openConfiguration=async()=>{await page.goto(configURL);await page.waitForFunction(()=>window.configurationDemo?.panel._data);};
@@ -770,7 +783,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.evaluate(()=>{configurationDemo.switchUser(false);window.releaseConfigFlow();});await panel().getByRole('alert').waitFor();
   assert(!(await panel().innerText()).includes('Erster Benutzer'));assert(!await editor().isVisible());
  });
- await check('beta speaker users are visible and editable with the shared multi selection',async()=>{
+ await check('player speaker users are visible and editable with the shared multi selection',async()=>{
   await openConfiguration();await panel().getByText('Manuel, Vera',{exact:true}).waitFor();
   await panel().getByRole('button',{name:'Box-Auswahl bearbeiten',exact:true}).click();
   await editor().locator('#config-speaker_selection_users').waitFor();

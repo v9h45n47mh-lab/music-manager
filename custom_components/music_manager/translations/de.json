@@ -30,9 +30,9 @@
           "alarm_remove": "Weckerzuordnung entfernen",
           "edit": "Vorhandene Benutzerzuordnung bearbeiten",
           "alarm_edit": "Vorhandenen Wecker bearbeiten",
-          "speaker_users": "Box-Auswahl (Beta)"
+          "speaker_users": "Box-Auswahl"
         },
-        "description": "[Gestaltete Konfiguration öffnen](/music-manager)\n\n**Music Assistant**\n{connection}\n\n**Benutzerzuordnungen · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Wecker · {alarm_count}**\nKennung · Benutzer → Box · Weckmusik\n{alarms}\n\n— bedeutet: keine Zuordnung oder beim Wecker die letzte Sonos-Wiedergabe. ⚠ bedeutet: die gespeicherte Weckmusik konnte gerade nicht gelesen werden. Ist Music Assistant nicht erreichbar, erscheinen die gespeicherten Kennungen anstelle der Kontonamen.\n\n**Box-Auswahl · Beta**\n{speaker_users}"
+        "description": "[Gestaltete Konfiguration öffnen](/music-manager)\n\n**Music Assistant**\n{connection}\n\n**Benutzerzuordnungen · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Wecker · {alarm_count}**\nKennung · Benutzer → Box · Weckmusik\n{alarms}\n\n— bedeutet: keine Zuordnung oder beim Wecker die letzte Sonos-Wiedergabe. ⚠ bedeutet: die gespeicherte Weckmusik konnte gerade nicht gelesen werden. Ist Music Assistant nicht erreichbar, erscheinen die gespeicherten Kennungen anstelle der Kontonamen.\n\n**Box-Auswahl**\n{speaker_users}"
       },
       "add": {
         "title": "Persönliches Apple-Music-Konto zuordnen",
@@ -105,8 +105,8 @@
         }
       },
       "speaker_users": {
-        "title": "Box-Auswahl · Beta",
-        "description": "Diese Benutzer können ihre Box in der Beta-Karte wechseln. Die Auswahl wird je Benutzer gespeichert. Ohne explizite Einstellung sind eindeutig benannte aktive HA-Benutzer Vera und Manuel vorausgewählt. Alle anderen verwenden die in der Karte konfigurierte Box. Vorhandene HA-Berechtigungen gelten weiterhin.",
+        "title": "Box-Auswahl",
+        "description": "Diese Benutzer können ihre Box in der Music-Manager-Karte wechseln. Die Auswahl wird je Benutzer gespeichert. Ohne explizite Einstellung sind eindeutig benannte aktive HA-Benutzer Vera und Manuel vorausgewählt. Alle anderen verwenden die in der Karte konfigurierte Box. Vorhandene HA-Berechtigungen gelten weiterhin.",
         "data": {
           "speaker_selection_users": "Benutzer mit Box-Auswahl"
         }
