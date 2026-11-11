@@ -83,10 +83,6 @@ class MusicManagerCard extends HTMLElement {
     this._volumeInteracting = false;
     this._appleRequest=0;this._appleItems=[];this._appleAccount='';this._appleError='';
     this._appleLoading=false;this._appleView='playlist';this._appleMore=false;
-    this._releasePlayerPointer=event=>{
-      this._playerPointer=false;
-      if(!event.composedPath().includes(this._player)&&this._deferredPlayer&&!this._editingVolume())this._renderPlayer();
-    };
   }
 
   static getConfigElement() { return document.createElement('music-manager-card-editor'); }
@@ -139,14 +135,8 @@ class MusicManagerCard extends HTMLElement {
   get _musicAssistantEntity() { return this._appleEntity || this._config?.music_assistant_entity; }
   get _state() { return this._hass?.states?.[this._controlEntity]; }
 
-  connectedCallback() {
-    window.addEventListener('pointerup',this._releasePlayerPointer);
-    window.addEventListener('pointercancel',this._releasePlayerPointer);
-    this._ensureDOM();this._bind();this._connectFavorites();this._loadNativeVolume();this._renderPlayer();this._resolveApplePlayer();
-  }
+  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
   disconnectedCallback() {
-    window.removeEventListener('pointerup',this._releasePlayerPointer);
-    window.removeEventListener('pointercancel',this._releasePlayerPointer);this._playerPointer=false;
     clearTimeout(this._progressTimer);this._cancelSeek();
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
@@ -213,12 +203,11 @@ class MusicManagerCard extends HTMLElement {
       const active=this.shadowRoot.activeElement;
       if(!active || this._dialog.contains(active))this._player.querySelector('[data-action="open-radio"]')?.focus();
     });
-    this._player.addEventListener('focusout',()=>{
+    this._player.addEventListener('focusout',event=>{
+      // A button receiving focus is still between pointerdown and click.
+      // Keep it in place when leaving the timeline so its click is delivered.
+      if(event.target.id==='music-seek'&&event.relatedTarget?.closest('button')&&this._player.contains(event.relatedTarget))return;
       queueMicrotask(()=>{if(this._deferredPlayer && !this._editingVolume())this._renderPlayer();});
-    });
-    this._player.addEventListener('pointerdown',()=>{this._playerPointer=true;});
-    this._player.addEventListener('click',()=>{
-      queueMicrotask(()=>{if(this._deferredPlayer&&!this._editingVolume())this._renderPlayer();});
     });
     this.shadowRoot.addEventListener('error',event=>{if(event.target.tagName==='IMG')event.target.hidden=true;},true);
     this._bind();
@@ -294,7 +283,7 @@ class MusicManagerCard extends HTMLElement {
 
   _editingVolume() {
     const active=this.shadowRoot.activeElement;
-    return this._playerPointer || this._volumeInteracting || this._seekInteracting || this._player?.querySelector('ha-control-slider')?.pressed || Boolean(active && this._player?.contains(active) &&
+    return this._volumeInteracting || this._seekInteracting || this._player?.querySelector('ha-control-slider')?.pressed || Boolean(active && this._player?.contains(active) &&
       (active.type==='range' || active.localName==='ha-control-slider'));
   }
 
