@@ -1,4 +1,4 @@
-# Music Manager 1.5.2
+# Music Manager 1.5.3
 
 ![Music Manager](brand/icon.png)
 
@@ -6,7 +6,7 @@
 
 **Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
-Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
+Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
 
 ## Installation über den Marketplace
 
@@ -135,7 +135,7 @@ Die Karte verwendet die angemeldete HA-Sitzung für Senderauswahl und Steuerung.
 
 ## Vorschau und Quellcode
 
-`Vorschau.html` lässt sich direkt im Browser öffnen. Sie enthält zwei unabhängige Beispielkarten, Beispielsender und einen Schalter für helle/dunkle Darstellung. Die Vorschau zeigt auch die Apple-Music-Kachel und simulierte Mediathek. Sie steuert keine echten Boxen und meldet kein echtes Apple-Konto an. Das vollständige Projekt im Ordner `source/` enthält Quellcode, die unveränderte UI-Kit-Version, Prüfsummen, Buildskripte und Tests.
+`Vorschau.html` lässt sich direkt im Browser öffnen. Sie enthält zwei unabhängige Beispielkarten, Beispielsender und einen Schalter für helle/dunkle Darstellung. Die Vorschau zeigt auch die Apple-Music-Schaltfläche und simulierte Mediathek. Sie steuert keine echten Boxen und meldet kein echtes Apple-Konto an. Das vollständige Projekt im Ordner `source/` enthält Quellcode, die unveränderte UI-Kit-Version, Prüfsummen, Buildskripte und Tests.
 
 Der UI-Baukasten stammt aus [v9h45n47mh-lab/ha-ui-kit](https://github.com/v9h45n47mh-lab/ha-ui-kit), Release 1.2.2, Commit `6e398ba9415ed5a0b64e9703d11ab935ee7ea47d`. Schrift, Formulare, Buttons, Listenzeilen, Schalter, Reglerlogik und Dialoge stammen aus dem Kit. Die vier Medientasten, der originale HA-Lautstärkeregler und die Favoritenkacheln erhalten eine auf den vorgegebenen Screenshot abgestimmte Musikdarstellung mit Home-Assistant-Themefarben. Der Lautstärkeregler wird direkt von Home Assistant bereitgestellt. Beim Laden und in der Offline-Vorschau dient der unveränderte UI-Kit-Regler mit Prozentanzeige als Ersatz. Diese Ergänzung ist auf die Musikkomponenten begrenzt; die Kit-Dateien bleiben unverändert. Es gibt keinen Laufzeitdownload des Kits und kein CDN.
 

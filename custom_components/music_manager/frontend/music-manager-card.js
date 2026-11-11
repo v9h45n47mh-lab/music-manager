@@ -1,4 +1,4 @@
-/* Music Manager 1.5.2 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 1.5.3 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.2.2 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.2.2";
@@ -530,7 +530,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.5.2';
+export const MUSIC_VERSION = '1.5.3';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -701,6 +701,11 @@ const {
 const MUSIC_CSS = `
   :host{min-width:0}
   .music-stack,.music-browser,.music-editor{display:grid;gap:16px;min-width:0}
+  .music-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;min-width:0;padding-bottom:12px;border-bottom:1px solid var(--divider-color,#e0e0e0)}
+  .music-now-playing{flex:1;min-width:0}
+  .music-title{margin:0;font-size:22px;font-weight:600;line-height:1.25;color:var(--primary-text-color,#212121);overflow-wrap:anywhere}
+  .music-detail{margin-top:6px;font-size:13px;line-height:1.4;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}
+  .music-box{flex:0 1 auto;min-width:0;max-width:38%;text-align:end;font-size:13px;font-weight:500;line-height:1.4;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}
   .music-controls{display:grid;gap:12px;min-width:0}
   .music-transport{display:flex;gap:12px}
   .music-transport button{flex:1;min-width:0;height:44px;display:grid;place-items:center;padding:0;border-radius:12px;background:var(--secondary-background-color,#f2f2f2);color:var(--primary-text-color,#212121)}
@@ -1144,8 +1149,10 @@ class MusicManagerCard extends HTMLElement {
     if (controls.next) transport.push(musicButton({label:'Weiter',icon:'next',action:'next',disabled:disabled||!hasFeature(state,'next')}));
     const vol=attrs.is_volume_muted?0:volumePercent(attrs.volume_level);
     this._player.innerHTML = `
-      <div class="music-box">${row({title:this._hass?.states?.[this._config.entity]?.attributes?.friendly_name || this._config.entity})}</div>
-      ${row({title,description:detail})}
+      <div class="music-header">
+        <div class="music-now-playing"><h2 class="music-title">${escapeHtml(title)}</h2><div class="music-detail">${escapeHtml(detail)}</div></div>
+        <div class="music-box" aria-label="Box">${escapeHtml(this._hass?.states?.[this._config.entity]?.attributes?.friendly_name || this._config.entity)}</div>
+      </div>
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
       <div class="music-controls">
         ${transport.length ? `<div class="music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}

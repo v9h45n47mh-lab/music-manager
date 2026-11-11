@@ -177,6 +177,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('desktop/mobile light/dark layouts and exact UI Kit typography',async()=>{
   await reset();
   await page.evaluate(()=>demo.seedFavorites('manuel',Array.from({length:7},(_,i)=>({...demo.station('favorite-'+i,i===6?'Ein besonders langer Favoritensendername':'Sender '+(i+1)),thumbnail:'/brand/icon.png'}))));
+  await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();await page.keyboard.press('Escape');
   // A separate untouched UI Kit reference ensures local styles do not alter shared components.
   await page.evaluate(async()=>{
    const kit=await import('/src/family-ui/1.2.2/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
@@ -184,16 +185,18 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   });
   for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   await page.evaluate(w=>demo.update('media_player.wohnzimmer',{attributes:{friendly_name:w===320?'Büro Manuel – Sonos im Arbeitszimmer':'Büro Manuel',media_title:w===320?'SWR dasding – Live aus Baden-Württemberg':'SWR dasding'}}),width);
    const report=await page.evaluate(()=>{
     const c=demo.cards[0].shadowRoot,ref=document.querySelector('#reference').shadowRoot;
     const props=['fontFamily','fontSize','fontWeight','lineHeight','color','paddingTop','paddingRight','paddingBottom','paddingLeft'];
     const styles=(root,selector)=>Object.fromEntries(props.map(p=>[p,getComputedStyle(root.querySelector(selector))[p]]));
     const overflow=[...c.querySelectorAll('#player *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.left<0||r.right>innerWidth+1)}).map(e=>e.outerHTML.slice(0,100));
-    return {pageOverflow:document.documentElement.scrollWidth>innerWidth,overflow,card:styles(c,'.row-text strong'),ref:styles(ref,'.row-text strong')};
+    return {pageOverflow:document.documentElement.scrollWidth>innerWidth,overflow,card:styles(c,'#music-radio-results .row-text strong'),ref:styles(ref,'.row-text strong')};
    });
    assert(!report.pageOverflow,`${width} page overflow`);assert.deepEqual(report.overflow,[]);assert.deepEqual(report.card,report.ref);
-   const layout=await card().evaluate(el=>{const r=el.shadowRoot;return {controls:r.querySelector('.music-controls').getBoundingClientRect().bottom,favorites:r.querySelector('#music-favorites').getBoundingClientRect().top,buttons:[...r.querySelectorAll('.music-transport button')].map(e=>e.getBoundingClientRect().width),slider:r.querySelector('#music-volume').getBoundingClientRect().height};});
+   const layout=await card().evaluate(el=>{const r=el.shadowRoot;return {controls:r.querySelector('.music-controls').getBoundingClientRect().bottom,favorites:r.querySelector('#music-favorites').getBoundingClientRect().top,buttons:[...r.querySelectorAll('.music-transport button')].map(e=>e.getBoundingClientRect().width),slider:r.querySelector('#music-volume').getBoundingClientRect().height,header:r.querySelector('.music-header').getBoundingClientRect().toJSON(),box:r.querySelector('.music-box').getBoundingClientRect().toJSON(),title:r.querySelector('.music-title').getBoundingClientRect().toJSON(),titleSize:parseFloat(getComputedStyle(r.querySelector('.music-title')).fontSize),boxSize:parseFloat(getComputedStyle(r.querySelector('.music-box')).fontSize)};});
    assert(layout.favorites>=layout.controls);assert(layout.buttons.every(w=>Math.abs(w-layout.buttons[0])<1));assert.equal(layout.slider,4);
+   assert(layout.title.x<layout.box.x);assert(layout.title.right<=layout.box.x);assert(Math.abs(layout.box.right-layout.header.right)<1);assert(Math.abs(layout.box.y-layout.title.y)<1);assert(layout.titleSize>=layout.boxSize+6);
    await page.screenshot({path:path.join(screens,`card-${width}-${dark?'dark':'light'}.png`),fullPage:true});
    await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();
    const bounds=await dialog().boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);

@@ -315,9 +315,9 @@ test('radio station stays pinned through partial old Sonos metadata and follows 
  env.update('media_player.ma_a',{attributes:{active_queue:'queue',media_title:'Alter Apple-Titel',media_duration:240}});
  await card._playStation(station('swr3'));
  env.update('media_player.a',{attributes:{media_artist:'Noch alter Interpret',media_duration:240}});
- assert.equal(card._controlEntity,'media_player.a');assert.match(card._player.textContent,/SWR3/);assert(!card._player.querySelector('.music-box').nextElementSibling.textContent.includes('Apple Music'));assert(!card._player.textContent.includes('Alter Apple-Titel'));
+ assert.equal(card._controlEntity,'media_player.a');assert.match(card._player.textContent,/SWR3/);assert(!card._player.querySelector('.music-now-playing').textContent.includes('Apple Music'));assert(!card._player.textContent.includes('Alter Apple-Titel'));
  env.update('media_player.a',{attributes:{media_content_id:'https://radio.example/swr3'}});
- assert.match(card._player.textContent,/SWR3/);assert(!card._player.querySelector('.music-box').nextElementSibling.textContent.includes('Apple Music'));
+ assert.match(card._player.textContent,/SWR3/);assert(!card._player.querySelector('.music-now-playing').textContent.includes('Apple Music'));
  env.update('media_player.a',{attributes:{media_channel:'SWR3'}});assert(!card._player.textContent.includes('Alter Apple-Titel'));
  env.update('media_player.a',{attributes:{media_duration:null,media_title:'Neuer Radiotitel'}});assert.match(card._player.textContent,/Neuer Radiotitel/);
  env.update('media_player.a',{attributes:{media_content_id:flow,media_channel:'Music Assistant'}});assert.equal(card._controlEntity,'media_player.ma_a');
