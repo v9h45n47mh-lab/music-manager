@@ -1,4 +1,4 @@
-# Music Manager 1.8.0
+# Music Manager 1.8.1
 
 ![Music Manager](brand/icon.png)
 

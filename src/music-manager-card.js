@@ -33,7 +33,7 @@ const MUSIC_CSS = `
   .music-shuffle button[aria-pressed="true"]{color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,transparent)}
   .music-shuffle .music-icon{margin-inline-end:6px}
   .music-favorites:empty,#music-favorite-status:empty,#music-player-status:empty{display:none}
-  .music-station-row [aria-pressed="false"] .music-icon{fill:none;stroke:currentColor;stroke-width:1.7}
+  .music-apple-results [aria-pressed="false"] .music-icon,#music-radio-results [aria-pressed="false"] .music-icon{fill:none;stroke:currentColor;stroke-width:1.7}
   .music-favorites{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;min-width:0}
   .music-favorite{display:grid;gap:6px;align-content:start;justify-items:center;min-width:0;min-height:80px;padding:8px;border-radius:12px;background:var(--secondary-background-color,#f2f2f2)}
   .music-favorite span{max-width:100%;overflow-wrap:anywhere}
@@ -196,7 +196,7 @@ class MusicManagerCard extends HTMLElement {
           <div class="toolbar">${button({label:'Suchen',action:'apple-search',variant:'primary'})}${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}${button({label:'Favoriten verwalten',action:'manage-favorites'})}</div>
         </form>
         <div id="music-apple-status" aria-live="polite"></div>
-        <div id="music-apple-results" class="music-results music-apple-results" aria-label="Apple-Music-Einträge"></div>
+        <div id="music-apple-results" class="music-results music-apple-results music-browser" aria-label="Apple-Music-Einträge"></div>
         <div id="music-apple-more"></div>
       </div>`})}`;
     this._player = this.shadowRoot.getElementById('player');
@@ -705,7 +705,7 @@ class MusicManagerCard extends HTMLElement {
       const favorite=appleFavorite(item),record=favorite&&this._favorites.find(f=>f.media_content_id===favorite.media_content_id),saved=Boolean(record);
       const star=favorite?musicButton({label:(saved?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'apple-favorite',data:{index},pressed:Boolean(saved),disabled:disabled||this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id}):'';
       const alarm=favorite?.media_type==='track'?musicButton({label:(record?.alarm_song?'Nicht mehr als Wecklied verwenden: ':'Als Wecklied markieren: ')+item.title,icon:'alarm',action:'apple-alarm-song',data:{index},pressed:Boolean(record?.alarm_song),disabled:disabled||this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id}):'';
-      return `<div class="music-station-row">${favorite?logoMarkup(favorite):''}${row({title:item.title,description:[item.description,record?.alarm_song?'Wecklied':''].filter(Boolean).join(' · '),trailing:star+alarm+button({label:'Abspielen',action:'apple-play',data:{index},disabled})})}</div>`;
+      return `<div class="music-browser"><div class="music-station-row">${favorite?logoMarkup(favorite):''}${row({title:item.title,description:[item.description,record?.alarm_song?'Wecklied':''].filter(Boolean).join(' · ')})}</div><div class="toolbar">${star}${alarm}${button({label:'Abspielen',action:'apple-play',data:{index},disabled})}</div></div>`;
     }).join('')||(!this._appleLoading&&!this._appleError?emptyState(this._appleSearch?'Keine passenden Einträge gefunden.':'Keine Einträge. Du kannst Apple Music durchsuchen oder eine andere Mediathekansicht öffnen.'):'');
     this.shadowRoot.getElementById('music-apple-more').innerHTML=this._appleMore?button({label:'Mehr laden',action:'apple-more',disabled}):'';
   }
@@ -784,13 +784,13 @@ class MusicManagerCard extends HTMLElement {
     this._searchInput.disabled=this._busy||manager;
     status.innerHTML=(this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):'')+(this._radioError?notice(this._radioError,{error:true}):'')+(this._error?notice(this._error,{error:true}):'')+(manager&&this._favoriteLoading?loadingState('Favoriten werden geladen …'):this._favoriteBusy?loadingState('Favoriten werden gespeichert …'):this._browseLoading?loadingState('Radiosender werden geladen …'):this._busy?loadingState('Sender wird gestartet …'):'');
     results.setAttribute('aria-label',manager?'Favoriten verwalten':'Radiosender und Kategorien');
+    results.classList.toggle('music-browser',manager);
     if(manager) {
       path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Mit den Pfeilen sortieren. Häkchen entfernen, um einen Favoriten aus der Kurzwahl zu entfernen.'});
       results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
-      results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-station-row">${logoMarkup(item)}${row({
-        title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?(item.alarm_song?'Wecklied':'Titel'):item.media_type==='album'?'Album':'Playlist'):'Radiosender',
-        trailing:`<div class="music-favorite-actions">${item.media_type==='track'?musicButton({label:(item.alarm_song?'Nicht mehr als Wecklied verwenden: ':'Als Wecklied markieren: ')+item.title,icon:'alarm',action:'favorite-alarm-song',data:{id:item.media_content_id},pressed:Boolean(item.alarm_song),disabled:this._favoriteBusy||!this._hass?.user?.id}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div>`
-      })}</div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
+      results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-browser"><div class="music-station-row">${logoMarkup(item)}${row({
+        title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?(item.alarm_song?'Wecklied':'Titel'):item.media_type==='album'?'Album':'Playlist'):'Radiosender'
+      })}</div><div class="music-favorite-actions">${item.media_type==='track'?musicButton({label:(item.alarm_song?'Nicht mehr als Wecklied verwenden: ':'Als Wecklied markieren: ')+item.title,icon:'alarm',action:'favorite-alarm-song',data:{id:item.media_content_id},pressed:Boolean(item.alarm_song),disabled:this._favoriteBusy||!this._hass?.user?.id}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
       if(this._pendingFavoriteFocus&&!this._favoriteBusy) {
         const {id,index=0,direction}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
         const moved=direction&&[...results.querySelectorAll('[data-action="move-favorite"]')].find(b=>!b.disabled&&b.dataset.program===id&&b.dataset.direction===direction);

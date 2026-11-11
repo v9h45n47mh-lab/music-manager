@@ -401,6 +401,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
+   assert(await apple.locator('#music-apple-results .row-text').first().evaluate(el=>el.getBoundingClientRect().width>=120),'song titles must keep a readable width beside the cover');
    await page.screenshot({path:path.join(screens,`alarm-song-marking-${width}-${dark?'dark':'light'}.png`),fullPage:true});
   }
   await apple.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.addAlarmRow());
