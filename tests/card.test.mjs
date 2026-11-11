@@ -42,7 +42,7 @@ const connectionFor=user=>{
    if(message.type==='config/entity_registry/list')return registry;
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
-   if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,message.value);notifyFavorites(user);return null;}
+   if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,JSON.parse(JSON.stringify(message.value)));notifyFavorites(user);return null;}
 
    if(failBrowse)throw new Error('Radio Browser nicht verfügbar');
    if(message.type==='media_source/search_media')return {result:message.search_query==='leer'?[]:[station('swr3')]};
@@ -193,7 +193,7 @@ test('favorite management lists every user favorite and removes it from all card
  const boxes=()=>[...a.shadowRoot.querySelectorAll('[data-managed-favorite-id]')];
  assert.equal(boxes().length,3);assert(boxes().every(input=>input.hasAttribute('checked')&&!input.disabled));assert.equal(a.shadowRoot.querySelector('#search-field').hidden,true);
  for(let remaining=3;remaining>0;remaining--){const input=boxes()[0];input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(boxes().length,remaining-1);assert.equal(b._favorites.length,remaining-1);}
- assert.match(a.shadowRoot.querySelector('#music-radio-results').textContent,/Keine Favoritensender/);assert.equal(env.calls.length,0);
+ assert.match(a.shadowRoot.querySelector('#music-radio-results').textContent,/Keine Favoriten/);assert.equal(env.calls.length,0);
  env.favoriteData.set('manuel',[station('private','Privater Sender')]);env.notifyFavorites('manuel');env.switchUser('paul');
  assert(!a.shadowRoot.querySelector('#music-radio-results').textContent.includes('Privater Sender'));await flush();assert.equal(boxes().length,0);
 });
@@ -325,4 +325,40 @@ test('next-track feedback appears immediately and repeated clicks do not duplica
  env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='next'?new Promise(resolve=>{finish=()=>resolve({skipped:true});}):undefined;
  env.click(card,'next');await flush();assert.match(card.shadowRoot.querySelector('#music-player-status').textContent,/Nächster Titel wird geladen/);
  await card._action({action:'next'});assert.equal(env.wsCalls.filter(m=>m.action==='next').length,1);finish();await flush();assert.equal(card._busy,false);card.remove();
+});
+
+test('Apple albums and playlists can be starred, share shortcuts across boxes and play on the selected box',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');await flush();
+ env.favoriteData.set('manuel',[station('radio','Radio')]);env.notifyFavorites('manuel');
+ env.wsHook=msg=>{
+  if(msg.type!=='music_manager/apple_music')return;
+  if(msg.action==='status')return {account:'Manuel',entity_id:msg.source_entity==='media_player.a'?'media_player.ma_a':'media_player.ma_b'};
+  if(msg.action==='play')return {started:true};
+  const kind=msg.media_type||'playlist';return {items:[{uri:'apple_music--a://'+kind+'/42',media_type:kind,title:kind==='album'?'Mein Album':'Meine Playlist',description:kind}],more:false};
+ };
+ env.click(a,'open-apple');await flush();env.click(a,'apple-favorite');await flush();assert.equal(env.favoriteData.get('manuel')[1].kind,'apple_music');
+ await a._action({action:'apple-library',data:{view:'album'}});await flush();env.click(a,'apple-favorite');await flush();
+ assert.deepEqual(env.favoriteData.get('manuel').map(f=>f.title),['Radio','Meine Playlist','Mein Album']);assert.equal(b._favorites.length,3);
+ a._appleDialog.close();await b._action({action:'play-favorite',data:{index:1}});await flush();
+ assert.equal(env.wsCalls.at(-1).action,'play');assert.equal(env.wsCalls.at(-1).uri,'apple_music--a://playlist/42');assert.equal(env.wsCalls.at(-1).source_entity,'media_player.b');assert.equal(env.calls.length,0);
+ env.wsHook=msg=>{if(msg.type==='music_manager/apple_music'&&msg.action==='play')throw {code:'invalid_media',message:'Dieser Eintrag gehört nicht zu deinem Apple-Music-Konto.'};};
+ await b._action({action:'play-favorite',data:{index:2}});await flush();assert.match(b.shadowRoot.querySelector('#music-player-status').textContent,/gehört nicht/);assert.equal(env.calls.length,0);
+ env.switchUser('vera');await flush();assert.equal(a._favorites.length,0);assert.equal(b._favorites.length,0);a.remove();b.remove();
+});
+test('mixed favorites can be reordered and removed without Radio Browser and failed sorting retains their order',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');await flush();
+ const album={kind:'apple_music',uri:'apple_music--a://album/42',media_type:'album',title:'Album'};
+ env.favoriteData.set('manuel',[station('one','Eins'),album,station('two','Zwei')]);env.notifyFavorites('manuel');env.failBrowse=true;
+ env.click(a,'manage-favorites');await flush();assert.equal(a._dialog.open,true);assert.equal(a.shadowRoot.querySelectorAll('[data-managed-favorite-id]').length,3);
+ assert(a.shadowRoot.querySelector('[data-action="move-favorite"][data-direction="up"]').disabled);
+ await a._moveFavorite(album.uri,'up');await flush();assert.deepEqual(env.favoriteData.get('manuel').map(f=>f.title),['Album','Eins','Zwei']);assert.equal(b._favorites[0].title,'Album');
+ env.failFavorites=true;await a._moveFavorite(album.uri,'down');await flush();assert.equal(a._favorites[0].title,'Album');assert.match(a._dialog.textContent,/nicht sortiert/);
+ env.failFavorites=false;const checkbox=[...a.shadowRoot.querySelectorAll('[data-managed-favorite-id]')].find(el=>el.dataset.managedFavoriteId===album.uri);checkbox.checked=false;checkbox.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();
+ assert.deepEqual(env.favoriteData.get('manuel').map(f=>f.title),['Eins','Zwei']);assert.equal(b._favorites.length,2);assert(!env.wsCalls.some(m=>m.type==='media_source/browse_media'));a.remove();b.remove();
+});
+test('Apple tracks have no favorite star and failed album writes leave existing shortcuts unchanged',async()=>{
+ const env=setup(),card=env.add();await flush();
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{items:[{uri:'apple_music--a://'+msg.media_type+'/42',media_type:msg.media_type,title:'Titel'}]}:undefined;
+ env.click(card,'open-apple');await flush();env.failFavorites=true;env.click(card,'apple-favorite');await flush();assert.match(card._appleDialog.textContent,/nicht gespeichert/);assert.equal(card._favorites.length,0);
+ env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();assert.equal(card._appleDialog.querySelector('[data-action="apple-favorite"]'),null);card.remove();
 });

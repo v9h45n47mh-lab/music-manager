@@ -59,3 +59,28 @@ test('playback clock clamps positions and advances only playing items with a val
  for(const duration of [0,null,undefined,NaN,Infinity,'240'])assert.equal(playbackProgress({attributes:{media_duration:duration}}),null);
  assert.equal(formatTime(125),'2:05');assert.equal(formatTime(3605),'1:00:05');assert.equal(formatTime(-2),'0:00');
 });
+
+test('mixed favorites preserve legacy radio order and accept only exact Apple album or playlist URIs',async()=>{
+ const {normalizeFavorites,appleFavorite}=await import('../src/core.js');
+ const radio={media_content_id:RADIO_ROOT+'/old',title:'Radio',can_play:true};
+ const album=appleFavorite({uri:'apple_music--a://album/42',media_type:'album',title:'Album',thumbnail:'javascript:bad()',private_token:'secret'});
+ const playlist=appleFavorite({uri:'apple_music--a://playlist/pl.u-42',media_type:'playlist',title:'Playlist'});
+ const result=normalizeFavorites([radio,album,playlist,album,null]);
+ assert.deepEqual(result.map(f=>f.title),['Radio','Album','Playlist']);assert.equal(result[1].thumbnail,'');assert(!JSON.stringify(result).includes('secret'));
+ assert.equal(result[0].media_content_id,radio.media_content_id);
+ for(const uri of ['apple_music://album/42','library://album/42','spotify--a://album/42','apple_music--a://track/42','apple_music--a://album/42?token=x','apple_music--a://album/../../42'])assert.equal(appleFavorite({uri,media_type:'album',title:'Bad'}),null);
+ assert.equal(appleFavorite({uri:'apple_music--a://album/42',media_type:'playlist',title:'Wrong type'}),null);
+});
+test('sorting merges with concurrent adds and removals without losing mixed favorites or resurrecting deletions',async()=>{
+ const {appleFavorite,moveFavorite,saveFavorite}=await import('../src/core.js');
+ const radio=id=>({media_content_id:RADIO_ROOT+'/'+id,title:id,can_play:true});
+ const album=appleFavorite({uri:'apple_music--a://album/42',media_type:'album',title:'Album'});
+ const playlist=appleFavorite({uri:'apple_music--a://playlist/42',media_type:'playlist',title:'Playlist'});
+ let items=[radio('radio'),album,playlist];const connection={};
+ const hass={user:{id:'manuel'},connection,async callWS(msg){if(msg.type==='frontend/get_user_data')return {value:items};items=msg.value;}};
+ await Promise.all([saveFavorite(hass,radio('new'),true),moveFavorite(hass,playlist.uri,'up')]);
+ assert.deepEqual(items.map(i=>i.title),['radio','Playlist','Album','new']);
+ await saveFavorite(hass,{...album,title:'Renamed Album'},true);assert.equal(items[2].title,'Renamed Album');
+ await Promise.all([saveFavorite(hass,album,false),moveFavorite(hass,album.uri,'up')]);assert.deepEqual(items.map(i=>i.title),['radio','Playlist','new']);
+ await assert.rejects(moveFavorite(hass,playlist.uri,'invalid'));
+});

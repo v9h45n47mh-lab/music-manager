@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.4.0';
+export const MUSIC_VERSION = '1.5.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -91,15 +91,25 @@ export function stationLogo(value) {
   } catch { return ''; }
 }
 export function normalizeFavorites(value) {
-  return normalizeMedia(value).filter(s=>s.can_play && s.media_content_id!==RADIO_ROOT).map(s=>({
-    media_content_id:s.media_content_id,media_content_type:String(s.media_content_type||'audio/mpeg'),
-    title:s.title,thumbnail:stationLogo(s.thumbnail),can_play:true,can_expand:false
-  }));
+  const result=[],seen=new Set();
+  for(const s of Array.isArray(value)?value:[]) {
+    const item=s?.kind==='apple_music'?appleFavorite(s):normalizeMedia([s]).filter(s=>s.can_play&&s.media_content_id!==RADIO_ROOT).map(s=>({
+      media_content_id:s.media_content_id,media_content_type:String(s.media_content_type||'audio/mpeg'),
+      title:s.title,thumbnail:stationLogo(s.thumbnail),can_play:true,can_expand:false
+    }))[0];
+    if(item&&!seen.has(item.media_content_id)){result.push(item);seen.add(item.media_content_id);}
+  }
+  return result;
+}
+export function appleFavorite(item) {
+  const uri=item?.uri,match=typeof uri==='string'&&uri.match(/^apple_music--[a-zA-Z0-9._-]{1,128}:\/\/(album|playlist)\/[a-zA-Z0-9._-]{1,256}$/);
+  if(!match||item.media_type!==match[1]||typeof item.title!=='string'||!item.title.trim())return null;
+  return {kind:'apple_music',uri,media_type:match[1],media_content_id:uri,media_content_type:match[1],
+    title:item.title,description:String(item.description||''),thumbnail:stationLogo(item.thumbnail),can_play:true,can_expand:false};
 }
 const favoriteQueues = new WeakMap();
-export async function saveFavorite(hass, station, enabled) {
-  const item = normalizeFavorites([station])[0];
-  if (!item || !hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
+async function updateFavorites(hass, update) {
+  if (!hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
   // Serialize changes across this user's cards, and read immediately before
   // each write so another card's favorites are preserved.
   const session=hass.connection || hass;
@@ -109,11 +119,28 @@ export async function saveFavorite(hass, station, enabled) {
   const operation=previous.catch(()=>{}).then(async()=>{
     const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
     const favorites=normalizeFavorites(response?.value);
-    const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
-    if(enabled)next.splice(favorites.findIndex(s=>s.media_content_id===item.media_content_id) < 0 ? next.length : favorites.findIndex(s=>s.media_content_id===item.media_content_id),0,item);
+    const next=update(favorites);
     await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:next});
     return next;
   });
   users.set(key,operation);
   try{return await operation;}finally{if(users.get(key)===operation)users.delete(key);}
+}
+export async function saveFavorite(hass, favorite, enabled) {
+  const item=normalizeFavorites([favorite])[0];
+  if(!item)throw new Error('Ungültiger Favorit.');
+  return updateFavorites(hass,favorites=>{
+    const index=favorites.findIndex(s=>s.media_content_id===item.media_content_id);
+    const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
+    if(enabled)next.splice(index<0?next.length:index,0,item);
+    return next;
+  });
+}
+export async function moveFavorite(hass,id,direction) {
+  if(!['up','down'].includes(direction))throw new Error('Ungültige Sortierrichtung.');
+  return updateFavorites(hass,favorites=>{
+    const index=favorites.findIndex(s=>s.media_content_id===id),target=index+(direction==='up'?-1:1);
+    if(index<0||target<0||target>=favorites.length)return favorites;
+    const next=[...favorites];[next[index],next[target]]=[next[target],next[index]];return next;
+  });
 }

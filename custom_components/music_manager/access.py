@@ -1,6 +1,7 @@
 """Account isolation and catalog adapter, independent of HA's transport."""
 
 import re
+from urllib.parse import urlsplit
 
 
 class AccessError(ValueError):
@@ -95,9 +96,23 @@ def catalog_item(item, provider_id):
     artists = value(item, "artists", []) or []
     description = ", ".join(str(value(a, "name", "")) for a in artists)
     label = {"track": "Titel", "album": "Album", "playlist": "Playlist"}[media_type]
-    return {"uri": uri, "title": str(value(item, "name", "Unbekannter Eintrag")),
+    result = {"uri": uri, "title": str(value(item, "name", "Unbekannter Eintrag")),
             "description": f"{description} · {label}" if description else label,
             "media_type": media_type}
+    # Expose only a public remote cover, never private metadata or a local MA
+    # image proxy URL that cannot load through a remote HA connection.
+    for image in value(value(item, "metadata"), "images", []) or []:
+        path = value(image, "path", "")
+        if enum_value(value(image, "type")) != "thumb" or not value(image, "remotely_accessible", False) or not isinstance(path, str) or len(path) > 4096:
+            continue
+        try:
+            parsed = urlsplit(path)
+            if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
+                result["thumbnail"] = path
+                break
+        except ValueError:
+            continue
+    return result
 
 
 async def library(mass, account, media_type, offset=0):

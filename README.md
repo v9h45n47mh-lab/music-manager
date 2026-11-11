@@ -1,4 +1,4 @@
-# Music Manager 1.4.0
+# Music Manager 1.5.0
 
 ![Music Manager](brand/icon.png)
 
@@ -54,6 +54,17 @@ controls:
 ```
 
 Für einen weiteren Raum kannst du eine zweite Karte mit einer anderen Sonos-Entität anlegen. Prüfe die Entitätsnamen in deinem aktuellen HA-System. Du kannst die Einstellungen anschließend im visuellen Karteneditor ändern. Alle fünf Bedienelemente sind standardmäßig sichtbar.
+
+## Persönliche Favoriten und Reihenfolge
+
+Sender, Apple-Music-Alben und Apple-Music-Playlists erscheinen gemeinsam als Kurzwahl unter den Bedienelementen. Die Liste und ihre Reihenfolge gehören dem angemeldeten HA-Benutzer und gelten für alle seine Boxen und Karten. Bereits gespeicherte Senderfavoriten bleiben einschließlich ihrer bisherigen Reihenfolge erhalten.
+
+- **Hinzufügen oder entfernen:** Im Radio Browser sowie bei Alben und Playlists im Apple-Music-Dialog den Stern betätigen. Einzelne Apple-Music-Titel sind nicht Teil dieser Favoritenfunktion.
+- **Sortieren:** Unter der Kurzwahl **Favoriten** öffnen. Alternativ ist **Favoriten verwalten** in beiden Auswahldialogen verfügbar. Mit **↑ / ↓** wird der jeweilige Eintrag um einen Platz verschoben. Die neue Reihenfolge wird direkt gespeichert und auf den anderen Karten übernommen. Die Pfeile sind auch auf dem Handy sichtbar und per Tastatur bedienbar.
+- **Entfernen:** In derselben Verwaltung das Häkchen beim betreffenden Sender, Album oder der Playlist entfernen.
+- **Abspielen:** Ein Klick auf eine Kachel startet den Favoriten auf der Sonos-Box dieser Karte. Apple-Music-Favoriten werden beim Start erneut gegen die persönliche Kontozuordnung geprüft. Für ein nicht mehr verfügbares oder anders zugeordnetes Konto erscheint ein Fehler; der Connector startet kein Ersatzkonto.
+
+Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls das Apple-Music-Logo. Die allgemeine Apple-Music-Kachel öffnet weiterhin die Mediathek und bleibt hinter den persönlichen Favoriten stehen. Fehler beim Speichern oder Sortieren verändern die bestehende Liste nicht. Parallel gestartete Änderungen mehrerer Karten derselben HA-Verbindung werden nacheinander mit dem jeweils aktuellen Stand gespeichert.
 
 ## Apple Music
 

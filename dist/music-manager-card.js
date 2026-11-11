@@ -1,4 +1,4 @@
-/* Music Manager 1.4.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 1.5.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.2.2 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.2.2";
@@ -530,7 +530,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.4.0';
+export const MUSIC_VERSION = '1.5.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -620,15 +620,25 @@ export function stationLogo(value) {
   } catch { return ''; }
 }
 export function normalizeFavorites(value) {
-  return normalizeMedia(value).filter(s=>s.can_play && s.media_content_id!==RADIO_ROOT).map(s=>({
-    media_content_id:s.media_content_id,media_content_type:String(s.media_content_type||'audio/mpeg'),
-    title:s.title,thumbnail:stationLogo(s.thumbnail),can_play:true,can_expand:false
-  }));
+  const result=[],seen=new Set();
+  for(const s of Array.isArray(value)?value:[]) {
+    const item=s?.kind==='apple_music'?appleFavorite(s):normalizeMedia([s]).filter(s=>s.can_play&&s.media_content_id!==RADIO_ROOT).map(s=>({
+      media_content_id:s.media_content_id,media_content_type:String(s.media_content_type||'audio/mpeg'),
+      title:s.title,thumbnail:stationLogo(s.thumbnail),can_play:true,can_expand:false
+    }))[0];
+    if(item&&!seen.has(item.media_content_id)){result.push(item);seen.add(item.media_content_id);}
+  }
+  return result;
+}
+export function appleFavorite(item) {
+  const uri=item?.uri,match=typeof uri==='string'&&uri.match(/^apple_music--[a-zA-Z0-9._-]{1,128}:\/\/(album|playlist)\/[a-zA-Z0-9._-]{1,256}$/);
+  if(!match||item.media_type!==match[1]||typeof item.title!=='string'||!item.title.trim())return null;
+  return {kind:'apple_music',uri,media_type:match[1],media_content_id:uri,media_content_type:match[1],
+    title:item.title,description:String(item.description||''),thumbnail:stationLogo(item.thumbnail),can_play:true,can_expand:false};
 }
 const favoriteQueues = new WeakMap();
-export async function saveFavorite(hass, station, enabled) {
-  const item = normalizeFavorites([station])[0];
-  if (!item || !hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
+async function updateFavorites(hass, update) {
+  if (!hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
   // Serialize changes across this user's cards, and read immediately before
   // each write so another card's favorites are preserved.
   const session=hass.connection || hass;
@@ -638,19 +648,36 @@ export async function saveFavorite(hass, station, enabled) {
   const operation=previous.catch(()=>{}).then(async()=>{
     const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
     const favorites=normalizeFavorites(response?.value);
-    const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
-    if(enabled)next.splice(favorites.findIndex(s=>s.media_content_id===item.media_content_id) < 0 ? next.length : favorites.findIndex(s=>s.media_content_id===item.media_content_id),0,item);
+    const next=update(favorites);
     await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:next});
     return next;
   });
   users.set(key,operation);
   try{return await operation;}finally{if(users.get(key)===operation)users.delete(key);}
 }
+export async function saveFavorite(hass, favorite, enabled) {
+  const item=normalizeFavorites([favorite])[0];
+  if(!item)throw new Error('Ungültiger Favorit.');
+  return updateFavorites(hass,favorites=>{
+    const index=favorites.findIndex(s=>s.media_content_id===item.media_content_id);
+    const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
+    if(enabled)next.splice(index<0?next.length:index,0,item);
+    return next;
+  });
+}
+export async function moveFavorite(hass,id,direction) {
+  if(!['up','down'].includes(direction))throw new Error('Ungültige Sortierrichtung.');
+  return updateFavorites(hass,favorites=>{
+    const index=favorites.findIndex(s=>s.media_content_id===id),target=index+(direction==='up'?-1:1);
+    if(index<0||target<0||target>=favorites.length)return favorites;
+    const next=[...favorites];[next[index],next[target]]=[next[target],next[index]];return next;
+  });
+}
 
 const {
   UI_CSS, UI_VERSION, row, button, iconButton, field, combobox,
   section, toggle, rangeControl, dialog, notice, versionInfo, emptyState,
-  loadingState, bindUI, escapeHtml
+  loadingState, bindUI, escapeHtml, programOrderButtons
 } = MusicManagerUI;
 
 
@@ -680,6 +707,7 @@ const MUSIC_CSS = `
   .music-station-logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--card-background-color,#fff)}
   .music-station-row{display:flex;align-items:center;gap:12px;min-width:0}
   .music-station-row>.setting-row{flex:1;min-width:0}
+  .music-favorite-actions{display:flex;align-items:center;gap:4px;flex-wrap:nowrap}
   .music-apple-logo{display:block;width:48px;height:48px;flex-shrink:0;border-radius:10px}
   .music-apple-results .setting-row{min-width:0}
   .music-results{max-height:50dvh;overflow:auto;overscroll-behavior:contain}
@@ -699,7 +727,7 @@ function musicButton({label,action,icon,disabled=false,data={},pressed}) {
 }
 function logoMarkup(station) {
   const src=stationLogo(station.thumbnail);
-  return `<span class="music-station-logo" aria-hidden="true">${musicIcon('radio')}${src?`<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>`;
+  return `<span class="music-station-logo" aria-hidden="true">${station.kind==='apple_music'?APPLE_MUSIC_LOGO:musicIcon('radio')}${src?`<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>`;
 }
 
 class MusicManagerCard extends HTMLElement {
@@ -812,7 +840,7 @@ class MusicManagerCard extends HTMLElement {
         <div id="music-apple-account"></div>
         <form id="music-apple-search-form" class="music-browser">
           ${field({id:'music-apple-query',label:'Apple Music durchsuchen',type:'search',placeholder:'Titel, Album oder Playlist',maxLength:200,autocomplete:'off'})}
-          <div class="toolbar">${button({label:'Suchen',action:'apple-search',variant:'primary'})}${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}</div>
+          <div class="toolbar">${button({label:'Suchen',action:'apple-search',variant:'primary'})}${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}${button({label:'Favoriten verwalten',action:'manage-favorites'})}</div>
         </form>
         <div id="music-apple-status" aria-live="polite"></div>
         <div id="music-apple-results" class="music-results music-apple-results" aria-label="Apple-Music-Einträge"></div>
@@ -891,7 +919,7 @@ class MusicManagerCard extends HTMLElement {
       if(epoch!==this._favoriteEpoch)return;
       this._favorites=normalizeFavorites(response?.value);
       this._favoriteLoading=false;this._favoriteError='';
-      this._renderPlayer();if(this._dialog.open)this._renderBrowser();
+      this._renderPlayer();if(this._dialog.open)this._renderBrowser();if(this._appleDialog.open)this._renderApple();
     };
     void (async()=>{
       try {
@@ -914,14 +942,31 @@ class MusicManagerCard extends HTMLElement {
     const epoch=this._favoriteEpoch, hass=this._hass;
     enabled??=!this._favorites.some(s=>s.media_content_id===station.media_content_id);
     this._favoriteRemovingId=enabled?null:station.media_content_id;
-    this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();
+    this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();this._renderApple();
     try {
       const favorites=await saveFavorite(hass,station,enabled);
       if(epoch===this._favoriteEpoch)this._favorites=favorites;
     } catch(error) {
       if(epoch===this._favoriteEpoch)this._favoriteError='Favoriten konnten nicht gespeichert werden: '+errorText(error);
     } finally {
-      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._favoriteRemovingId=null;this._renderPlayer();this._renderBrowser();}
+      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._favoriteRemovingId=null;this._renderPlayer();this._renderBrowser();this._renderApple();}
+    }
+  }
+
+  async _moveFavorite(id,direction) {
+    if(this._favoriteBusy||this._favoriteLoading)return;
+    const epoch=this._favoriteEpoch;
+    this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();
+    try {
+      const favorites=await moveFavorite(this._hass,id,direction);
+      if(epoch===this._favoriteEpoch)this._favorites=favorites;
+    } catch(error) {
+      if(epoch===this._favoriteEpoch)this._favoriteError='Favoriten konnten nicht sortiert werden: '+errorText(error);
+    } finally {
+      if(epoch===this._favoriteEpoch){
+        this._favoriteBusy=false;this._pendingFavoriteFocus={id,direction};
+        this._renderPlayer();this._renderBrowser();
+      }
     }
   }
 
@@ -1074,9 +1119,9 @@ class MusicManagerCard extends HTMLElement {
         </div>`:''}
         ${controls.volume ? `<div class="music-volume">${this._volumeMarkup(vol??0,disabled||vol===null||!hasFeature(state,'volume'))}</div>` : ''}
       </div>
-      <div id="music-favorites" class="music-favorites" aria-label="Musik und Favoritensender">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:disabled||!hasFeature(state,'playMedia')}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}${button({label:'Apple Music',action:'open-apple',disabled:this._busy}).replace('class=""','class="music-favorite music-apple-tile"').replace('<span>',APPLE_MUSIC_LOGO+'<span>')}</div>
-      <div class="toolbar">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}</div>
-      <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Im Radio Browser mit dem Stern Sender zu deinen Favoriten hinzufügen.'):''}</div>
+      <div id="music-favorites" class="music-favorites" aria-label="Persönliche Favoriten">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:this._busy||(station.kind!=='apple_music'&&(!isAvailable(this._hass?.states?.[this._config.entity])||!hasFeature(this._hass?.states?.[this._config.entity],'playMedia')))}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}${button({label:'Apple Music',action:'open-apple',disabled:this._busy}).replace('class=""','class="music-favorite music-apple-tile"').replace('<span>',APPLE_MUSIC_LOGO+'<span>')}</div>
+      <div class="toolbar">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}${button({label:'Favoriten',action:'manage-favorites',disabled:this._busy})}</div>
+      <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Sender, Alben und Playlists über den Stern zu deinen Favoriten hinzufügen.'):''}</div>
       <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState(this._pendingService==='media_next_track'?'Nächster Titel wird geladen …':'Befehl wird gesendet …') : ''}</div>`;
     this._bindNativeVolume(vol??0,disabled||vol===null||!hasFeature(state,'volume'));
     this._updateProgress();this._scheduleProgress();
@@ -1095,11 +1140,14 @@ class MusicManagerCard extends HTMLElement {
       case 'apple-library': this._appleView=data.view;await this._loadApple('library');break;
       case 'apple-more': await this._loadApple('library',true);break;
       case 'apple-play': await this._playApple(this._appleItems[Number(data.index)]);break;
+      case 'apple-favorite': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item)await this._toggleFavorite(item);break;}
+      case 'move-favorite': await this._moveFavorite(data.program,data.direction);break;
       case 'manage-favorites':
-        this._request++;this._browseLoading=false;this._favoriteMode=true;this._radioError='';this._error='';this._renderBrowser();break;
+        this._appleDialog.close();this._request++;this._browseLoading=false;this._favoriteMode=true;this._radioError='';this._error='';
+        if(!this._dialog.open)this._dialog.showModal();this._renderBrowser();break;
       case 'reload-favorites': this._disconnectFavorites();this._connectFavorites();break;
       case 'toggle-favorite': await this._toggleFavorite(this._browserItems[Number(data.index)]);break;
-      case 'play-favorite': {const station=this._favorites[Number(data.index)];if(station)await this._playStation(station);break;}
+      case 'play-favorite': {const station=this._favorites[Number(data.index)];if(station?.kind==='apple_music')await this._playApple(station);else if(station)await this._playStation(station);break;}
       case 'open-radio': await this._openRadio();break;
       case 'search': await this._search();break;
       case 'root': await this._browse(RADIO_ROOT,'Kategorien',true);break;
@@ -1255,14 +1303,19 @@ class MusicManagerCard extends HTMLElement {
   async _playApple(item) {
     if(this._busy||this._appleLoading||!item)return;
     const epoch=this._epoch;
-    this._busy=true;this._appleError='';this._renderApple();this._renderPlayer();
+    this._busy=true;this._appleError='';this._error='';this._renderApple();this._renderPlayer();
     try {
+      if(!this._musicAssistantEntity){
+        const status=await this._appleCommand('status');
+        if(epoch!==this._epoch)return;
+        this._appleEntity=status.entity_id||'';
+      }
       await this._appleCommand('play',{uri:item.uri});
       if(epoch!==this._epoch)return;
       this._playbackSource='apple';this._radioSnapshot=null;this._cancelSeek();
       this._applePreferred=true;this._selectedStation=null;this._appleDialog.close();
     } catch(error) {
-      if(epoch===this._epoch)this._appleError=this._appleFailure(error);
+      if(epoch===this._epoch){this._appleError=this._appleFailure(error);if(!this._appleDialog.open)this._error=this._appleError;}
     } finally {
       if(epoch===this._epoch){this._busy=false;this._renderApple();this._renderPlayer();}
     }
@@ -1274,14 +1327,19 @@ class MusicManagerCard extends HTMLElement {
     for(const control of this._appleDialog.querySelectorAll('form button,form input'))control.disabled=disabled;
     for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleSearch&&control.dataset.view===this._appleView));
     this.shadowRoot.getElementById('music-apple-account').innerHTML=this._appleAccount?row({title:this._appleAccount,description:'Dein Apple-Music-Konto'}):'';
-    this.shadowRoot.getElementById('music-apple-status').innerHTML=(this._appleError?notice(this._appleError,{error:true}):'')+(this._appleLoading?loadingState('Apple Music wird geladen …'):this._busy?loadingState('Wiedergabe wird gestartet …'):'');
+    this.shadowRoot.getElementById('music-apple-status').innerHTML=(this._appleError?notice(this._appleError,{error:true}):'')+(this._favoriteError?notice(this._favoriteError,{error:true}):'')+(this._appleLoading?loadingState('Apple Music wird geladen …'):this._busy?loadingState('Wiedergabe wird gestartet …'):this._favoriteBusy?loadingState('Favoriten werden gespeichert …'):'');
     const results=this.shadowRoot.getElementById('music-apple-results');
     results.setAttribute('aria-busy',String(this._appleLoading));
-    results.innerHTML=this._appleItems.map((item,index)=>row({title:item.title,description:item.description||'',trailing:button({label:'Abspielen',action:'apple-play',data:{index},disabled})})).join('')||(!this._appleLoading&&!this._appleError?emptyState(this._appleSearch?'Keine passenden Einträge gefunden.':'Keine Einträge. Du kannst Apple Music durchsuchen oder eine andere Mediathekansicht öffnen.'):'');
+    results.innerHTML=this._appleItems.map((item,index)=>{
+      const favorite=appleFavorite(item),saved=favorite&&this._favorites.some(f=>f.media_content_id===favorite.media_content_id);
+      const star=favorite?musicButton({label:(saved?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'apple-favorite',data:{index},pressed:Boolean(saved),disabled:disabled||this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id}):'';
+      return `<div class="music-station-row">${favorite?logoMarkup(favorite):''}${row({title:item.title,description:item.description||'',trailing:star+button({label:'Abspielen',action:'apple-play',data:{index},disabled})})}</div>`;
+    }).join('')||(!this._appleLoading&&!this._appleError?emptyState(this._appleSearch?'Keine passenden Einträge gefunden.':'Keine Einträge. Du kannst Apple Music durchsuchen oder eine andere Mediathekansicht öffnen.'):'');
     this.shadowRoot.getElementById('music-apple-more').innerHTML=this._appleMore?button({label:'Mehr laden',action:'apple-more',disabled}):'';
   }
 
   async _openRadio() {
+    this._favoriteMode=false;
     if(!this._dialog.open)this._dialog.showModal();
     this._error='';this._radioError='';
     if(!this._browseReady&&!this._favoriteMode)await this._browse(RADIO_ROOT,'Kategorien',true);
@@ -1353,17 +1411,18 @@ class MusicManagerCard extends HTMLElement {
     for(const control of this._dialog.querySelectorAll('form button'))control.disabled=this._busy;
     this._searchInput.disabled=this._busy||manager;
     status.innerHTML=(this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):'')+(this._radioError?notice(this._radioError,{error:true}):'')+(this._error?notice(this._error,{error:true}):'')+(manager&&this._favoriteLoading?loadingState('Favoriten werden geladen …'):this._favoriteBusy?loadingState('Favoriten werden gespeichert …'):this._browseLoading?loadingState('Radiosender werden geladen …'):this._busy?loadingState('Sender wird gestartet …'):'');
-    results.setAttribute('aria-label',manager?'Favoritensender verwalten':'Radiosender und Kategorien');
+    results.setAttribute('aria-label',manager?'Favoriten verwalten':'Radiosender und Kategorien');
     if(manager) {
-      path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Häkchen entfernen, um einen Sender aus deinen Favoriten und der Kurzwahl zu entfernen.'});
+      path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Mit den Pfeilen sortieren. Häkchen entfernen, um einen Favoriten aus der Kurzwahl zu entfernen.'});
       results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
-      results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map(item=>`<div class="music-station-row">${logoMarkup(item)}${row({
-        title:item.title,
-        trailing:`<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label>`
-      })}</div>`).join(''):emptyState('Keine Favoritensender vorhanden. Über den Stern in der Sendersuche kannst du Favoriten hinzufügen.');
+      results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-station-row">${logoMarkup(item)}${row({
+        title:item.title,description:item.kind==='apple_music'?(item.media_type==='album'?'Album':'Playlist'):'Radiosender',
+        trailing:`<div class="music-favorite-actions">${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div>`
+      })}</div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Alben oder Playlists kannst du Favoriten hinzufügen.');
       if(this._pendingFavoriteFocus&&!this._favoriteBusy) {
-        const {id,index}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
-        (inputs.find(input=>input.dataset.managedFavoriteId===id)||inputs[Math.min(index,inputs.length-1)]||this._dialog.querySelector('[data-action="manage-favorites"]')).focus();
+        const {id,index=0,direction}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
+        const moved=direction&&[...results.querySelectorAll('[data-action="move-favorite"]')].find(b=>!b.disabled&&b.dataset.program===id&&b.dataset.direction===direction);
+        (moved||inputs.find(input=>input.dataset.managedFavoriteId===id)||inputs[Math.min(index,inputs.length-1)]||this._dialog.querySelector('[data-action="manage-favorites"]')).focus();
         this._pendingFavoriteFocus=null;
       }
       return;

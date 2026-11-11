@@ -221,7 +221,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert(await dialog().getByRole('checkbox').first().isChecked());
   await page.evaluate(()=>demo.failFavorites=false);
   for(let remaining=2;remaining>0;remaining--){await dialog().getByRole('checkbox').first().click();await page.waitForFunction(n=>demo.cards[0]._favorites.length===n,remaining-1);}
-  await dialog().getByText('Keine Favoritensender vorhanden.',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
+  await dialog().getByText('Keine Favoriten vorhanden.',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
   await page.keyboard.press('Escape');
  });
  await check('Apple Music logo tile opens personal playlists, catalog search and selected-box playback',async()=>{
@@ -304,6 +304,47 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    assert.match(await card().locator('#music-seek').getAttribute('aria-valuetext'),/\d+:\d{2} \/ 4:00/);
    await page.screenshot({path:path.join(screens,`apple-playback-${width}-${dark?'dark':'light'}.png`),fullPage:true});
   }
+ });
+ await check('albums, playlists and radio share sortable personal favorites on every box',async()=>{
+  await reset();await page.evaluate(()=>demo.seedFavorites('manuel',[demo.station('swr3','SWR3')]));
+  const apple=card().locator('#music-apple-dialog');await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Als Favorit speichern: Meine Lieblingsmusik',exact:true}).click();
+  await page.waitForFunction(()=>demo.favoriteData.get('manuel').length===2);
+  await apple.locator('[data-action="apple-library"][data-view="album"]').click();await apple.getByText('Mein Lieblingsalbum',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Als Favorit speichern: Mein Lieblingsalbum',exact:true}).click();
+  await page.waitForFunction(()=>demo.favoriteData.get('manuel').length===3);
+  await apple.getByRole('button',{name:'Favoriten verwalten',exact:true}).click();await apple.waitFor({state:'hidden'});
+  const manager=dialog();await manager.getByRole('checkbox',{name:'Favorit behalten: Mein Lieblingsalbum',exact:true}).waitFor();
+  await manager.getByRole('button',{name:'Nach oben: Mein Lieblingsalbum',exact:true}).click();
+  await page.waitForFunction(()=>demo.favoriteData.get('manuel')[1].title==='Mein Lieblingsalbum');
+  await manager.getByRole('button',{name:'Nach oben: Mein Lieblingsalbum',exact:true}).click();
+  await page.waitForFunction(()=>demo.favoriteData.get('manuel')[0].title==='Mein Lieblingsalbum');
+  assert(await manager.getByRole('button',{name:'Nach oben: Mein Lieblingsalbum',exact:true}).isDisabled());
+  assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Mein Lieblingsalbum','SWR3','Meine Lieblingsmusik']);
+  for(const width of [320,390,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   assert(!(await manager.evaluate(el=>el.scrollWidth>el.clientWidth)));
+   assert(!(await manager.locator('#music-radio-results').evaluate(el=>el.scrollWidth>el.clientWidth)));
+   await page.screenshot({path:path.join(screens,`mixed-favorites-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+  }
+  await manager.getByRole('checkbox',{name:'Favorit behalten: Meine Lieblingsmusik',exact:true}).click();
+  await page.waitForFunction(()=>demo.cards.every(c=>c._favorites.length===2));
+  await manager.getByRole('button',{name:'Schließen',exact:true}).click();
+  const second=page.locator('music-manager-card').nth(1);
+  await second.getByRole('button',{name:'Mein Lieblingsalbum abspielen',exact:true}).click();
+  await page.waitForFunction(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1).action==='play');
+  const play=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
+  assert.equal(play.uri,'apple_music--demo://album/123');assert.equal(play.source_entity,'media_player.maximilian_sonos');
+  await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.every(c=>c._favorites.length===0));
+ });
+ await check('favorite management opens without radio setup and sorting failures preserve the saved order',async()=>{
+  await reset();await page.evaluate(()=>{demo.seedFavorites('manuel',[demo.station('one','Eins'),demo.station('two','Zwei')]);demo.failBrowse=true;});
+  await card().locator('#player [data-action="manage-favorites"]').click();
+  await dialog().getByRole('checkbox',{name:'Favorit behalten: Eins',exact:true}).waitFor();
+  await page.evaluate(()=>demo.failFavorites=true);
+  await dialog().getByRole('button',{name:'Nach unten: Eins',exact:true}).click();await dialog().getByRole('alert').waitFor();
+  assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Eins','Zwei']);
+  assert.equal(await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='media_source/browse_media').length),0);
  });
  await check('integration bundle and compatibility resource coexist without duplicate cards or service calls',async()=>{
   await reset();await page.evaluate(async()=>{

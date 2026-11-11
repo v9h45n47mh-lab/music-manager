@@ -65,6 +65,17 @@ class AssignmentTests(TestCase):
         obj['provider_mappings'][0]['available'] = False
         self.assertIsNone(access.catalog_item(obj, 'apple_music--a'))
 
+    def test_catalog_exposes_only_public_https_covers(self):
+        for path in ('javascript:alert(1)', 'data:image/svg+xml,private', 'http://local/image',
+                     'https://user:password@example.org/cover'):
+            obj = item(metadata={'images': [dict(type='thumb', remotely_accessible=True, path=path)]})
+            self.assertNotIn('thumbnail', access.catalog_item(obj, 'apple_music--a'))
+        obj = item(kind='album', metadata={'token': 'PRIVATE', 'images': [dict(type='thumb', remotely_accessible=True,
+            path='https://is1-ssl.mzstatic.com/image/thumb/cover.jpg')]})
+        result = access.catalog_item(obj, 'apple_music--a')
+        self.assertEqual(result['thumbnail'], 'https://is1-ssl.mzstatic.com/image/thumb/cover.jpg')
+        self.assertNotIn('PRIVATE', str(result))
+
     def test_sonos_pairing_is_hardware_based_and_not_name_based(self):
         self.assertEqual(access.sonos_uid('RINCON_AABBCCDDEEFF01400'), access.sonos_uid('sonos--rincon_aabbccddeeff01400'))
         self.assertNotEqual(access.sonos_uid('RINCON_AABBCCDDEEFF01400'), access.sonos_uid('RINCON_11223344556601400'))
