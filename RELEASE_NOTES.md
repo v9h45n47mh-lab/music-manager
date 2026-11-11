@@ -1,13 +1,11 @@
-## Music Manager 1.11.0
+## Music Manager 1.12.0 – Player Beta
 
-Neue zusätzliche Karte **Music Manager – Player Beta** (`custom:music-manager-beta-card`). Die bisherige Karte bleibt verfügbar und wird nicht automatisch ersetzt.
+- Gemeinsame Player-Bausteine aus **HA UI Kit 1.4.0**, ohne lokale CSS-Überschreibungen in der Beta.
+- Schmales Box-Dropdown oben links, ohne sichtbares „Box“-Label. Das Zahnrad oben rechts öffnet Sender, Apple Music und Favoriten; die Auswahlleiste unten entfällt.
+- Keine sichtbare Beta-Beschriftung. Favoritenkacheln zeigen nur Logos oder Symbole; zugängliche Namen und Tooltips bleiben erhalten.
+- Wecklieder samt Datenladen und Apple-Music-Markierung nur für die aktiven, eindeutig benannten HA-Benutzer **Maximilian und Paul**. Beide verwalten **Favoriten & Wecklieder** in einem gemeinsamen Dialog mit Suche, Sortierung und Entfernen. Die Listen bleiben getrennt gespeichert. Vera und Manuel erhalten nur die Favoritenverwaltung.
+- Bei Radio nur Play/Pause; Apple Music behält Vor/Zurück und Shuffle. Die Player-Tasten bleiben auch beim Hover kreisrund.
+- Lautstärke der Beta auf **0–50 %** begrenzt, einschließlich gesendeter Befehle und nativer HA-Slider-Ereignisse. Die Skala nutzt die ganze Breite: **0 links, 25 Mitte, 50 rechts**. Andere HA-Karten, direkte Serviceaufrufe und die Sonos-App sind unabhängig.
+- Persönliche Box-Auswahl für Vera und Manuel, feste Ausgangsbox für die Kinder und persönliche Konten bleiben erhalten. Die bisherige Karte wird nicht ersetzt.
 
-- Player-Darstellung mit Cover, Titel, zentraler Play/Pause-Taste und persönlichem Box-Dropdown oben rechts.
-- Vera und Manuel können ihre Box unabhängig wechseln. Die Auswahl wird je authentifiziertem HA-Benutzer gespeichert und beim nächsten Öffnen wiederhergestellt. Ausgangsbox Wohnzimmer: Manuel kann Büro, Vera Schlafzimmer wählen.
-- Maximilian und Paul behalten die in der Karte konfigurierte Ausgangsbox und bekommen kein Dropdown.
-- Favoriten, Wecklieder und Apple-Music-Konten bleiben persönlich. Wiedergabe und Lautstärke steuern nach einem Wechsel die gewählte Box; die MA-Zuordnung wird neu ermittelt.
-- Konfiguration → **Box-Auswahl (Beta)** zeigt und verwaltet die freigeschalteten Benutzer. Eindeutig benannte aktive HA-Benutzer Vera und Manuel sind die Vorgabe; bei abweichenden Namen einmal die passenden Benutzer auswählen. HA-/MA-Berechtigungen bleiben erhalten.
-- Optionales `navigation_id` trennt den gespeicherten Zustand mehrerer Beta-Karten.
-- Standard-Dropdown, Status, Verwaltung und Dialoge verwenden das unveränderte HA UI Kit 1.3.1.
-
-Nach dem Update HA neu starten und die Seite vollständig neu laden. Zum Testen eine vorhandene Karte duplizieren und ausschließlich ihren Typ auf **`custom:music-manager-beta-card`** ändern. Die konfigurierte `entity` bleibt die Ausgangsbox für Benutzer ohne Box-Auswahl. Ein Boxwechsel verschiebt keine laufende Wiedergabe.
+Im Marketplace aktualisieren, HA neu starten und die Seite vollständig neu laden. Bestehende Beta-Karten verwenden weiter **`custom:music-manager-beta-card`**; ihre YAML-Konfiguration bleibt gültig.

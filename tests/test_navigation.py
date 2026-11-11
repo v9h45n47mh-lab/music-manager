@@ -54,7 +54,7 @@ class NavigationTests(IsolatedAsyncioTestCase):
     async def test_children_always_use_initial_speaker_and_cannot_save_other_speaker(self):
         for child in ['maximilian', 'paul']:
             result = await self.data(child)
-            self.assertEqual(result, {'can_select': False, 'entity_id': 'media_player.living', 'players': []})
+            self.assertEqual(result, {'can_select': False, 'entity_id': 'media_player.living', 'players': [], 'show_alarm_songs': True})
             with self.assertRaises(self.nav.AccessError):
                 await self.data(child, 'media_player.office')
         self.nav.async_user_store.assert_not_awaited()
@@ -111,3 +111,9 @@ class NavigationTests(IsolatedAsyncioTestCase):
         self.assertEqual(saved['data']['accounts'], self.entry.options['accounts'])
         self.assertEqual(saved['data']['alarms'], self.entry.options['alarms'])
         self.assertEqual(saved['data']['speaker_selection_users'], ['manuel', 'vera'])
+
+    async def test_wake_song_display_is_only_for_the_two_named_children(self):
+        for name in ['manuel', 'vera', 'maximilian', 'paul']:
+            self.assertEqual((await self.data(name))['show_alarm_songs'], name in ['maximilian', 'paul'])
+        self.hass.auth.async_get_users.return_value.append(NS(id='duplicate', name='Paul', is_active=True, system_generated=False))
+        self.assertFalse((await self.data('paul'))['show_alarm_songs'])

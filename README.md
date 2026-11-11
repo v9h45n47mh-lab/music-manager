@@ -1,33 +1,34 @@
-# Music Manager 1.11.0
+# Music Manager 1.12.0
 
 ![Music Manager](brand/icon.png)
 
 [![Prüfungen](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml/badge.svg)](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml)
 
-**Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.3.1**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
+**Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.4.0**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
 Zurück, Play/Pause und Weiter erscheinen als gleich breite Symboltasten. Bei Apple Music steht Shuffle als Symbol ohne Text in derselben Reihe, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
 
-## Zusätzliche Player-Karte · Beta (ab 1.11.0)
+## Zusätzliche Player-Karte · Beta (ab 1.12.0)
 
-Die bisherige Karte bleibt erhalten. Zum Ausprobieren eine vorhandene Music-Manager-Karte duplizieren und nur `type` auf `custom:music-manager-beta-card` ändern. Alternativ im Kartenpicker **Music Manager – Player Beta** auswählen. Die neue Darstellung hat einen Coverbereich, eine zentrale Play/Pause-Taste und die persönliche Box-Auswahl oben rechts.
+Die bisherige Karte bleibt erhalten. Zum Ausprobieren eine vorhandene Music-Manager-Karte duplizieren und nur `type` auf `custom:music-manager-beta-card` ändern. Alternativ im Kartenpicker **Music Manager – Player Beta** auswählen. Im Player steht keine Beta-Beschriftung.
 
 ```yaml
 type: custom:music-manager-beta-card
 entity: media_player.sonos_wohnzimmer
-# Optional: eigene dauerhafte Kennung für unabhängige Karten.
 navigation_id: hauptplayer
 ```
 
-`entity` ist weiterhin deine tatsächliche native Sonos-Entität und die Ausgangsbox. Die Beta ersetzt die bestehende Karte erst nach Abschluss der Optimierung; bestehende Dashboard-Konfigurationen werden nicht geändert.
+`entity` durch deine tatsächliche native Sonos-Entität ersetzen. Sie bleibt die Ausgangsbox. `navigation_id` ist optional und trennt den gespeicherten Zustand mehrerer Karten; ohne Kennung teilen Beta-Karten mit gleicher Ausgangsbox den gespeicherten Stand.
 
-- **Manuel und Vera:** Box per Dropdown wechseln. Die zuletzt gewählte Box wird serverseitig beim jeweiligen HA-Benutzer gespeichert und beim nächsten Öffnen auf anderen Geräten wiederhergestellt. Beispiel: Ausgangsbox Wohnzimmer, Manuel wählt Büro, Vera wählt Schlafzimmer.
-- **Maximilian und Paul:** kein Dropdown; die Karte verwendet immer die konfigurierte Ausgangsbox, im Beispiel Wohnzimmer.
-- **Favoriten, Wecklieder und Apple Music:** bleiben beim angemeldeten HA-Benutzer, unabhängig von der Box. Die passende MA-Entität wird nach einem Boxwechsel neu ermittelt. HA- und MA-Freigaben gelten weiterhin.
-- **Konfiguration → Box-Auswahl (Beta):** zeigt und verwaltet die Benutzer. Ohne explizite Auswahl werden eindeutig benannte aktive HA-Benutzer **Manuel** und **Vera** erkannt. Bei abweichenden Kontonamen diese einmal in der Konfiguration auswählen. Danach werden die Benutzer-IDs verwendet. Eine leere Auswahl sperrt den Wechsel für alle.
-- **Mehrere Karten:** `navigation_id` trennt deren gespeicherte Auswahl. Ohne Kennung teilen Beta-Karten mit derselben Ausgangsbox den gespeicherten Stand. Die aktuelle Auswahl wird beim Laden wiederhergestellt; gleichzeitig bereits geöffnete Karten werden durch einen Wechsel nicht ferngesteuert.
+- **Vera und Manuel:** Das kompakte Box-Dropdown steht oben links, ohne sichtbare Beschriftung. Die persönliche Box wird serverseitig je HA-Benutzer gespeichert und beim nächsten Öffnen wiederhergestellt. Unter Konfiguration → **Box-Auswahl (Beta)** werden die Benutzer angezeigt und verwaltet. Eindeutig benannte aktive HA-Benutzer Vera und Manuel sind die Vorgabe; bei abweichenden Namen einmal die Benutzer auswählen. HA-/MA-Berechtigungen gelten weiterhin.
+- **Maximilian und Paul:** Die Karte bleibt auf der Ausgangsbox und hat kein Box-Dropdown. Ihre Einstellungen enthalten die gemeinsame Verwaltung **Favoriten & Wecklieder**, einschließlich Suche, Sortierung und Entfernen. Favoriten und Wecklieder bleiben getrennte persönliche Listen. Die beiden aktiven HA-Benutzer werden anhand ihrer eindeutigen Namen Maximilian und Paul erkannt; andere Benutzer bekommen in der Beta keine Wecklied-Funktionen.
+- **Zahnrad oben rechts:** Öffnet **Sender**, **Apple Music** und die Favoritenverwaltung. Für Maximilian und Paul sind Favoriten und Wecklieder zusammengeführt. Es gibt keine zusätzliche Auswahlleiste unten. Bei Vera und Manuel entfallen Wecklieder, deren Datenladen, Verwaltung und Markierung einzelner Apple-Music-Titel vollständig in der Beta. Die allgemeine Weckerkonfiguration für Administratoren und die klassische Karte bleiben erhalten.
+- **Favoritenkacheln:** ausschließlich Logo/Cover bzw. Ersatzsymbol, ohne sichtbare Texte. Tooltip und zugänglicher Name bleiben erhalten.
+- **Radiowiedergabe:** nur Play/Pause; Vor/Zurück entfallen. Apple Music behält Titelwechsel und Shuffle. Die Hervorhebung der Player-Tasten bleibt auch beim Hover kreisrund.
+- **Lautstärke:** 0–50 % über die gesamte Reglerbreite: 0 links, 25 in der Mitte, 50 ganz rechts. Auch gesendete Befehle und native HA-Slider-Ereignisse werden auf höchstens 50 % begrenzt. Dies ist die Begrenzung der Beta-Karte; andere HA-Karten, direkte HA-Serviceaufrufe und die Sonos-App bleiben unabhängig. Ein höherer extern eingestellter Pegel löst durch das bloße Anzeigen der Karte keinen Lautstärkebefehl aus.
+- **UI Kit 1.4.0:** Kopf, Box-Auswahl, Zahnrad, Medientasten, Symbolfavoriten, Dialoge, Listen und Felder verwenden unveränderte gemeinsame Bausteine und Stile. Die Beta enthält keine eigenen CSS-Regeln. Der native HA-Lautstärkeregler wird weiter unterstützt; der Fallback stammt aus dem UI Kit.
 
-Die Beta verwendet dieselbe lokal gebündelte, unveränderte UI-Kit-Version wie die bisherige Karte. Dropdown, Status und Dialoge stammen aus dem Kit; das Player-Layout ist separat gestaltet. Das Dropdown verändert nur die persönliche Navigation und sendet keinen Wiedergabebefehl. Eine laufende Wiedergabe wird nicht auf eine andere Box verschoben. Bei fehlgeschlagenem Speichern bleibt die bisherige Box aktiv.
+Die Auswahl einer anderen Box verschiebt keine laufende Wiedergabe. Bei einem Speicherfehler bleibt die bisherige Box aktiv. Favoriten, Wecklieder und Apple-Music-Konto bleiben beim angemeldeten Benutzer. Die passende MA-Entität wird nach einem Wechsel neu ermittelt.
 
 ## Installation über den Marketplace
 
@@ -92,7 +93,7 @@ Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls
 
 Unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren** öffnet sich die eigene Verwaltungsseite. Sie ist für HA-Administratoren auch über **Music Manager** in der Seitenleiste erreichbar. Drei einklappbare Bereiche zeigen die Music-Assistant-Verbindung, alle HA-/MA-/Apple-Music-Zuordnungen und sämtliche Wecker mit Benutzer, Box und gespeicherter Weckmusik.
 
-Die Seite verwendet das fest eingebundene **HA UI Kit 1.3.1** für Kopfbereich, Bereiche, Zeilen, Symbole, Buttons, Auswahlfelder, Meldungen und Dialoge. Über das Stiftsymbol einen Eintrag bearbeiten; seine aktuellen Werte sind vorausgefüllt. Der Papierkorb öffnet eine ausdrückliche Bestätigung. Beim Wechsel der MA-Verbindung wird das Entfernen bestehender Kontozuordnungen zusätzlich bestätigt.
+Die Seite verwendet das fest eingebundene **HA UI Kit 1.4.0** für Kopfbereich, Bereiche, Zeilen, Symbole, Buttons, Auswahlfelder, Meldungen und Dialoge. Über das Stiftsymbol einen Eintrag bearbeiten; seine aktuellen Werte sind vorausgefüllt. Der Papierkorb öffnet eine ausdrückliche Bestätigung. Beim Wechsel der MA-Verbindung wird das Entfernen bestehender Kontozuordnungen zusätzlich bestätigt.
 
 Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutige Konten, Quellenfilter, Benutzer- und Boxfreigaben werden weiterhin serverseitig geprüft. Die neue Übersichtsabfrage ist nur lesend und nur für aktive HA-Administratoren zugelassen. Sie liefert keine Zugangsdaten, Tokens oder Favoriten-URIs. Gespeicherte Zuordnungen bleiben auch bei nicht erreichbarem MA-Server sichtbar. Nach einem Benutzerwechsel werden offene Eingaben und Daten des vorherigen Benutzers verworfen.
 

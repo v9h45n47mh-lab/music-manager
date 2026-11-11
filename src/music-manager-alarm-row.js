@@ -1,4 +1,4 @@
-import {UI_CSS, row, button, dialog, field, notice, loadingState, bindUI, escapeHtml} from './family-ui/1.3.1/family-ui.js';
+import {UI_CSS, row, button, dialog, field, notice, loadingState, bindUI, escapeHtml} from './family-ui/1.4.0/family-ui.js';
 import {MUSIC_DIALOG_CSS} from './music-layout.js';
 
 /** An entities-card row. The backend resolves the configured owner and box. */

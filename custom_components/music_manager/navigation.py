@@ -58,11 +58,16 @@ async def navigation_data(hass, user, source, navigation_id="", selected=None):
     if (not re.fullmatch(r"media_player\.[a-z0-9_]+", source)
         or navigation_id and not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", navigation_id)):
         raise AccessError("invalid_navigation", "Die Box oder Navigationskennung ist ungültig.")
+    people = [u for u in await hass.auth.async_get_users() if u.is_active and not u.system_generated]
+    wake_names = {"maximilian", "paul"}
+    caller_name = (user.name or "").strip().casefold()
+    show_alarm_songs = caller_name in wake_names and sum(
+        (u.name or "").strip().casefold() == caller_name for u in people) == 1
     allowed = user.id in {u.id for u in await speaker_users(hass, entries[0])}
     if not allowed:
         if selected is not None:
             raise AccessError("unauthorized", "Diese Karte verwendet für dich die konfigurierte Box.")
-        return {"can_select": False, "entity_id": source, "players": []}
+        return {"can_select": False, "entity_id": source, "players": [], "show_alarm_songs": show_alarm_songs}
     players = available_players(hass, user)
     ids = {p["entity_id"] for p in players}
     key = navigation_id or source
@@ -79,7 +84,7 @@ async def navigation_data(hass, user, source, navigation_id="", selected=None):
         entity = saved.get(key)
         # A removed speaker/permission must never leave a hidden stale target.
         entity = entity if entity in ids else source
-    return {"can_select": True, "entity_id": entity, "players": players}
+    return {"can_select": True, "entity_id": entity, "players": players, "show_alarm_songs": show_alarm_songs}
 
 
 @websocket_api.websocket_command({

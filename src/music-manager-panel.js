@@ -1,4 +1,4 @@
-import {UI_CSS, UI_VERSION, panelHeader, section, row, button, iconButton, field, selectField, multiSelect, dialog, notice, feedback, formError, emptyState, loadingState, busyButton, versionInfo, bindUI} from './family-ui/1.3.1/family-ui.js';
+import {UI_CSS, UI_VERSION, panelHeader, section, row, button, iconButton, field, selectField, multiSelect, dialog, notice, feedback, formError, emptyState, loadingState, busyButton, versionInfo, bindUI} from './family-ui/1.4.0/family-ui.js';
 
 /** Configuration panel: all writes go through HA's existing validated options flows. */
 class MusicManagerPanel extends HTMLElement {
