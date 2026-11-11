@@ -404,3 +404,38 @@ test('Apple tracks have no favorite star and failed album writes leave existing 
  env.click(card,'open-apple');await flush();env.failFavorites=true;env.click(card,'apple-favorite');await flush();assert.match(card._appleDialog.textContent,/nicht gespeichert/);assert.equal(card._favorites.length,0);
  env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();assert.equal(card._appleDialog.querySelector('[data-action="apple-favorite"]'),null);card.remove();
 });
+
+
+test('alarm row loads its configured owner, persists an exact favorite and keeps the previous choice after save errors',async()=>{
+ const env=setup(), row=env.document.createElement('music-manager-alarm-row');
+ const favorite={uri:'apple_music--a://playlist/wake',title:'Aufwachen',media_type:'playlist'};
+ let selected=null,fail=false;
+ env.wsHook=msg=>{if(msg.type==='music_manager/alarm'){
+  if(msg.action==='select'){if(fail)throw new Error('Speichern fehlgeschlagen');selected=msg.uri?favorite:null;}
+  return {alarm_id:msg.alarm_id,owner:'Maximilian',source:'Maximilians Sonos',selection:selected,favorites:[favorite],in_favorites:true};
+ }};
+ row.setConfig({alarm_id:'school_alarm',name:'Weckmusik'});env.document.body.append(row);row.hass=env.makeHass();await flush();
+ assert.equal(env.wsCalls.filter(m=>m.type==='music_manager/alarm').length,1);assert.match(row.shadowRoot.querySelector('#alarm-row').textContent,/Letzte Sonos-Wiedergabe/);
+ env.click(row,'alarm-open');await flush();assert.match(row._dialog.textContent,/Maximilian/);
+ await row._action({action:'alarm-select',value:favorite.uri});assert.equal(row._dialog.open,false);assert.equal(row._data.selection.title,'Aufwachen');
+ const call=env.wsCalls.at(-1);assert.equal(call.uri,favorite.uri);assert.equal(call.alarm_id,'school_alarm');assert.equal(call.user_id,undefined);assert.equal(call.source_entity,undefined);
+ env.click(row,'alarm-open');await flush();fail=true;await row._action({action:'alarm-select',value:''});
+ assert.equal(row._dialog.open,true);assert.equal(row._data.selection.title,'Aufwachen');assert.match(row._dialog.textContent,/Speichern fehlgeschlagen/);
+ fail=false;await row._action({action:'alarm-select',value:''});assert.equal(row._data.selection,null);assert.equal(env.calls.length,0);row.remove();
+});
+test('alarm row never leaks a late previous users choice or saves arbitrary catalog URIs',async()=>{
+ const env=setup(),row=env.document.createElement('music-manager-alarm-row');let finish;
+ env.wsHook=msg=>msg.type==='music_manager/alarm'?new Promise(resolve=>{finish=()=>resolve({owner:'Maximilian',selection:{title:'Private Weckmusik',uri:'apple_music--a://album/42'},favorites:[]});}):undefined;
+ row.setConfig({alarm_id:'school_alarm'});env.document.body.append(row);row.hass=env.makeHass();await flush();const old=finish;
+ const hass=env.makeHass('paul');hass.callWS=async()=>{throw new Error('Dieser Wecker gehört einem anderen Benutzer.');};row.hass=hass;old();await flush();
+ assert.equal(row._data,null);assert(!row.shadowRoot.querySelector('#alarm-row').textContent.includes('Private Weckmusik'));assert.match(row.shadowRoot.querySelector('#alarm-row').textContent,/anderen Benutzer/);
+ const before=env.wsCalls.length;await row._action({action:'alarm-select',value:'apple_music--a://album/not-favorited'});assert.equal(env.wsCalls.length,before);row.remove();
+});
+test('alarm row retains an unstarred saved favorite and handles missing assignment without creating a mapping',async()=>{
+ const env=setup(),row=env.document.createElement('music-manager-alarm-row');
+ env.wsHook=msg=>msg.type==='music_manager/alarm'?{owner:'Maximilian',source:'Sonos',selection:{uri:'apple_music--a://album/42',title:'Gespeichertes Album'},favorites:[],in_favorites:false}:undefined;
+ row.setConfig({alarm_id:'school_alarm'});env.document.body.append(row);row.hass=env.makeHass();await flush();env.click(row,'alarm-open');await flush();
+ assert.match(row._dialog.textContent,/Auswahl bleibt/);assert(row._dialog.querySelector('[data-ui-option][disabled]'));row._dialog.close();
+ env.wsHook=()=>{throw new Error('Wecker unter Konfigurieren zuordnen.');};await row._load(true);assert.match(row.shadowRoot.querySelector('#alarm-row').textContent,/zuordnen/);
+ assert(env.wsCalls.every(m=>m.type==='music_manager/alarm'&&m.action==='get'));row.remove();
+});

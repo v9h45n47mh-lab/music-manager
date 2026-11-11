@@ -71,6 +71,7 @@ def load_installation():
     frontend = module('homeassistant.components.frontend')
     frontend.add_extra_js_url = lambda hass, url: hass.extra.add(url)
     frontend.remove_extra_js_url = lambda hass, url: hass.extra.remove(url)
+    module('homeassistant.components.frontend.storage').async_user_store = AsyncMock()
     http = module('homeassistant.components.http')
     http.StaticPathConfig = lambda url, path, cache_headers: NS(url=url, path=path, cache_headers=cache_headers)
     module('homeassistant.components.lovelace').LOVELACE_DATA = 'lovelace'
@@ -79,7 +80,9 @@ def load_installation():
     selectors = module('homeassistant.helpers.selector')
     selectors.SelectSelector = selectors.SelectSelectorConfig = lambda *args, **kw: kw or args[0]
     selectors.SelectSelectorMode = NS(DROPDOWN='dropdown')
-    module('homeassistant.exceptions').ConfigEntryNotReady = type('ConfigEntryNotReady', (Exception,), {})
+    exceptions = module('homeassistant.exceptions')
+    exceptions.ConfigEntryNotReady = type('ConfigEntryNotReady', (Exception,), {})
+    exceptions.HomeAssistantError = type('HomeAssistantError', (Exception,), {})
     vol = module('probatio')
     vol.Required = vol.Optional = lambda key, **kwargs: key
     vol.Schema = lambda value: value
@@ -237,7 +240,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.flow.music_assistant_client = lambda hass, entry_id: mass
         other = {'ha_user_id': 'ha-vera', 'ma_user_id': 'ma-vera', 'provider_id': 'apple_music--vera'}
         flow = self.flow.MusicManagerOptionsFlow()
-        flow.config_entry = NS(data={'music_assistant_entry': 'mass'}, options={'accounts': [other]})
+        flow.config_entry = NS(data={'music_assistant_entry': 'mass'}, options={'accounts': [other], 'alarms': [{'alarm_id': 'existing_alarm'}]})
         flow.hass = NS(auth=NS(async_get_users=AsyncMock(return_value=[
             NS(id='ha-manuel', name='Manuel', is_active=True, system_generated=False)])))
         form = await flow.async_step_add()
@@ -247,6 +250,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
         saved = await flow.async_step_add(mapping)
         self.assertEqual(saved['type'], 'create_entry')
         self.assertEqual(saved['data']['accounts'], [other, mapping])
+        self.assertEqual(saved['data']['alarms'], [{'alarm_id': 'existing_alarm'}])
         self.assertEqual(admin.role, 'admin')
         self.assertEqual(admin.provider_filter, ['apple_music--manuel'])
         # The list may be stale: validate the live account again when saving.
@@ -257,6 +261,39 @@ class InstallationTests(IsolatedAsyncioTestCase):
         mass.auth.list_users.return_value = [NS(user_id='ma-manuel', username='manuel', enabled=True, role='admin'), regular]
         refused = await flow.async_step_add(mapping)
         self.assertEqual(refused['errors']['base'], 'account_disabled')
+
+    async def test_alarm_configuration_validates_owner_and_source_and_preserves_other_options(self):
+        from unittest.mock import patch
+        alarm_module = importlib.import_module('installation_test.alarms')
+        owner = NS(id='ha-max', name='Maximilian', is_active=True, system_generated=False,
+                   permissions=NS(check_entity=lambda entity, policy: True))
+        source = NS(entity_id='media_player.max_sonos', platform='sonos', disabled_by=None, unique_id='RINCON_AABBCCDDEEFF01400')
+        self.flow.hass = None
+        flow = self.flow.MusicManagerOptionsFlow()
+        options = {'accounts': [{'ha_user_id': owner.id}], 'alarms': [{'alarm_id': 'old_alarm'}], 'unrelated': True}
+        flow.config_entry = NS(data={'music_assistant_entry': 'mass'}, options=options)
+        hass = NS(auth=NS(async_get_users=AsyncMock(return_value=[owner])),
+                  states=NS(get=lambda entity: NS(attributes={'friendly_name': 'Maximilian Sonos'})),
+                  registry=NS(entities={source.entity_id: source}, async_get=lambda entity: source if entity==source.entity_id else None))
+        flow.hass = hass
+        sys.modules['homeassistant.helpers.entity_registry'].async_get = lambda target: target.registry
+        mapping = {'alarm_id': 'school_alarm', 'ha_user_id': owner.id, 'source_entity': source.entity_id}
+        with patch.object(alarm_module, 'apple_target', new=AsyncMock()) as check:
+            result = await flow.async_step_alarm(mapping)
+            self.assertEqual(result['type'], 'create_entry')
+            self.assertEqual(result['data']['alarms'], [{'alarm_id': 'old_alarm'}, mapping])
+            self.assertTrue(result['data']['unrelated'])
+            self.assertEqual(result['data']['accounts'], options['accounts'])
+            check.assert_awaited_once()
+            for changes in ({'alarm_id': '../invalid'}, {'ha_user_id': 'ha-paul'}, {'source_entity': 'media_player.other'}):
+                rejected = await flow.async_step_alarm({**mapping, **changes})
+                self.assertEqual(rejected['errors']['base'], 'invalid_alarm')
+        flow.config_entry.options = result['data']
+        removed = await flow.async_step_alarm_remove({'alarm_id': 'school_alarm'})
+        self.assertEqual(removed['data']['alarms'], [{'alarm_id': 'old_alarm'}])
+        self.assertTrue(removed['data']['unrelated'])
+        deleted_account = await flow.async_step_remove({'ha_user_id': owner.id})
+        self.assertEqual(deleted_account['data']['alarms'], result['data']['alarms'])
 
     async def test_frontend_failure_requests_setup_retry_without_registering_an_entry(self):
         hass = self.make_hass()

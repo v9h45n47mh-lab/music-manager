@@ -22,7 +22,7 @@ let states={
 for(const [entity,title] of [['media_player.ma_wohnzimmer','Sonos Wohnzimmer'],['media_player.ma_maximilian','Sonos Maximilian']])states[entity]={entity_id:entity,state:'idle',attributes:{friendly_name:title,volume_level:0.28,supported_features:featureFlags}};
 const calls=[],wsCalls=[];
 let failService=false,failBrowse=false,canSearch=true,wsHook=null,serviceHook=null;
-const cards=[];
+const cards=[],alarmRows=[],alarmSelections=new Map();let failAlarmSave=false;
 let currentUser='manuel',failFavorites=false;
 const favoriteData=new Map(),favoriteSubscribers=new Map(),connections=new Map();
 const notifyFavorites=user=>{for(const cb of favoriteSubscribers.get(user)||[])cb({value:favoriteData.get(user)||[]});};
@@ -53,6 +53,18 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
    if(msg.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
    if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,msg.value);notifyFavorites(user);return null;}
 
+  if(msg.type==='music_manager/alarm'){
+   if(msg.alarm_id!=='school_alarm')throw new Error('Wecker unter Konfigurieren zuordnen.');
+   if(!['manuel','maximilian'].includes(user))throw new Error('Dieser Wecker gehört einem anderen Benutzer.');
+   const favorites=(favoriteData.get('maximilian')||[]).filter(f=>f.kind==='apple_music').map(({uri,title,media_type})=>({uri,title,media_type}));
+   if(msg.action==='select'){
+    if(failAlarmSave)throw new Error('Speichern fehlgeschlagen');
+    const selected=favorites.find(f=>f.uri===msg.uri);if(msg.uri&&!selected)throw new Error('Ungültiger Favorit');
+    alarmSelections.set(msg.alarm_id,selected||null);
+   }
+   const selection=alarmSelections.get(msg.alarm_id)||null;
+   return {alarm_id:msg.alarm_id,owner:'Maximilian',source:'Sonos Maximilian',selection,favorites,in_favorites:!selection||favorites.some(f=>f.uri===selection.uri)};
+  }
   if(msg.type==='music_manager/apple_music'){
    const target=msg.entity_id||(msg.source_entity==='media_player.wohnzimmer'?'media_player.ma_wohnzimmer':'media_player.ma_maximilian');
    if(msg.action==='status')return {account:user==='manuel'?'Manuel (Beispielkonto)':'Maximilian (Beispielkonto)',provider:'Apple Music',entity_id:target};
@@ -69,10 +81,11 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
   }
   throw new Error('Unbekannte Websocket-Aktion '+msg.type);
  }});
-function push(){for(const card of cards)card.hass=makeHass();}
+function push(){for(const row of alarmRows)row.hass=makeHass();for(const card of cards)card.hass=makeHass();}
 function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
 function update(entity,changes){const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old?.attributes,...changes.attributes}}};push();}
-window.demo={cards,calls,wsCalls,registry,makeHass,addCard,push,update,station,directory,
+function addAlarmRow(){const row=document.createElement('music-manager-alarm-row');row.setConfig({alarm_id:'school_alarm',name:'Weckmusik'});const host=document.querySelector('#alarm-host');host.style.cssText='margin-top:20px;max-width:500px;padding:16px;border:1px solid var(--divider-color,#ddd);border-radius:12px;background:var(--card-background-color,#fff)';host.append(row);alarmRows.push(row);row.hass=makeHass();return row;}
+window.demo={cards,calls,wsCalls,registry,makeHass,addCard,addAlarmRow,alarmRows,alarmSelections,set failAlarmSave(v){failAlarmSave=v},push,update,station,directory,
  switchUser(user){currentUser=user;push();},seedFavorites(user,items){favoriteData.set(user,items);notifyFavorites(user);},get favoriteData(){return favoriteData},set failFavorites(v){failFavorites=v},
  set failService(v){failService=v},set failBrowse(v){failBrowse=v},set canSearch(v){canSearch=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v},get states(){return states}};
 addCard('media_player.wohnzimmer','Music Manager');

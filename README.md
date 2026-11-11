@@ -1,4 +1,4 @@
-# Music Manager 1.5.3
+# Music Manager 1.6.0
 
 ![Music Manager](brand/icon.png)
 
@@ -65,6 +65,35 @@ Sender, Apple-Music-Alben und Apple-Music-Playlists erscheinen gemeinsam als Kur
 - **Abspielen:** Ein Klick auf eine Kachel startet den Favoriten auf der Sonos-Box dieser Karte. Apple-Music-Favoriten werden beim Start erneut gegen die persönliche Kontozuordnung geprüft. Für ein nicht mehr verfügbares oder anders zugeordnetes Konto erscheint ein Fehler; der Connector startet kein Ersatzkonto.
 
 Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls das Apple-Music-Logo. Die allgemeine Apple-Music-Kachel öffnet weiterhin die Mediathek und bleibt hinter den persönlichen Favoriten stehen. Fehler beim Speichern oder Sortieren verändern die bestehende Liste nicht. Parallel gestartete Änderungen mehrerer Karten derselben HA-Verbindung werden nacheinander mit dem jeweils aktuellen Stand gespeichert.
+
+## Weckmusik aus persönlichen Apple-Music-Favoriten
+
+Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm-row` und die Aktion `music_manager.play_alarm`. Die Auswahl wird serverseitig im HA-Benutzerspeicher gesichert; die Automation funktioniert auch bei geschlossenem Dashboard und nach einem HA-Neustart.
+
+1. In Music Manager die Apple-Music-Zuordnung des Wecker-Benutzers einrichten und gewünschte **Alben oder Playlists favorisieren**.
+2. Als Administrator unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren → Wecker hinzufügen oder ändern** die Kennung `school_alarm`, den HA-Benutzer **Wecker-Benutzer** und **seine Sonos-Box** auswählen. Bei mehreren Weckern muss jede Kennung eindeutig sein. Die Zuordnung kann später über dieselbe Kennung geändert werden.
+3. Die passende Entities-Zeile in die vorhandene Weckerkarte einfügen:
+
+```yaml
+- type: custom:music-manager-alarm-row
+  alarm_id: school_alarm
+  name: Weckmusik
+```
+
+4. Unter **Weckmusik → Auswählen** ein Album oder eine Playlist aus den persönlichen Favoriten des Wecker-Benutzers wählen. Ein Administrator darf dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
+5. Im bestehenden Sonos-Zweig der Weckerautomation den bisherigen Start durch folgende Aktion ersetzen:
+
+```yaml
+- action: music_manager.play_alarm
+  data:
+    alarm_id: school_alarm
+```
+
+Neutrale Einfügebeispiele stehen unter [`examples/alarm_row.yaml`](examples/alarm_row.yaml) und [`examples/alarm_action.yaml`](examples/alarm_action.yaml). Füge die Auswahl nur in den Abschnitt ein, dessen Automation tatsächlich Musik startet. Licht-, Rollladen-, Kalender- und Stop-Aktionen bleiben in der vorhandenen Automation. Die Beispiele enthalten keine persönlichen Entitätsnamen oder vollständigen privaten Automationen.
+
+**Letzte Sonos-Wiedergabe** setzt wie der bisherige Wecker die letzte Wiedergabe auf der zugeordneten Sonos-Box fort. Das ist der Standard, solange kein Favorit ausgewählt wurde; diese Option kann auch später bewusst wieder gewählt werden. Ein ausgewähltes Album oder eine Playlist bleibt als Weckmusik gespeichert, wenn es anschließend aus den Favoriten entfernt wird. Die Auswahl kann jederzeit geändert werden.
+
+Der Hintergrundstart akzeptiert ausschließlich die vorher vom Administrator konfigurierte **Weckerkennung**, keine frei übergebenen Benutzer-, Konto- oder Lautsprecherkennungen. Er prüft vor Apple-Music-Wiedergabe erneut den aktiven HA-Besitzer, seine HA- und MA-Boxfreigaben, das persönliche MA-Konto und den exakten Apple-Music-Anbieter. Bei gelöschten Konten, geänderten Zuordnungen oder nicht erreichbarer Box erscheint ein Fehler in der Automation; eine fehlgeschlagene Apple-Music-Wiedergabe wechselt nicht automatisch zu einer anderen Quelle.
 
 ## Apple Music
 

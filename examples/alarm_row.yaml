@@ -1,0 +1,4 @@
+# Insert this row in an existing entities card.
+type: custom:music-manager-alarm-row
+alarm_id: school_alarm
+name: Weckmusik

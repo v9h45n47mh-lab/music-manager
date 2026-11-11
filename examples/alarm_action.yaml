@@ -1,0 +1,4 @@
+# Insert this action in an existing alarm automation.
+action: music_manager.play_alarm
+data:
+  alarm_id: school_alarm

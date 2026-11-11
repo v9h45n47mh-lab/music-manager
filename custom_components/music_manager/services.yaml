@@ -1,0 +1,11 @@
+play_alarm:
+  name: Weckmusik starten
+  description: Startet die gespeicherte Musik eines fest zugeordneten Weckers auch ohne geöffnetes Dashboard. Ohne Auswahl wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt.
+  fields:
+    alarm_id:
+      name: Weckerkennung
+      description: Die unter Konfigurieren angelegte Kennung, zum Beispiel school_alarm.
+      required: true
+      example: school_alarm
+      selector:
+        text:

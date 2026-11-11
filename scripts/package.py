@@ -16,6 +16,8 @@ with ZipFile(out, "w", ZIP_DEFLATED, compresslevel=9) as archive:
     for name in ["README.md", "LICENSE", "Vorschau.html"]:
         archive.write(root / name, name)
     archive.write(root / "dist/LICENSES.txt", "LICENSES.txt")
+    for file in sorted((root / "examples").glob("*.yaml")):
+        archive.write(file, file.relative_to(root).as_posix())
     for name in ["music-manager-card.js", "LICENSES.txt", "manifest.json"]:
         archive.write(root / "dist" / name, "www/music-manager/" + name)
     for file in sorted((root / "custom_components").rglob("*")):

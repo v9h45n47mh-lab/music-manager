@@ -7,7 +7,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .access import AccessError, checked_account, is_supported_user, value
-from .const import CONF_ACCOUNTS, CONF_MASS_ENTRY, DOMAIN
+from .const import CONF_ACCOUNTS, CONF_ALARMS, CONF_MASS_ENTRY, DOMAIN
 from .helpers import music_assistant_client
 
 
@@ -55,7 +55,7 @@ class MusicManagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class MusicManagerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["connect", "add", "remove"])
+        return self.async_show_menu(step_id="init", menu_options=["connect", "add", "remove", "alarm", "alarm_remove"])
 
     async def async_step_connect(self, user_input=None):
         options = connection_options(self.hass)
@@ -107,7 +107,7 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
                         errors["base"] = err.code
                     else:
                         accounts = [a for a in accounts if a["ha_user_id"] != user_input["ha_user_id"]] + [user_input]
-                        return self.async_create_entry(title="", data={CONF_ACCOUNTS: accounts})
+                        return self.async_create_entry(title="", data={**self.config_entry.options, CONF_ACCOUNTS: accounts})
         except Exception:
             return self.async_abort(reason="cannot_connect")
         return self.async_show_form(step_id="add", data_schema=vol.Schema({
@@ -119,7 +119,59 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
         if not accounts:
             return self.async_abort(reason="no_accounts")
         if user_input is not None:
-            return self.async_create_entry(title="", data={CONF_ACCOUNTS: [a for a in accounts if a["ha_user_id"] != user_input["ha_user_id"]]})
+            return self.async_create_entry(title="", data={**self.config_entry.options, CONF_ACCOUNTS: [a for a in accounts if a["ha_user_id"] != user_input["ha_user_id"]]})
         names = {u.id: u.name or u.id for u in await self.hass.auth.async_get_users()}
         return self.async_show_form(step_id="remove", data_schema=vol.Schema({vol.Required("ha_user_id"): select([
             {"value": a["ha_user_id"], "label": names.get(a["ha_user_id"], a["ha_user_id"])} for a in accounts])}))
+
+
+    async def async_step_alarm(self, user_input=None):
+        from .alarms import ALARM_ID, apple_target, checked_source
+        from homeassistant.helpers import entity_registry as er
+
+        accounts = self.config_entry.options.get(CONF_ACCOUNTS, [])
+        users = {u.id: u for u in await self.hass.auth.async_get_users()
+                 if u.is_active and not u.system_generated}
+        owners = [{"value": a["ha_user_id"], "label": users[a["ha_user_id"]].name or a["ha_user_id"]}
+                  for a in accounts if a.get("ha_user_id") in users]
+        if not owners:
+            return self.async_abort(reason="no_accounts")
+        sources = [{"value": e.entity_id, "label": self.hass.states.get(e.entity_id).attributes.get("friendly_name", e.entity_id)
+                    if self.hass.states.get(e.entity_id) else e.entity_id}
+                   for e in er.async_get(self.hass).entities.values()
+                   if e.platform == "sonos" and not e.disabled_by and e.entity_id.startswith("media_player.")]
+        errors = {}
+        if user_input is not None:
+            try:
+                if (not ALARM_ID.fullmatch(user_input.get("alarm_id", ""))
+                    or user_input.get("ha_user_id") not in {o["value"] for o in owners}
+                    or user_input.get("source_entity") not in {s["value"] for s in sources}):
+                    raise ValueError("Invalid alarm")
+                owner = users[user_input["ha_user_id"]]
+                checked_source(self.hass, user_input, owner)
+                await apple_target(self.hass, self.config_entry, user_input, owner)
+            except Exception:
+                errors["base"] = "invalid_alarm"
+            else:
+                alarms = [a for a in self.config_entry.options.get(CONF_ALARMS, [])
+                          if a["alarm_id"] != user_input["alarm_id"]] + [dict(user_input)]
+                return self.async_create_entry(title="", data={**self.config_entry.options, CONF_ALARMS: alarms})
+        return self.async_show_form(step_id="alarm", data_schema=vol.Schema({
+            vol.Required("alarm_id", default="school_alarm"): str,
+            vol.Required("ha_user_id"): select(owners),
+            vol.Required("source_entity"): select(sources),
+        }), errors=errors)
+
+    async def async_step_alarm_remove(self, user_input=None):
+        alarms = self.config_entry.options.get(CONF_ALARMS, [])
+        if not alarms:
+            return self.async_abort(reason="no_alarms")
+        if user_input is not None:
+            if user_input.get("alarm_id") not in {a["alarm_id"] for a in alarms}:
+                return self.async_abort(reason="invalid_alarm")
+            return self.async_create_entry(title="", data={**self.config_entry.options, CONF_ALARMS: [
+                a for a in alarms if a["alarm_id"] != user_input["alarm_id"]]})
+        names = {u.id: u.name or u.id for u in await self.hass.auth.async_get_users()}
+        return self.async_show_form(step_id="alarm_remove", data_schema=vol.Schema({
+            vol.Required("alarm_id"): select([{"value": a["alarm_id"],
+                "label": a["alarm_id"] + " · " + names.get(a["ha_user_id"], a["ha_user_id"])} for a in alarms])}))

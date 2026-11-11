@@ -25,7 +25,9 @@
         "menu_options": {
           "connect": "Music Assistant connection",
           "add": "Add or change user assignment",
-          "remove": "Remove user assignment"
+          "remove": "Remove user assignment",
+          "alarm": "Add or change alarm",
+          "alarm_remove": "Remove alarm assignment"
         }
       },
       "add": {
@@ -50,6 +52,21 @@
         "data": {
           "music_assistant_entry": "Music Assistant connection"
         }
+      },
+      "alarm": {
+        "title": "Assign alarm",
+        "description": "Choose a fixed ID (e.g. school_alarm), the owner whose favorites and Apple Music account are used, and their Sonos speaker. Use the same ID in the alarm row and automation. An existing ID is updated.",
+        "data": {
+          "alarm_id": "Alarm ID",
+          "ha_user_id": "Home Assistant user",
+          "source_entity": "Sonos speaker"
+        }
+      },
+      "alarm_remove": {
+        "title": "Remove alarm assignment",
+        "data": {
+          "alarm_id": "Alarm ID"
+        }
       }
     },
     "error": {
@@ -58,13 +75,16 @@
       "account_filter": "In Music Assistant → Settings → User management → your user → Music sources, select exactly the assigned Apple Music source. This also applies to administrators; keep the existing role.",
       "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
       "account_disabled": "The MA account must be active with the user or administrator role. Reload the selection and check the account in Music Assistant.",
-      "provider_unavailable": "The selected Apple Music account is no longer available. Check its login in Music Assistant and reload the selection."
+      "provider_unavailable": "The selected Apple Music account is no longer available. Check its login in Music Assistant and reload the selection.",
+      "invalid_alarm": "Check the ID (a-z, 0-9, underscore), owner, Apple Music assignment and speaker permissions."
     },
     "abort": {
       "accounts_missing": "Add an Apple Music provider instance and an active user or administrator account in Music Assistant first.",
       "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
       "no_accounts": "No accounts have been assigned yet.",
-      "music_assistant_missing": "First connect Music Assistant under Configure → Music Assistant connection. Radio already works."
+      "music_assistant_missing": "First connect Music Assistant under Configure → Music Assistant connection. Radio already works.",
+      "no_alarms": "No alarms have been assigned.",
+      "invalid_alarm": "Invalid alarm ID."
     }
   }
 }
