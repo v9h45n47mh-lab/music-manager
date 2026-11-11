@@ -547,12 +547,13 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await reset();await page.evaluate(async()=>{
    const song={kind:'apple_music',uri:'apple_music--demo://track/long',media_type:'track',title:'Skifahrt (Chicken Fajita) und ein sehr langer zusammenhängender Liedname'};demo.seedAlarmSongs('maximilian',[song]);demo.alarmSelections.set('school_alarm',song);demo.addAlarmRow();
    const host=document.querySelector('#alarm-host');host.style.display='grid';host.style.gridTemplateColumns='40px minmax(0,1fr)';host.style.gap='16px';host.style.overflow='hidden';host.prepend(document.createElement('span'));
-   const kit=await import('/src/family-ui/1.3.1/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
+   const kit=await import('/src/family-ui/1.3.1/family-ui.js');const holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';const ref=holder.attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Weckmusik',description:'Lied',trailing:kit.button({label:'Auswählen',action:'reference'})})}`;
   });
   const alarm=page.locator('music-manager-alarm-row').first();await alarm.getByRole('button',{name:'Auswählen',exact:true}).waitFor();
   for(const width of [320,375,390,430,768,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:800});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   await page.mouse.move(0,0);
    const report=await alarm.evaluate(el=>{
     const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;
     const props=['fontFamily','fontSize','fontWeight','lineHeight','color','paddingTop','paddingRight','paddingBottom','paddingLeft','borderRadius','minHeight','backgroundColor'];
