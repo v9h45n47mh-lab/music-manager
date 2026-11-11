@@ -1,4 +1,4 @@
-# Music Manager 1.5.0
+# Music Manager 1.5.1
 
 ![Music Manager](brand/icon.png)
 
@@ -6,7 +6,7 @@
 
 **Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
-Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und hat eine eigene Kachel mit Logo.
+Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
 
 ## Installation über den Marketplace
 
@@ -68,7 +68,7 @@ Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls
 
 ## Apple Music
 
-Die **Apple-Music-Kachel mit Logo** steht direkt unter den Bedienelementen bei den Senderfavoriten. Sie öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
+Die Schaltfläche **Apple Music** steht unten neben **Sender wählen**. In der Kachelreihe stehen ausschließlich persönliche Sender-, Album- und Playlistfavoriten. **Apple Music** öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
 
 Während Apple Music läuft, zeigt die Karte zusätzlich **Shuffle** und eine **Zeitleiste mit verstrichener Zeit und Gesamtdauer**. Die Zeitleiste lässt sich vorwärts und rückwärts ziehen; der Spulbefehl wird erst beim Loslassen gesendet. Während des Ziehens bleiben Position und Zeitangabe stabil. Bei einem Titel- oder Boxwechsel wird eine begonnene Eingabe verworfen. Die Position läuft während der Wiedergabe weiter und bleibt bei Pause stehen. Ohne bekannte Dauer wird keine Zeitleiste angezeigt.
 

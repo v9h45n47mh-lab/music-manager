@@ -224,9 +224,10 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await dialog().getByText('Keine Favoriten vorhanden.',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
   await page.keyboard.press('Escape');
  });
- await check('Apple Music logo tile opens personal playlists, catalog search and selected-box playback',async()=>{
+ await check('Apple Music footer button opens personal playlists, catalog search and selected-box playback',async()=>{
   await reset();const apple=card().locator('#music-apple-dialog');
-  assert.equal(await card().locator('[data-action="open-apple"] svg.music-apple-logo').count(),1);
+  assert.equal(await card().locator('#music-favorites [data-action="open-apple"]').count(),0);
+  assert.equal(await card().locator('#music-favorites > :not([data-action="play-favorite"])').count(),0);
   await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
   assert.match(await apple.locator('#music-apple-account').innerText(),/Manuel/);
   await apple.locator('#music-apple-query').fill('Liebling');await apple.locator('#music-apple-query').press('Enter');
@@ -258,10 +259,13 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.getByRole('alert').waitFor();assert(await apple.isVisible());
   await page.evaluate(()=>demo.switchUser('maximilian'));await apple.waitFor({state:'hidden'});assert.equal(await apple.locator('#music-apple-results .setting-row').count(),0);
  });
- await check('Apple Music tile and picker fit desktop/mobile and light/dark themes',async()=>{
+ await check('Apple Music footer and picker fit desktop/mobile and light/dark themes',async()=>{
   await reset();const apple=card().locator('#music-apple-dialog');
   for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   const radioBounds=await action('open-radio').boundingBox(),appleBounds=await action('open-apple').boundingBox();
+   assert(Math.abs(radioBounds.y-appleBounds.y)<1);assert(appleBounds.x>=radioBounds.x+radioBounds.width);assert(appleBounds.x+appleBounds.width<=width);
+   assert.equal(await card().locator('#music-favorites > :not([data-action="play-favorite"])').count(),0);
    await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
    const bounds=await apple.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
    await page.screenshot({path:path.join(screens,`apple-music-${width}-${dark?'dark':'light'}.png`),fullPage:true});

@@ -208,10 +208,12 @@ test('favorite management ignores late browse results and retains checked favori
  env.failFavorites=false;input=a.shadowRoot.querySelector('[data-managed-favorite-id]');input.checked=false;input.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(a._favorites.length,0);
 });
 
-test('Apple Music logo is a tile under controls and missing setup stays actionable',async()=>{
+test('Apple Music opens beside radio below the favorites and missing setup stays actionable',async()=>{
  const env=setup(),card=env.add();await flush();
- const tile=card.shadowRoot.querySelector('#music-favorites [data-action="open-apple"]');assert(tile);assert(tile.querySelector('svg.music-apple-logo'));
- const before=env.wsCalls.length;tile.click();await flush();
+ const favorites=card.shadowRoot.querySelector('#music-favorites'),toolbar=favorites.nextElementSibling;
+ assert.equal(favorites.children.length,0);assert.equal(favorites.querySelector('[data-action="open-apple"]'),null);
+ assert.deepEqual([...toolbar.querySelectorAll('button')].map(b=>b.dataset.action),['open-radio','open-apple','manage-favorites']);
+ const before=env.wsCalls.length;toolbar.querySelector('[data-action="open-apple"]').click();await flush();
  assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Music-Manager-Connector/);assert.equal(env.wsCalls.length,before+1);
  assert.equal(card._appleQuery.disabled,true);assert.equal(Boolean(card._dialog.open),false);
 });
