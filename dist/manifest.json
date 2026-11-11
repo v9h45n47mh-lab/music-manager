@@ -1,9 +1,9 @@
 {
-  "version": "1.3.1",
+  "version": "1.3.2",
   "ui_version": "1.2.2",
   "ui_source_commit": "6e398ba9415ed5a0b64e9703d11ab935ee7ea47d",
   "files": {
-    "music-manager-card.js": "8342e61b602969821197b2da6db8877c0c8a4207ebb34833dc35c356e3ab8a28",
+    "music-manager-card.js": "53f2c5f954be96f79c075dd0a2a1c068de0730af6c77ec12a3706ed506cfada2",
     "LICENSES.txt": "cc58bce334d9e3bab1aabf22bb5feb08719f6d350c435f928be43258d07e8c99"
   }
 }

@@ -54,8 +54,9 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
    if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,msg.value);notifyFavorites(user);return null;}
 
   if(msg.type==='music_manager/apple_music'){
-   if(msg.action==='status')return {account:user==='manuel'?'Manuel (Beispielkonto)':'Maximilian (Beispielkonto)',provider:'Apple Music'};
-   if(msg.action==='play'){update(msg.entity_id,{state:'playing',attributes:{active_queue:'example-queue',media_title:'Apple Music – Beispieltitel',media_artist:'Beispielinterpret'}});return {started:true};}
+   const target=msg.entity_id||(msg.source_entity==='media_player.wohnzimmer'?'media_player.ma_wohnzimmer':'media_player.ma_maximilian');
+   if(msg.action==='status')return {account:user==='manuel'?'Manuel (Beispielkonto)':'Maximilian (Beispielkonto)',provider:'Apple Music',entity_id:target};
+   if(msg.action==='play'){update(target,{state:'playing',attributes:{active_queue:'example-queue',media_title:'Apple Music – Beispieltitel',media_artist:'Beispielinterpret'}});return {started:true};}
    const type=msg.action==='search'?'track':msg.media_type;
    return {items:[{uri:'apple_music--demo://'+type+'/123',title:msg.action==='search'?'Beispieltitel: '+msg.query:type==='playlist'?'Meine Lieblingsmusik':type==='album'?'Mein Lieblingsalbum':'Mein Lieblingstitel',description:{track:'Titel',album:'Album',playlist:'Playlist'}[type],media_type:type}],more:false};
   }
@@ -68,7 +69,7 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
   throw new Error('Unbekannte Websocket-Aktion '+msg.type);
  }});
 function push(){for(const card of cards)card.hass=makeHass();}
-function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls,music_assistant_entity:entity==='media_player.wohnzimmer'?'media_player.ma_wohnzimmer':'media_player.ma_maximilian'});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
+function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
 function update(entity,changes){const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old?.attributes,...changes.attributes}}};push();}
 window.demo={cards,calls,wsCalls,registry,makeHass,addCard,push,update,station,directory,
  switchUser(user){currentUser=user;push();},seedFavorites(user,items){favoriteData.set(user,items);notifyFavorites(user);},get favoriteData(){return favoriteData},set failFavorites(v){failFavorites=v},

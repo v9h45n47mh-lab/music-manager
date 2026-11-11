@@ -1,4 +1,4 @@
-# Music Manager 1.3.1
+# Music Manager 1.3.2
 
 ![Music Manager](brand/icon.png)
 
@@ -76,10 +76,10 @@ Apple Music benötigt einen aktiven Zugang und **Music Assistant mit Apple-Music
    | Apple-Music-Konto in Music Assistant | Die Musikquelle „Apple Music Manuel“ |
 
    Wähle die drei zusammengehörigen Einträge und speichere. Diese Zuordnung gehört zu Music Manager; sie wird zusätzlich zu einer eventuellen automatischen HA-Anmeldung in Music Assistant gespeichert.
-6. Wähle im visuellen Karteneditor unter **Apple Music: Music-Assistant-Entität derselben Box** den passenden Player. Native Sonos- und MA-Entität werden anhand ihrer Sonos-Hardwarekennung geprüft. Bei der Auswahl einer anderen Sonos-Box wird diese zusätzliche Entität zurückgesetzt.
+6. Wähle in jeder Karte nur die gewünschte **Sonos-Box**. Der Connector findet automatisch die MA-Entität derselben Box anhand ihrer Sonos-Hardwarekennung und der verbundenen MA-Integration. Eine zusätzliche Playerzuordnung pro Karte ist nicht erforderlich. Dein Apple-Music-Konto gilt auf allen so eingerichteten und für dich freigegebenen Boxen. Jede Box muss in MA über den Sonos-Player-Anbieter eingerichtet sein; ihre MA-Entität muss in HA aktiviert sein. Bestehende HA- und MA-Playerfreigaben gelten weiterhin. Im Karteneditor ist **Apple Music: Music-Assistant-Player → Automatisch – dieselbe Sonos-Box** voreingestellt. Nur bei mehreren passenden MA-Entitäten ist eine manuelle Auswahl erforderlich; vorhandene manuelle Zuordnungen bleiben gültig.
 7. Öffne die **Apple-Music-Kachel**. Suche Musik oder wähle Playlists, Alben bzw. Titel und tippe auf **Abspielen**.
 
-Die Zuordnung ist **1:1 pro HA-Benutzer**, unabhängig von Box oder Dashboard. Ein MA-Benutzer und eine Apple-Music-Instanz können nicht zwei HA-Benutzern zugeordnet werden. Änderungen und Entfernungen erfolgen unter **Music Manager → Konfigurieren**. Die Karte übergibt keine Benutzer- oder Konto-ID; der Connector bestimmt den aktuellen Benutzer anhand der authentifizierten HA-Verbindung und prüft die Zuordnung bei jeder Anfrage erneut. Gelöschte oder nicht verfügbare Konten, leere Quellenfilter und fehlende Zuordnungen führen zu einem Einrichtungshinweis. Der Connector wählt kein Ersatzkonto aus. Die weitere Auflösung der Wiedergabequelle erfolgt durch Music Assistant. Beim Benutzerwechsel werden offene Apple-Music-Ergebnisse entfernt.
+Die Kontozuordnung ist **1:1 pro HA-Benutzer**, unabhängig von Box oder Dashboard. Derselbe HA-Benutzer verwendet auf allen seinen freigegebenen Sonos-Boxen dasselbe zugeordnete Apple-Music-Konto; die jeweilige Karte bestimmt das Wiedergabeziel. Ein MA-Benutzer und eine Apple-Music-Instanz können nicht zwei HA-Benutzern zugeordnet werden. Änderungen und Entfernungen erfolgen unter **Music Manager → Konfigurieren**. Die Karte übergibt keine Benutzer- oder Konto-ID; der Connector bestimmt den aktuellen Benutzer anhand der authentifizierten HA-Verbindung und prüft die Zuordnung bei jeder Anfrage erneut. Gelöschte oder nicht verfügbare Konten, leere Quellenfilter und fehlende Zuordnungen führen zu einem Einrichtungshinweis. Der Connector wählt kein Ersatzkonto aus. Die weitere Auflösung der Wiedergabequelle erfolgt durch Music Assistant. Beim Benutzerwechsel werden offene Apple-Music-Ergebnisse entfernt.
 
 Fehlt die Einrichtung, zeigt die Kachel die erforderlichen Schritte. Radio und persönliche Senderfavoriten bleiben verfügbar. Weitere Updates kommen über den Marketplace für das gesamte Paket. Die Benutzerzuordnungen bleiben als HA-Konfigurationsoptionen erhalten. Bei einem ausdrücklich gewählten Wechsel zu einem anderen MA-Server oder zu Nur Radio werden nur die Apple-Music-Zuordnungen zurückgesetzt; Radiofavoriten bleiben erhalten.
 
@@ -88,7 +88,6 @@ Beispiel mit Apple Music:
 ```yaml
 type: custom:music-manager-card
 entity: media_player.wohnzimmer
-music_assistant_entity: media_player.sonos_wohnzimmer_music_assistant
 ```
 
 Der zweite Entitätsname ist ein Beispiel: Wähle den tatsächlich von Music Assistant angelegten Player derselben Sonos-Box.

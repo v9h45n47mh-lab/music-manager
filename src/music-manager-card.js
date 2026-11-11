@@ -36,7 +36,7 @@ const MUSIC_CSS = `
   .music-results{max-height:50dvh;overflow:auto;overscroll-behavior:contain}
 `;
 const APPLE_MUSIC_LOGO = `<svg class="music-apple-logo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="apple-music-gradient" x2="0" y2="1"><stop stop-color="#fa586a"/><stop offset="1" stop-color="#e82948"/></linearGradient></defs><rect width="48" height="48" rx="10" fill="url(#apple-music-gradient)"/><path fill="#fff" d="M33.7 9.1 20.2 12c-.8.2-1.2.7-1.2 1.5v19.1c-1.1-.6-2.6-.5-4 .1-2.3.8-3.7 2.7-3.2 4.3.5 1.6 2.7 2.2 5 1.4 2.1-.7 3.6-2.3 3.6-4V20.1l12.1-2.6v11.6c-1.1-.5-2.5-.4-3.9.1-2.3.8-3.8 2.7-3.2 4.3.5 1.6 2.7 2.2 5 1.4 2.2-.8 3.6-2.4 3.6-4V10.2c0-.8-.3-1.2-.9-1.1Z"/></svg>`;
-const APPLE_SETUP = 'Für Apple Music: Music Assistant mit deinem Apple-Music-Konto und der Sonos-Box einrichten. Music Manager im Marketplace als Integration installieren. Der Music-Manager-Connector ist darin enthalten. Unter Geräte & Dienste → Music Manager → Konfigurieren die Verbindung und deinen HA-Benutzer zuordnen. Im Karteneditor anschließend die Music-Assistant-Entität derselben Box wählen.';
+const APPLE_SETUP = 'Für Apple Music: Music Manager im Marketplace als Integration installieren und unter Geräte & Dienste → Music Manager → Konfigurieren Music Assistant und deinen HA-Benutzer zuordnen. Die jeweilige Sonos-Box wird automatisch in Music Assistant gefunden. Alle gewünschten Boxen müssen dort über den Sonos-Player-Anbieter eingerichtet und für deinen Benutzer freigegeben sein.';
 const MUSIC_ICONS = {
   previous:'M6 5h2v14H6zM18 5v14l-9-7z',next:'M16 5h2v14h-2zM6 5l9 7-9 7z',
   play:'M8 5v14l11-7z',pause:'M6 5h4v14H6zM14 5h4v14h-4z',stop:'M6 6h12v12H6z',
@@ -103,6 +103,7 @@ class MusicManagerCard extends HTMLElement {
     this._ensureDOM();
     this._loadNativeVolume();
     this._renderPlayer();
+    this._resolveApplePlayer();
   }
 
   set hass(hass) {
@@ -112,18 +113,20 @@ class MusicManagerCard extends HTMLElement {
     if (!this._config) return;
     this._ensureDOM();
     if(userChanged){this._epoch++;this._busy=false;this._resetApple();}
-    if(this._hass.states?.[this._config.music_assistant_entity]?.attributes?.active_queue)this._applePreferred=false;
+    if(this._hass.states?.[this._musicAssistantEntity]?.attributes?.active_queue)this._applePreferred=false;
     this._connectFavorites();
     this._loadNativeVolume();
     if (previous !== this._state || !this._player.firstChild) this._renderPlayer();
+    this._resolveApplePlayer();
   }
   get _controlEntity() {
-    const entity=this._config?.music_assistant_entity, state=this._hass?.states?.[entity];
+    const entity=this._musicAssistantEntity, state=this._hass?.states?.[entity];
     return isAvailable(state) && (state.attributes?.active_queue || this._applePreferred) ? entity : this._config?.entity;
   }
+  get _musicAssistantEntity() { return this._appleEntity || this._config?.music_assistant_entity; }
   get _state() { return this._hass?.states?.[this._controlEntity]; }
 
-  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); }
+  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
   disconnectedCallback() {
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
@@ -135,6 +138,7 @@ class MusicManagerCard extends HTMLElement {
     this._browseLoading = false;
     this._dialog?.close();
     this._resetApple();
+    this._appleResolution=null;
   }
 
   _ensureDOM() {
@@ -448,7 +452,7 @@ class MusicManagerCard extends HTMLElement {
 
   _resetApple() {
     this._appleRequest++;this._appleItems=[];this._appleAccount='';this._appleError='';
-    this._appleLoading=false;this._appleMore=false;this._applePreferred=false;
+    this._appleLoading=false;this._appleMore=false;this._applePreferred=false;this._appleEntity='';
     this._appleDialog?.close();
     if(this._appleQuery)this._appleQuery.value='';
     this._renderApple();
@@ -456,7 +460,21 @@ class MusicManagerCard extends HTMLElement {
 
   _appleCommand(action,data={}) {
     return this._hass.callWS({type:'music_manager/apple_music',action,
-      entity_id:this._config.music_assistant_entity,source_entity:this._config.entity,...data});
+      ...(this._config.music_assistant_entity?{entity_id:this._config.music_assistant_entity}:{}),
+      source_entity:this._config.entity,...data});
+  }
+
+  _resolveApplePlayer() {
+    if(!this.isConnected || !this._hass || !this._config)return;
+    const key={epoch:this._epoch,connection:this._hass.connection,user:this._hass.user?.id};
+    if(this._appleResolution && Object.keys(key).every(k=>this._appleResolution[k]===key[k]))return;
+    this._appleResolution=key;
+    // Restore queue controls after a reload, before opening the music picker.
+    // Setup errors are shown when opening Apple Music; radio remains usable.
+    Promise.resolve(this._appleCommand('status')).then(status=>{
+      if(this._appleResolution!==key || this._epoch!==key.epoch)return;
+      if(status.entity_id){this._appleEntity=status.entity_id;this._renderPlayer();}
+    }).catch(()=>{});
   }
 
   _appleFailure(error) {
@@ -468,13 +486,14 @@ class MusicManagerCard extends HTMLElement {
   async _openApple() {
     this._resetApple();
     if(!this._appleDialog.open)this._appleDialog.showModal();
-    if(!this._config.music_assistant_entity){this._appleError=APPLE_SETUP;this._renderApple();return;}
     const request=++this._appleRequest;
     this._appleLoading=true;this._renderApple();
     try {
       const status=await this._appleCommand('status');
       if(request!==this._appleRequest)return;
+      this._appleEntity=status.entity_id||this._config.music_assistant_entity||'';
       this._appleAccount=status.account||'Dein Konto';
+      this._renderPlayer();
       this._appleView='playlist';
       await this._loadApple('library');
       if(this._appleDialog.open)this._appleQuery.focus();
@@ -485,7 +504,7 @@ class MusicManagerCard extends HTMLElement {
   }
 
   async _loadApple(action,append=false) {
-    if(this._busy || !this._config.music_assistant_entity)return;
+    if(this._busy || !this._musicAssistantEntity)return;
     const query=this._appleQuery.value.trim().slice(0,200);
     if(action==='search'&&!query){this._appleError='Bitte einen Suchbegriff eingeben.';this._renderApple();return;}
     const request=++this._appleRequest;
@@ -524,7 +543,7 @@ class MusicManagerCard extends HTMLElement {
 
   _renderApple() {
     if(!this._appleDialog)return;
-    const configured=Boolean(this._config?.music_assistant_entity), disabled=this._busy||this._appleLoading||!configured;
+    const configured=Boolean(this._musicAssistantEntity), disabled=this._busy||this._appleLoading||!configured;
     for(const control of this._appleDialog.querySelectorAll('form button,form input'))control.disabled=disabled;
     for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleSearch&&control.dataset.view===this._appleView));
     this.shadowRoot.getElementById('music-apple-account').innerHTML=this._appleAccount?row({title:this._appleAccount,description:'Dein Apple-Music-Konto'}):'';
@@ -674,7 +693,7 @@ class MusicManagerCardEditor extends HTMLElement {
     const names={play_pause:'Play / Pause',previous:'Vorheriger Titel',stop:'Stop',next:'Nächster Titel',volume:'Lautstärke'};
     const options=[...this._options];
     const selected=options.find(o=>o.value===this._config.entity);
-    const maOptions=[{value:'',label:'Noch nicht eingerichtet'},...musicAssistantOptions(this._hass,this._registry,this._config.entity)];
+    const maOptions=[{value:'',label:'Automatisch – dieselbe Sonos-Box'},...musicAssistantOptions(this._hass,this._registry,this._config.entity)];
     this._maOptions=maOptions;
     let maSelected=maOptions.find(o=>o.value===(this._config.music_assistant_entity||''));
     if(!maSelected && this._config.music_assistant_entity){maSelected={value:this._config.music_assistant_entity,label:this._config.music_assistant_entity,description:'Zuordnung zur Sonos-Box prüfen'};maOptions.push(maSelected);}
@@ -682,9 +701,9 @@ class MusicManagerCardEditor extends HTMLElement {
     this.shadowRoot.innerHTML=`<style>${UI_CSS}\n${MUSIC_CSS}</style><div class="music-editor">
       ${combobox({id:'music-entity',label:'Sonos-Box',items:options,value:selected?.label||this._config.entity||'',selected:this._config.entity||'',action:'entity-select',placeholder:'Sonos-Box auswählen …',required:true,emptyLabel:'Keine Sonos-Box gefunden.'})}
       ${this._registryError?notice(this._registryError,{error:true}):''}
-      ${combobox({id:'music-ma-entity',label:'Apple Music: Music-Assistant-Entität derselben Box',items:maOptions,value:maSelected?.label||'',selected:this._config.music_assistant_entity||'',action:'ma-entity-select',placeholder:'Optional für Apple Music …',emptyLabel:'Keine passende Music-Assistant-Box gefunden.'})}
+      ${combobox({id:'music-ma-entity',label:'Apple Music: Music-Assistant-Player',items:maOptions,value:maSelected?.label||'',selected:this._config.music_assistant_entity||'',action:'ma-entity-select',placeholder:'Automatisch – dieselbe Sonos-Box',emptyLabel:'Keine passende Music-Assistant-Box gefunden.'})}
       ${section({id:'music-editor-controls',title:'Bedienelemente anzeigen',content:Object.entries(names).map(([key,label])=>row({title:label,trailing:toggle({label,action:'control-toggle',checked:this._config.controls[key],iconOnly:true,data:{key}})})).join('')})}
-      ${notice('Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Oberfläche und Music-Manager-Connector werden gemeinsam über den Marketplace installiert. Apple Music benötigt zusätzlich Music Assistant. Die Apple-Music-Kontozuordnung erfolgt pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.')}
+      ${notice('Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Oberfläche und Music-Manager-Connector werden gemeinsam über den Marketplace installiert. Apple Music findet den Music-Assistant-Player derselben Box automatisch. Die Apple-Music-Kontozuordnung erfolgt einmal pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.')}
       ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
     </div>`;
     if(!this._unbind)this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{

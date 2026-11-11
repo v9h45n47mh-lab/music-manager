@@ -233,14 +233,26 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await apple.getByText('Beispieltitel: Liebling',{exact:true}).waitFor();
   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
   const command=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
-  assert.equal(command.action,'play');assert.equal(command.entity_id,'media_player.ma_wohnzimmer');assert.equal(command.source_entity,'media_player.wohnzimmer');assert.equal(command.user_id,undefined);
+  assert.equal(command.action,'play');assert.equal(command.entity_id,undefined);assert.equal(command.source_entity,'media_player.wohnzimmer');assert.equal(command.user_id,undefined);
   await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.ma_wohnzimmer');
  });
+ await check('one user can play Apple Music on each box without manual MA configuration',async()=>{
+  await reset();
+  for(const [index,source,target] of [[0,'media_player.wohnzimmer','media_player.ma_wohnzimmer'],[1,'media_player.maximilian_sonos','media_player.ma_maximilian']]){
+   const box=page.locator('music-manager-card').nth(index),apple=box.locator('#music-apple-dialog');
+   await box.locator('[data-action="open-apple"]').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+   assert.match(await apple.locator('#music-apple-account').innerText(),/Manuel/);
+   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
+   const command=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
+   assert.equal(command.source_entity,source);assert.equal(command.entity_id,undefined);
+   await box.locator('[data-action="next"]').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),target);
+  }
+ });
  await check('Apple Music dialog handles missing setup, account changes and rejected playback',async()=>{
-  await reset();await page.evaluate(()=>demo.cards[0].setConfig({entity:'media_player.wohnzimmer'}));await action('open-apple').click();
+  await reset();await page.evaluate(()=>{demo.wsHook=msg=>{if(msg.type==='music_manager/apple_music')throw {code:'unknown_command'};};});await action('open-apple').click();
   const apple=card().locator('#music-apple-dialog');assert.match(await apple.innerText(),/Connector/);assert(await apple.locator('#music-apple-query').isDisabled());
   await apple.getByRole('button',{name:'Schließen',exact:true}).click();
-  await page.evaluate(()=>demo.cards[0].setConfig({entity:'media_player.wohnzimmer',music_assistant_entity:'media_player.ma_wohnzimmer'}));
+  await page.evaluate(()=>{demo.wsHook=null;});
   await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
   await page.evaluate(()=>{demo.wsHook=msg=>{if(msg.type==='music_manager/apple_music'&&msg.action==='play')throw new Error('Box nicht erreichbar');};});
   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.getByRole('alert').waitFor();assert(await apple.isVisible());

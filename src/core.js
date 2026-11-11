@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.3.1';
+export const MUSIC_VERSION = '1.3.2';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {

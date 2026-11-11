@@ -40,6 +40,7 @@ const connectionFor=user=>{
   async callService(domain,service,data){calls.push({domain,service,data});if(serviceHook)await serviceHook();if(failService)throw new Error('Keine Berechtigung');},
   async callWS(message){wsCalls.push(message);if(wsHook){const result=await wsHook(message);if(result!==undefined)return result;}
    if(message.type==='config/entity_registry/list')return registry;
+   if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
    if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,message.value);notifyFavorites(user);return null;}
 
@@ -211,8 +212,29 @@ test('Apple Music logo is a tile under controls and missing setup stays actionab
  const env=setup(),card=env.add();await flush();
  const tile=card.shadowRoot.querySelector('#music-favorites [data-action="open-apple"]');assert(tile);assert(tile.querySelector('svg.music-apple-logo'));
  const before=env.wsCalls.length;tile.click();await flush();
- assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Music-Manager-Connector/);assert.equal(env.wsCalls.length,before);
+ assert.equal(card._appleDialog.open,true);assert.match(card._appleDialog.textContent,/Music-Manager-Connector/);assert.equal(env.wsCalls.length,before+1);
  assert.equal(card._appleQuery.disabled,true);assert.equal(Boolean(card._dialog.open),false);
+});
+test('Apple Music automatically resolves every card box without a manual MA entity',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:msg.source_entity==='media_player.a'?'media_player.ma_a':'media_player.ma_b'}:msg.action==='play'?{started:true}:{items:[{uri:'apple_music--a://track/42',title:'Ein Titel'}],more:false}:undefined;
+ for(const [card,source,target] of [[a,'media_player.a','media_player.ma_a'],[b,'media_player.b','media_player.ma_b']]){
+  env.click(card,'open-apple');await flush();assert.equal(card._appleItems.length,1);assert.equal(card._appleEntity,target);
+  env.click(card,'apple-play');await flush();assert.equal(env.wsCalls.at(-1).source_entity,source);assert.equal(env.wsCalls.at(-1).entity_id,undefined);
+  env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,target);
+ }
+ a.setConfig({entity:'media_player.b'});assert.equal(a._appleEntity,'');assert.equal(a._controlEntity,'media_player.b');
+ env.switchUser('maximilian');assert.equal(b._appleEntity,'');assert.equal(b._appleAccount,'');
+});
+test('automatic MA queue controls are restored without opening the Apple Music picker',async()=>{
+ const env=setup();
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:undefined;
+ env.update('media_player.ma_a',{attributes:{active_queue:'queue-a'}});
+ const card=env.add();await flush();assert.equal(card._controlEntity,'media_player.ma_a');assert(!card._appleDialog.open);
+ env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
+ const before=env.wsCalls.filter(m=>m.type==='music_manager/apple_music').length;
+ env.update('media_player.a',{attributes:{media_title:'Neuer Titel'}});await flush();
+ assert.equal(env.wsCalls.filter(m=>m.type==='music_manager/apple_music').length,before);
 });
 test('Apple Music catalog and library use the authenticated gateway and selected speaker, never a user ID',async()=>{
  const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});

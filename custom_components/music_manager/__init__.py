@@ -40,10 +40,40 @@ async def async_unload_entry(hass, entry):
     return True
 
 
+def resolve_player(hass, connection, entry, source_id, target_id=None):
+    """Find this Sonos device in the selected MA integration, never by name."""
+    registry = er.async_get(hass)
+    source = registry.async_get(source_id)
+    if (not source or source.platform != "sonos" or source.disabled_by
+        or not source.entity_id.startswith("media_player.") or not sonos_uid(source.unique_id)):
+        raise AccessError("wrong_player", "Die gewählte Box ist keine aktive Sonos-Entität.")
+    if not connection.user.permissions.check_entity(source.entity_id, POLICY_READ):
+        raise AccessError("unauthorized", "Du hast keinen Zugriff auf diese Box.")
+
+    def matches(target):
+        return (target and target.platform == "music_assistant"
+                and target.config_entry_id == entry.data[CONF_MASS_ENTRY]
+                and target.entity_id.startswith("media_player.") and not target.disabled_by
+                and sonos_uid(target.unique_id) == sonos_uid(source.unique_id))
+
+    if target_id:
+        target = registry.async_get(target_id)
+        if not matches(target):
+            raise AccessError("wrong_player", "Der manuell gewählte Music-Assistant-Player gehört nicht zu dieser Sonos-Box. Wähle im Karteneditor Automatisch.")
+    else:
+        targets = [target for target in registry.entities.values() if matches(target)]
+        if not targets:
+            raise AccessError("player_missing", "Diese Sonos-Box fehlt in der verbundenen Music-Assistant-Integration. Richte sie in Music Assistant über den Sonos-Player-Anbieter ein und aktiviere ihre HA-Entität. Danach wird sie automatisch zugeordnet.")
+        if len(targets) != 1:
+            raise AccessError("player_ambiguous", "Für diese Box gibt es mehrere Music-Assistant-Entitäten. Wähle den passenden Player einmal im Karteneditor aus.")
+        target = targets[0]
+    return source, target
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): "music_manager/apple_music",
     vol.Required("action"): vol.In(["status", "library", "search", "play"]),
-    vol.Required("entity_id"): str,
+    vol.Optional("entity_id"): str,
     vol.Required("source_entity"): str,
     vol.Optional("query", default=""): vol.All(str, vol.Length(max=200)),
     vol.Optional("media_type", default="playlist"): vol.In(["track", "album", "playlist"]),
@@ -64,17 +94,7 @@ async def websocket_apple_music(hass, connection, msg):
         mass = music_assistant_client(hass, entry.data[CONF_MASS_ENTRY])
         async with asyncio.timeout(30):
             user, provider = await checked_account(mass, account)
-            registry = er.async_get(hass)
-            target = registry.async_get(msg["entity_id"])
-            source = registry.async_get(msg["source_entity"])
-            if (not target or target.platform != "music_assistant"
-                or target.config_entry_id != entry.data[CONF_MASS_ENTRY]
-                or not target.entity_id.startswith("media_player.") or target.disabled_by
-                or not source or source.platform != "sonos" or source.disabled_by
-                or not source.entity_id.startswith("media_player.")
-                or not sonos_uid(source.unique_id)
-                or sonos_uid(source.unique_id) != sonos_uid(target.unique_id)):
-                raise AccessError("wrong_player", "Wähle im Karteneditor die Music-Assistant-Entität derselben Sonos-Box aus.")
+            source, target = resolve_player(hass, connection, entry, msg["source_entity"], msg.get("entity_id"))
             for entity in (source, target):
                 if not connection.user.permissions.check_entity(entity.entity_id, POLICY_READ):
                     raise AccessError("unauthorized", "Du hast keinen Zugriff auf diese Box.")
@@ -86,7 +106,7 @@ async def websocket_apple_music(hass, connection, msg):
                 raise AccessError("unauthorized", "Diese Box ist für deinen Music-Assistant-Benutzer nicht freigegeben.")
             if msg["action"] == "status":
                 result = {"account": value(user, "display_name") or value(user, "username"),
-                          "provider": value(provider, "name", "Apple Music")}
+                          "provider": value(provider, "name", "Apple Music"), "entity_id": target.entity_id}
             elif msg["action"] == "library":
                 result = await library(mass, account, msg["media_type"], msg["offset"])
             elif msg["action"] == "search":

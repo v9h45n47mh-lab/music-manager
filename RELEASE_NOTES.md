@@ -1,14 +1,15 @@
-# Music Manager 1.3.1
+# Music Manager 1.3.2
 
-- Bestehende Music-Assistant-Konten mit der Rolle **Administrator** lassen sich jetzt direkt einem HA-Benutzer und dessen Apple-Music-Anmeldung zuordnen. Ein zusätzlicher normaler MA-Benutzer ist nicht erforderlich; die Admin-Rolle bleibt erhalten.
-- Der Connector prüft bei jeder Anfrage weiterhin die eindeutige 1:1-Zuordnung und den Musikquellenfilter. Auch für Admin-Konten muss in MA genau die zugeordnete Apple-Music-Instanz ausgewählt sein.
-- Der Einrichtungsdialog erklärt den Quellenfilter und meldet deaktivierte Konten oder nicht verfügbare Apple-Music-Anmeldungen gezielt.
-- Bestehende Zuordnungen, Radiofavoriten und Kartenkonfigurationen bleiben erhalten.
+- Apple Music funktioniert mit derselben persönlichen Kontozuordnung auf allen in Music Assistant eingerichteten und für den Benutzer freigegebenen Sonos-Boxen.
+- In jeder Karte genügt die Auswahl der Sonos-Box. Der Connector findet die zugehörige MA-Entität automatisch anhand der Sonos-Gerätekennung und der ausgewählten MA-Integration. Eine zusätzliche MA-Playerauswahl pro Karte entfällt.
+- Suche, Mediathek und Wiedergabe verwenden weiterhin das Konto des angemeldeten HA-Benutzers. Die Wiedergabe und die anschließenden Wiedergabetasten richten sich nach der jeweiligen Box.
+- Fehlende, deaktivierte oder mehrfach vorhandene MA-Entitäten erhalten gezielte Hinweise. Der Connector wechselt nicht auf eine andere Box. Bestehende HA- und MA-Playerfreigaben werden weiterhin geprüft.
+- Bestehende manuelle MA-Playerzuordnungen bleiben gültig; der Karteneditor bietet standardmäßig **Automatisch – dieselbe Sonos-Box** an.
 
 ## Nach dem Update
 
-1. Aktualisiere **Music Manager auf 1.3.1** im Marketplace und starte Home Assistant neu.
-2. Öffne **Music Assistant → Einstellungen → Benutzerverwaltung → dein Admin-Konto → Musikquellen** und wähle nur deine Apple-Music-Anmeldung. Die Rolle Administrator beibehalten. Der Quellenfilter gilt für dieses MA-Konto auch außerhalb von Music Manager.
-3. Öffne in HA **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren → Benutzerzuordnung hinzufügen oder ändern**. Wähle deinen HA-Benutzer, dein bestehendes MA-Admin-Konto und dieselbe Apple-Music-Anmeldung.
+1. Im Marketplace auf **1.3.2** aktualisieren und Home Assistant neu starten. Danach die HA-Seite neu laden.
+2. Alle gewünschten Sonos-Boxen in Music Assistant über den Sonos-Player-Anbieter einrichten und ihre MA-Entitäten in HA aktivieren. Eventuelle MA-Playerfilter müssen diese Boxen freigeben.
+3. Die bestehende HA-Benutzer → MA-Benutzer → Apple-Music-Konto-Zuordnung gilt für alle diese Boxen. In neuen Karten nur die Sonos-Box auswählen und Apple Music öffnen. Bei vorhandenen Karten ohne zusätzliche MA-Auswahl funktioniert die automatische Zuordnung ebenfalls.
 
-Die Karte und der Connector werden weiterhin gemeinsam als Marketplace-Integration aktualisiert. Apple-Passwörter und Tokens bleiben in Music Assistant.
+MA-Administratorkonten werden weiterhin unterstützt. Der Musikquellenfilter muss genau das persönliche Apple-Music-Konto enthalten. Radiofavoriten und Benutzerzuordnungen bleiben erhalten.

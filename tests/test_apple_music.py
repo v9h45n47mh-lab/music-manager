@@ -187,7 +187,7 @@ class GatewayTests(IsolatedAsyncioTestCase):
         entities = {
             'media_player.sonos': NS(entity_id='media_player.sonos', platform='sonos', unique_id='RINCON_AABBCCDDEEFF01400', disabled_by=None),
             'media_player.mass': NS(entity_id='media_player.mass', platform='music_assistant', config_entry_id='mass-entry', unique_id='RINCON_AABBCCDDEEFF01400', disabled_by=None)}
-        hass = NS(data={'music_manager': {'entry': entry}}, mass=mass, registry=NS(async_get=entities.get))
+        hass = NS(data={'music_manager': {'entry': entry}}, mass=mass, registry=NS(async_get=entities.get, entities=entities))
         permission = NS(allowed=True)
         connection = NS(user=NS(id='ha-a', permissions=NS(check_entity=lambda entity_id, policy: permission.allowed)),
                         result=None, error=None)
@@ -215,6 +215,70 @@ class GatewayTests(IsolatedAsyncioTestCase):
             await self.gateway.websocket_apple_music(hass, connection, msg)
             self.assertIsNotNone(connection.error)
             hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_automatic_selection_uses_the_same_account_on_each_sonos_box(self):
+        hass, connection, msg, entities, _ = self.setup_gateway()
+        msg.pop('entity_id')
+        second_uid = 'RINCON_11223344556601400'
+        entities['media_player.second_sonos'] = NS(entity_id='media_player.second_sonos', platform='sonos',
+            unique_id=second_uid, disabled_by=None)
+        entities['media_player.second_mass'] = NS(entity_id='media_player.second_mass', platform='music_assistant',
+            unique_id=second_uid, config_entry_id='mass-entry', disabled_by=None)
+        hass.mass.players[second_uid] = NS(available=True)
+        for source, target, queue in [('media_player.sonos', 'media_player.mass', 'RINCON_AABBCCDDEEFF01400'),
+                                      ('media_player.second_sonos', 'media_player.second_mass', second_uid)]:
+            with self.subTest(source=source):
+                request = {**msg, 'source_entity': source}
+                await self.gateway.websocket_apple_music(hass, connection, {**request, 'action': 'status'})
+                self.assertIsNone(connection.error)
+                self.assertEqual(connection.result['entity_id'], target)
+                await self.gateway.websocket_apple_music(hass, connection, request)
+                self.assertIsNone(connection.error)
+                hass.mass.player_queues.play_media.assert_awaited_with(queue_id=queue, media=msg['uri'], option='replace', user='ma-a')
+
+    async def test_automatic_selection_never_uses_another_box_disabled_entity_or_server(self):
+        for case in ('missing', 'disabled', 'different-server', 'ambiguous'):
+            with self.subTest(case=case):
+                hass, connection, msg, entities, _ = self.setup_gateway()
+                msg.pop('entity_id')
+                target = entities['media_player.mass']
+                if case == 'missing':
+                    target.unique_id = 'RINCON_11223344556601400'
+                elif case == 'disabled':
+                    target.disabled_by = 'user'
+                elif case == 'different-server':
+                    target.config_entry_id = 'other-mass-entry'
+                else:
+                    entities['media_player.duplicate'] = NS(**{**vars(target), 'entity_id': 'media_player.duplicate'})
+                await self.gateway.websocket_apple_music(hass, connection, msg)
+                self.assertEqual(connection.error[0], 'player_ambiguous' if case == 'ambiguous' else 'player_missing')
+                hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_automatic_selection_still_checks_ha_and_ma_player_permissions(self):
+        for denied in ('source-read', 'target-read', 'target-control', 'ma-filter'):
+            with self.subTest(denied=denied):
+                hass, connection, msg, _, _ = self.setup_gateway()
+                msg.pop('entity_id')
+                connection.user.permissions.check_entity = lambda entity, policy: (entity, policy) != {
+                    'source-read': ('media_player.sonos', 'read'),
+                    'target-read': ('media_player.mass', 'read'),
+                    'target-control': ('media_player.mass', 'control'),
+                    'ma-filter': ('none', 'none')}[denied]
+                if denied == 'ma-filter':
+                    hass.mass.auth.get_user.return_value.player_filter = ['another-box']
+                await self.gateway.websocket_apple_music(hass, connection, msg)
+                self.assertEqual(connection.error[0], 'unauthorized')
+                hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_automatic_selection_is_rechecked_after_status_before_play(self):
+        hass, connection, msg, entities, _ = self.setup_gateway()
+        msg.pop('entity_id')
+        await self.gateway.websocket_apple_music(hass, connection, {**msg, 'action': 'status'})
+        self.assertIsNone(connection.error)
+        entities.pop('media_player.mass')
+        await self.gateway.websocket_apple_music(hass, connection, msg)
+        self.assertEqual(connection.error[0], 'player_missing')
+        hass.mass.player_queues.play_media.assert_not_awaited()
 
     async def test_admin_mapping_routes_status_search_library_and_play_as_the_same_user(self):
         hass, connection, msg, _, _ = self.setup_gateway()
