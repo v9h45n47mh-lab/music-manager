@@ -1629,7 +1629,7 @@ class MusicManagerAlarmRow extends HTMLElement {
       (this._data?row({title:this._data.owner,description:this._data.source}):'')+
       (this._error?notice(this._error,{error:true})+button({label:'Erneut laden',action:'alarm-retry',disabled:busy}):'')+
       (busy?loadingState(this._saving?'Weckmusik wird gespeichert …':'Weckmusik wird geladen …'):'')+
-      (this._data?combobox({id:'alarm-music',label:'Weckmusik',items,selected:selected?.uri||'',value:selected?.title||'Letzte Sonos-Wiedergabe',action:'alarm-select',disabled:busy,emptyLabel:'Keine passenden Apple-Music-Favoriten.'})+
+      (this._data?combobox({id:'alarm-music',label:'Weckmusik',items,selected:selected?.uri||'',value:'',placeholder:selected?.title||'Album oder Playlist suchen …',action:'alarm-select',disabled:busy,emptyLabel:'Keine passenden Apple-Music-Favoriten.'})+
         (selected&&this._data.selection_compatible===false?notice('Die gespeicherte Weckmusik gehört nicht mehr zum zugeordneten Apple-Music-Konto. Bitte neu auswählen.',{error:true}):selected&&!this._data.in_favorites?notice('Die Auswahl bleibt als Weckmusik gespeichert, auch wenn sie nicht mehr favorisiert ist.'):!this._data.favorites?.length?notice('Favorisiere zuerst ein Album oder eine Playlist in Music Manager.'):''):'');
   }
 }
