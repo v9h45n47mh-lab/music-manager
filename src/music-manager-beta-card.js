@@ -14,6 +14,7 @@ class MusicManagerBetaCard extends MusicManagerCard {
     this._applyBox(changed?next.entity:(this._config?.entity||next.entity));this._loadNavigation();
   }
   _resetNavigation(){
+    this._finishFavoritePointer?.();this._favoriteInteracting=false;
     this._navigationRequest=(this._navigationRequest||0)+1;this._navigationReady=false;
     this._navigationLoading=false;this._navigationSaving=false;this._navigationError='';this._canSelectBox=false;this._boxes=[];
     this._showWakeSongs=false;this._backendVersion='';this._betaSongQuery='';this._settingsRenderKey='';this._settingsDialog?.close();this._dialog?.close();if(this._alarmSongUser)this._disconnectAlarmSongs();
@@ -30,6 +31,23 @@ class MusicManagerBetaCard extends MusicManagerCard {
   disconnectedCallback(){this._resetNavigation();super.disconnectedCallback();}
   _ensureDOM(){
     super._ensureDOM();this.shadowRoot.querySelector('style').textContent=UI_CSS+'\n'+MUSIC_PLAYER_CSS;
+    if(!this._favoritePointerBound){
+      this._favoritePointerBound=true;
+      this.shadowRoot.addEventListener('pointerdown',event=>{
+        const control=event.target.closest?.('#music-favorites button');
+        if(!control||control.disabled||event.button!==0)return;
+        this._finishFavoritePointer?.();this._favoriteInteracting=true;
+        const generation=this._favoritePointerGeneration=(this._favoritePointerGeneration||0)+1;
+        const finish=()=>{
+          window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',finish);
+          this._finishFavoritePointer=null;
+          // Finish the native click before allowing metadata to move its target.
+          setTimeout(()=>{if(generation!==this._favoritePointerGeneration)return;this._favoriteInteracting=false;if(this._favoriteDeferred&&this.isConnected){this._favoriteDeferred=false;this._renderPlayer();}},0);
+        };
+        this._finishFavoritePointer=finish;
+        window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',finish);
+      });
+    }
     if(!this._settingsDialog){const holder=document.createElement('div');holder.innerHTML=dialog({id:'music-beta-settings',title:'Einstellungen',content:'<div id="beta-settings-list" class="fui-player-settings-list"></div>'});this.shadowRoot.append(...holder.childNodes);this._settingsDialog=this.shadowRoot.getElementById('music-beta-settings');this._settingsDialog.addEventListener('close',()=>{const active=this.shadowRoot.activeElement;if(!active||this._settingsDialog.contains(active))this._player.querySelector('[data-action="beta-settings"]')?.focus();});}
   }
   _resolveApplePlayer(){if(!this._navigationTransition&&!this._navigationLoading)super._resolveApplePlayer();}
@@ -107,6 +125,7 @@ class MusicManagerBetaCard extends MusicManagerCard {
       `<div class="fui-player-navigation-status" aria-live="polite">${this._navigationError?notice(this._navigationError,{error:true})+button({label:'Erneut laden',action:'beta-reload'}):this._navigationLoading?loadingState('Persönliche Box wird geladen …'):this._navigationSaving?loadingState('Box wird gespeichert …'):''}</div>`;
   }
   _renderPlayer(){
+    if(this._favoriteInteracting&&!this._navigationTransition){this._favoriteDeferred=true;return;}
     if(this.shadowRoot?.activeElement?.id==='music-beta-box'&&!this._navigationTransition&&!this._navigationSaving){this._betaDeferred=true;return;}
     if(this._editingVolume()){super._renderPlayer();return;}
     super._renderPlayer();
