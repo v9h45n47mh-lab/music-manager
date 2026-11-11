@@ -6,7 +6,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .access import AccessError, checked_account, enum_value, value
+from .access import AccessError, checked_account, is_supported_user, value
 from .const import CONF_ACCOUNTS, CONF_MASS_ENTRY, DOMAIN
 from .helpers import music_assistant_client
 
@@ -87,7 +87,7 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
             ha_options = [{"value": u.id, "label": u.name or u.id} for u in users if u.is_active and not u.system_generated]
             ma_users = await mass.auth.list_users()
             ma_options = [{"value": value(u, "user_id"), "label": value(u, "display_name") or value(u, "username")}
-                          for u in ma_users if value(u, "enabled", False) and enum_value(value(u, "role")) == "user"]
+                          for u in ma_users if is_supported_user(u)]
             providers = [{"value": value(p, "instance_id"), "label": value(p, "name")}
                          for p in mass.providers if value(p, "domain") == "apple_music" and value(p, "available", False)]
             if not ma_options or not providers:
@@ -103,8 +103,8 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
                 else:
                     try:
                         await checked_account(mass, user_input)
-                    except AccessError:
-                        errors["base"] = "account_filter"
+                    except AccessError as err:
+                        errors["base"] = err.code
                     else:
                         accounts = [a for a in accounts if a["ha_user_id"] != user_input["ha_user_id"]] + [user_input]
                         return self.async_create_entry(title="", data={CONF_ACCOUNTS: accounts})

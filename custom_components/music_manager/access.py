@@ -20,6 +20,12 @@ def enum_value(item):
     return getattr(item, "value", item)
 
 
+def is_supported_user(user):
+    """Allow active personal accounts without changing their MA role."""
+    return bool(user and value(user, "enabled", False)
+                and enum_value(value(user, "role")) in {"user", "admin"})
+
+
 def account_for(accounts, ha_user_id):
     """Require a unique 1:1 assignment; never fall back to a default account."""
     matches = [a for a in accounts if a.get("ha_user_id") == ha_user_id]
@@ -39,10 +45,10 @@ def account_for(accounts, ha_user_id):
 async def checked_account(mass, account):
     """Recheck restrictions on every command, including after provider deletion."""
     user = await mass.auth.get_user(account["ma_user_id"])
-    # MA administrators can bypass source restrictions. Use a restricted normal
-    # MA user for each person's Apple Music account.
-    if not user or not value(user, "enabled", False) or enum_value(value(user, "role")) != "user":
-        raise AccessError("account_disabled", "Der zugeordnete Music-Assistant-Benutzer muss aktiv sein und die Rolle Benutzer haben.")
+    if not is_supported_user(user):
+        raise AccessError("account_disabled", "Der zugeordnete Music-Assistant-Benutzer muss aktiv sein und die Rolle Benutzer oder Administrator haben.")
+    # MA applies this source filter to administrator and regular user requests.
+    # Keep it exact for both roles; never infer an account from an empty filter.
     if set(value(user, "provider_filter", []) or []) != {account["provider_id"]}:
         raise AccessError("account_filter", "Beschränke diesen Benutzer in Music Assistant unter Musikquellen auf genau sein zugeordnetes Apple-Music-Konto.")
     provider = next((p for p in mass.providers if value(p, "instance_id") == account["provider_id"]), None)

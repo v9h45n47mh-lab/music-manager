@@ -1,4 +1,4 @@
-# Music Manager 1.3.0
+# Music Manager 1.3.1
 
 ![Music Manager](brand/icon.png)
 
@@ -65,21 +65,21 @@ Apple Music benötigt einen aktiven Zugang und **Music Assistant mit Apple-Music
 
 1. Richte den Music-Assistant-Server und die offizielle **Music Assistant**-Integration in HA ein. Füge die Box über den nativen **Sonos-Player-Anbieter** in Music Assistant hinzu. Verwende für diese Karte die MA-Entität dieser Sonos-Box, keine allgemeine Weiterleitung eines HA-Players.
 2. Füge unter **Music Assistant → Einstellungen → Musikquellen** für jede Person eine eigene Apple-Music-Instanz hinzu und melde dort das jeweilige Apple-Konto an. Vergib eindeutige Namen, zum Beispiel „Apple Music Manuel“.
-3. Lege in Music Assistant für jede Person einen aktiven Benutzer mit der Rolle **Benutzer** an. Beschränke dessen **Musikquellen** auf **genau die zugehörige Apple-Music-Instanz**. Ein Administrator oder ein Benutzer mit leerem Quellenfilter ist für diese Zuordnung nicht geeignet. Optionale Playerbeschränkungen müssen die Box freigeben.
+3. Verwende für jede Person ein eigenes aktives Music-Assistant-Konto mit der Rolle **Benutzer oder Administrator**. Dein vorhandenes Admin-Konto kannst du weiterverwenden; du brauchst dafür keinen zusätzlichen Benutzer. Öffne **Music Assistant → Einstellungen → Benutzerverwaltung → dein Benutzer → Musikquellen** und wähle **genau die zugehörige Apple-Music-Instanz**, beispielsweise „Apple Music Manuel“. **Die Rolle Administrator bleibt bestehen.** Der Quellenfilter gilt für dieses Konto auch bei direkter Nutzung von Music Assistant. Ein leerer Filter, mehrere Quellen oder eine andere Apple-Music-Instanz werden vom Connector abgelehnt. Optionale Playerbeschränkungen müssen die Box freigeben.
 4. Installiere **Music Manager als Integration über den Marketplace**, wie oben beschrieben. Der Apple-Music-Connector ist bereits enthalten und wird gemeinsam mit der Karte aktualisiert.
 5. Wenn du bei der Einrichtung Nur Radio gewählt hast: Öffne **Geräte & Dienste → Music Manager → Konfigurieren → Music-Assistant-Verbindung** und wähle die vorhandene MA-Verbindung. Sie benötigt Rechte zum Lesen und Prüfen der MA-Benutzer. Öffne danach **Konfigurieren → Benutzerzuordnung hinzufügen oder ändern**. Dort gibt es drei Auswahlfelder:
 
    | Feld | Beispiel |
    |---|---|
    | Home-Assistant-Benutzer | Manuel, dein HA-Anmeldekonto |
-   | Music-Assistant-Benutzer | Dein persönliches MA-Konto mit der Rolle Benutzer |
+   | Music-Assistant-Benutzer | Dein bestehendes persönliches MA-Konto, auch als Administrator |
    | Apple-Music-Konto in Music Assistant | Die Musikquelle „Apple Music Manuel“ |
 
    Wähle die drei zusammengehörigen Einträge und speichere. Diese Zuordnung gehört zu Music Manager; sie wird zusätzlich zu einer eventuellen automatischen HA-Anmeldung in Music Assistant gespeichert.
 6. Wähle im visuellen Karteneditor unter **Apple Music: Music-Assistant-Entität derselben Box** den passenden Player. Native Sonos- und MA-Entität werden anhand ihrer Sonos-Hardwarekennung geprüft. Bei der Auswahl einer anderen Sonos-Box wird diese zusätzliche Entität zurückgesetzt.
 7. Öffne die **Apple-Music-Kachel**. Suche Musik oder wähle Playlists, Alben bzw. Titel und tippe auf **Abspielen**.
 
-Die Zuordnung ist **1:1 pro HA-Benutzer**, unabhängig von Box oder Dashboard. Ein MA-Benutzer und eine Apple-Music-Instanz können nicht zwei HA-Benutzern zugeordnet werden. Änderungen und Entfernungen erfolgen unter **Music Manager → Konfigurieren**. Die Karte übergibt keine Benutzer- oder Konto-ID; der Connector bestimmt den aktuellen Benutzer anhand der authentifizierten HA-Verbindung und prüft die Zuordnung bei jeder Anfrage erneut. Gelöschte oder nicht verfügbare Konten, leere Quellenfilter und fehlende Zuordnungen führen zu einem Einrichtungshinweis. Es gibt keinen Wechsel auf ein anderes Konto. Beim Benutzerwechsel werden offene Apple-Music-Ergebnisse entfernt.
+Die Zuordnung ist **1:1 pro HA-Benutzer**, unabhängig von Box oder Dashboard. Ein MA-Benutzer und eine Apple-Music-Instanz können nicht zwei HA-Benutzern zugeordnet werden. Änderungen und Entfernungen erfolgen unter **Music Manager → Konfigurieren**. Die Karte übergibt keine Benutzer- oder Konto-ID; der Connector bestimmt den aktuellen Benutzer anhand der authentifizierten HA-Verbindung und prüft die Zuordnung bei jeder Anfrage erneut. Gelöschte oder nicht verfügbare Konten, leere Quellenfilter und fehlende Zuordnungen führen zu einem Einrichtungshinweis. Der Connector wählt kein Ersatzkonto aus. Die weitere Auflösung der Wiedergabequelle erfolgt durch Music Assistant. Beim Benutzerwechsel werden offene Apple-Music-Ergebnisse entfernt.
 
 Fehlt die Einrichtung, zeigt die Kachel die erforderlichen Schritte. Radio und persönliche Senderfavoriten bleiben verfügbar. Weitere Updates kommen über den Marketplace für das gesamte Paket. Die Benutzerzuordnungen bleiben als HA-Konfigurationsoptionen erhalten. Bei einem ausdrücklich gewählten Wechsel zu einem anderen MA-Server oder zu Nur Radio werden nur die Apple-Music-Zuordnungen zurückgesetzt; Radiofavoriten bleiben erhalten.
 

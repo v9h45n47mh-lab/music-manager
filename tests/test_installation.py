@@ -224,6 +224,40 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertEqual(invalid['type'], 'form')
         self.assertEqual(invalid['errors']['base'], 'cannot_connect')
 
+    async def test_account_configuration_offers_admins_and_preserves_other_assignments(self):
+        admin = NS(user_id='ma-manuel', username='manuel', display_name='Manuel',
+                   enabled=True, role='admin', provider_filter=['apple_music--manuel'])
+        regular = NS(user_id='ma-vera', username='vera', display_name='Vera', enabled=True, role='user')
+        excluded = [NS(user_id=role, enabled=True, role=role) for role in ('guest', 'service')]
+        excluded.append(NS(user_id='disabled-admin', enabled=False, role='admin'))
+        mass = NS(auth=NS(list_users=AsyncMock(return_value=[admin, regular, *excluded]),
+                          get_user=AsyncMock(return_value=admin)),
+                  providers=[NS(instance_id='apple_music--manuel', name='Apple Music Manuel',
+                                domain='apple_music', available=True)])
+        self.flow.music_assistant_client = lambda hass, entry_id: mass
+        other = {'ha_user_id': 'ha-vera', 'ma_user_id': 'ma-vera', 'provider_id': 'apple_music--vera'}
+        flow = self.flow.MusicManagerOptionsFlow()
+        flow.config_entry = NS(data={'music_assistant_entry': 'mass'}, options={'accounts': [other]})
+        flow.hass = NS(auth=NS(async_get_users=AsyncMock(return_value=[
+            NS(id='ha-manuel', name='Manuel', is_active=True, system_generated=False)])))
+        form = await flow.async_step_add()
+        choices = form['data_schema']['ma_user_id']['options']
+        self.assertEqual({choice['value'] for choice in choices}, {'ma-manuel', 'ma-vera'})
+        mapping = {'ha_user_id': 'ha-manuel', 'ma_user_id': 'ma-manuel', 'provider_id': 'apple_music--manuel'}
+        saved = await flow.async_step_add(mapping)
+        self.assertEqual(saved['type'], 'create_entry')
+        self.assertEqual(saved['data']['accounts'], [other, mapping])
+        self.assertEqual(admin.role, 'admin')
+        self.assertEqual(admin.provider_filter, ['apple_music--manuel'])
+        # The list may be stale: validate the live account again when saving.
+        admin.provider_filter = []
+        refused = await flow.async_step_add(mapping)
+        self.assertEqual(refused['errors']['base'], 'account_filter')
+        admin.enabled = False
+        mass.auth.list_users.return_value = [NS(user_id='ma-manuel', username='manuel', enabled=True, role='admin'), regular]
+        refused = await flow.async_step_add(mapping)
+        self.assertEqual(refused['errors']['base'], 'account_disabled')
+
     async def test_frontend_failure_requests_setup_retry_without_registering_an_entry(self):
         hass = self.make_hass()
         hass.http.async_register_static_paths.side_effect = OSError('temporary file failure')

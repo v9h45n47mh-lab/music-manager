@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest import IsolatedAsyncioTestCase, TestCase
 from unittest.mock import AsyncMock
+from enum import Enum
 
 PATH = Path(__file__).parents[1] / 'custom_components/music_manager/access.py'
 spec = importlib.util.spec_from_file_location('music_manager_access', PATH)
@@ -78,16 +79,41 @@ class AccountTests(IsolatedAsyncioTestCase):
         with self.assertRaises(access.AccessError):
             await access.checked_account(mass, account())
 
-    async def test_empty_wide_disabled_and_admin_accounts_fail_closed(self):
+    async def test_users_and_admins_keep_their_roles_and_exact_source_filter(self):
+        class Role(Enum):
+            ADMIN = 'admin'
         mass = mass_client()
-        for user in (None, NS(enabled=False, role='user', provider_filter=['apple_music--a']),
-                     NS(enabled=True, role='admin', provider_filter=['apple_music--a']),
-                     NS(enabled=True, role='user', provider_filter=[]),
-                     NS(enabled=True, role='user', provider_filter=['apple_music--a', 'apple_music--b'])):
+        for role in ('user', 'admin', Role.ADMIN):
+            with self.subTest(role=role):
+                user = NS(enabled=True, role=role, provider_filter=['apple_music--a'])
+                mass.auth.get_user.return_value = user
+                checked, provider = await access.checked_account(mass, account())
+                self.assertIs(checked, user)
+                self.assertEqual(provider.instance_id, 'apple_music--a')
+                self.assertEqual(user.role, role)
+                self.assertEqual(user.provider_filter, ['apple_music--a'])
+
+    async def test_disabled_and_unsupported_roles_fail_closed(self):
+        mass = mass_client()
+        for user in (None, *[NS(enabled=False, role=role, provider_filter=['apple_music--a'])
+                            for role in ('user', 'admin')],
+                     *[NS(enabled=True, role=role, provider_filter=['apple_music--a'])
+                       for role in ('guest', 'service', 'unknown', None)]):
             mass.auth.get_user.return_value = user
-            with self.assertRaises(access.AccessError):
+            with self.assertRaises(access.AccessError) as err:
                 await access.checked_account(mass, account())
+            self.assertEqual(err.exception.code, 'account_disabled')
         mass.auth.get_user.assert_awaited_with('ma-a')
+
+    async def test_admin_role_does_not_bypass_empty_wide_or_wrong_account_filters(self):
+        mass = mass_client()
+        for role in ('user', 'admin'):
+            for sources in (None, [], ['apple_music--b'], ['apple_music--a', 'apple_music--b']):
+                with self.subTest(role=role, sources=sources):
+                    mass.auth.get_user.return_value = NS(enabled=True, role=role, provider_filter=sources)
+                    with self.assertRaises(access.AccessError) as err:
+                        await access.checked_account(mass, account())
+                    self.assertEqual(err.exception.code, 'account_filter')
 
     async def test_search_always_impersonates_restricted_user_and_removes_other_provider_results(self):
         mass = mass_client()
@@ -189,6 +215,26 @@ class GatewayTests(IsolatedAsyncioTestCase):
             await self.gateway.websocket_apple_music(hass, connection, msg)
             self.assertIsNotNone(connection.error)
             hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_admin_mapping_routes_status_search_library_and_play_as_the_same_user(self):
+        hass, connection, msg, _, _ = self.setup_gateway()
+        user = hass.mass.auth.get_user.return_value
+        user.role = 'admin'
+        hass.mass.music.search.return_value = NS(tracks=[item(), item('apple_music--b')], albums=[], playlists=[])
+        hass.mass.music.get_library_playlists.return_value = [item(kind='playlist'), item('apple_music--b', kind='playlist')]
+        for action in ('status', 'search', 'library', 'play'):
+            with self.subTest(action=action):
+                await self.gateway.websocket_apple_music(hass, connection, {**msg, 'action': action, 'query': 'Artist'})
+                self.assertIsNone(connection.error)
+                if action in ('search', 'library'):
+                    self.assertEqual(len(connection.result['items']), 1)
+                    self.assertTrue(connection.result['items'][0]['uri'].startswith('apple_music--a://'))
+        hass.mass.music.search.assert_awaited_once()
+        self.assertEqual(hass.mass.music.search.call_args.kwargs['user'], 'ma-a')
+        self.assertEqual(hass.mass.music.get_library_playlists.call_args.kwargs['user'], 'ma-a')
+        self.assertEqual(hass.mass.music.get_library_playlists.call_args.kwargs['provider'], 'apple_music--a')
+        self.assertEqual(hass.mass.player_queues.play_media.call_args.kwargs['user'], 'ma-a')
+        self.assertEqual(user.role, 'admin')
 
     async def test_another_room_or_another_account_uri_is_rejected(self):
         for wrong_room in (True, False):

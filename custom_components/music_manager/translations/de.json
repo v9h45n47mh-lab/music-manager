@@ -30,7 +30,7 @@
       },
       "add": {
         "title": "Persönliches Apple-Music-Konto zuordnen",
-        "description": "1 HA-Benutzer = 1 MA-Benutzer = 1 Apple-Music-Anmeldung. Erstelle in Music Assistant einen aktiven normalen Benutzer (kein Administrator) und beschränke dessen Musikquellen auf genau dieses Apple-Music-Konto. Wähle danach die drei zusammengehörigen Einträge.",
+        "description": "1 HA-Benutzer = 1 MA-Benutzer = 1 Apple-Music-Anmeldung. Wähle dein vorhandenes aktives MA-Konto mit der Rolle Benutzer oder Administrator. Unter Music Assistant → Einstellungen → Benutzerverwaltung → dein Benutzer → Musikquellen muss genau die zugehörige Apple-Music-Anmeldung ausgewählt sein. Deine Admin-Rolle bleibt erhalten. Wähle danach die drei zusammengehörigen Einträge.",
         "data": {
           "ha_user_id": "Home-Assistant-Benutzer",
           "ma_user_id": "Music-Assistant-Benutzer",
@@ -55,11 +55,13 @@
     "error": {
       "invalid_account": "Bitte gültige Einträge aus den Listen auswählen.",
       "duplicate_account": "Dieses MA-Benutzerkonto oder Apple-Music-Konto ist bereits einem anderen HA-Benutzer zugeordnet.",
-      "account_filter": "Der MA-Benutzer muss aktiv sein, die Rolle Benutzer haben und bei Musikquellen auf genau das gewählte Apple-Music-Konto beschränkt sein.",
-      "cannot_connect": "Music Assistant ist nicht bereit oder die Verbindung darf keine Benutzer lesen."
+      "account_filter": "Wähle in Music Assistant unter Einstellungen → Benutzerverwaltung → dein Benutzer → Musikquellen genau das zugeordnete Apple-Music-Konto aus. Dies gilt auch für Administratoren; die Rolle muss nicht geändert werden.",
+      "cannot_connect": "Music Assistant ist nicht bereit oder die Verbindung darf keine Benutzer lesen.",
+      "account_disabled": "Das MA-Konto muss aktiv sein und die Rolle Benutzer oder Administrator haben. Lade die Auswahl neu und prüfe das Konto in Music Assistant.",
+      "provider_unavailable": "Das gewählte Apple-Music-Konto ist nicht mehr verfügbar. Prüfe die Anmeldung in Music Assistant und lade die Auswahl neu."
     },
     "abort": {
-      "accounts_missing": "Richte in Music Assistant mindestens ein Apple-Music-Konto und einen aktiven normalen Benutzer ein.",
+      "accounts_missing": "Richte in Music Assistant mindestens ein Apple-Music-Konto und ein aktives Konto mit der Rolle Benutzer oder Administrator ein.",
       "cannot_connect": "Die Music-Assistant-Verbindung ist nicht bereit oder darf keine Benutzer lesen.",
       "no_accounts": "Es sind noch keine Konten zugeordnet.",
       "music_assistant_missing": "Verbinde zuerst Music Assistant unter Konfigurieren → Music-Assistant-Verbindung. Radio kannst du bereits verwenden."

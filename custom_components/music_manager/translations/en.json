@@ -30,7 +30,7 @@
       },
       "add": {
         "title": "Assign personal Apple Music account",
-        "description": "1 HA user = 1 MA user = 1 Apple Music provider instance. Create an active normal MA user, not an administrator, and restrict their music sources to exactly this Apple Music instance.",
+        "description": "1 HA user = 1 MA user = 1 Apple Music provider instance. Select your existing active MA user or administrator account. In Music Assistant → Settings → User management → your user → Music sources, select exactly the assigned Apple Music instance. Your administrator role is preserved. Then select the three matching entries.",
         "data": {
           "ha_user_id": "Home Assistant user",
           "ma_user_id": "Music Assistant user",
@@ -55,11 +55,13 @@
     "error": {
       "invalid_account": "Select valid entries from the lists.",
       "duplicate_account": "This MA user or Apple Music instance is already assigned to another HA user.",
-      "account_filter": "The MA user must be active, have the user role and be restricted to exactly the selected Apple Music source.",
-      "cannot_connect": "Music Assistant is unavailable or this connection cannot read users."
+      "account_filter": "In Music Assistant → Settings → User management → your user → Music sources, select exactly the assigned Apple Music source. This also applies to administrators; keep the existing role.",
+      "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
+      "account_disabled": "The MA account must be active with the user or administrator role. Reload the selection and check the account in Music Assistant.",
+      "provider_unavailable": "The selected Apple Music account is no longer available. Check its login in Music Assistant and reload the selection."
     },
     "abort": {
-      "accounts_missing": "Add an Apple Music provider instance and an active normal user in Music Assistant first.",
+      "accounts_missing": "Add an Apple Music provider instance and an active user or administrator account in Music Assistant first.",
       "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
       "no_accounts": "No accounts have been assigned yet.",
       "music_assistant_missing": "First connect Music Assistant under Configure → Music Assistant connection. Radio already works."
