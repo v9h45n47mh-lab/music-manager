@@ -392,6 +392,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();await picker.getByText('Maximilian',{exact:true}).waitFor();await picker.getByRole('button',{name:'Weckmusik aufklappen',exact:true}).click();
    const bounds=await picker.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);assert(!await picker.evaluate(el=>el.scrollWidth>el.clientWidth));
+   assert(await picker.evaluate(el=>{const parent=el.querySelector('#alarm-content').getBoundingClientRect();return [...el.querySelectorAll('.fui-combobox,.fui-options,.fui-option')].every(node=>{const box=node.getBoundingClientRect();return box.left>=parent.left-1&&box.right<=parent.right+1;});}),`${width} alarm choices must fit inside the dialog body`);
    await page.screenshot({path:path.join(screens,`alarm-music-${width}-${dark?'dark':'light'}.png`),fullPage:true});await picker.getByRole('button',{name:'Schließen',exact:true}).click();
   }
  });
