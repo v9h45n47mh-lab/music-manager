@@ -641,8 +641,9 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('beta selector keeps native UI Kit styling and the player fits phone desktop light and dark',async()=>{
   await setupBeta();await page.evaluate(async()=>{
    const kit=await import('/src/family-ui/1.3.1/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
-   demo.update('media_player.wohnzimmer',{attributes:{media_title:'Ein sehr langer Titel für einen responsiven Musicplayer',entity_picture:'/brand/icon.svg'}});
+   demo.update('media_player.wohnzimmer',{attributes:{media_title:'Ein sehr langer Titel für einen responsiven Musicplayer',entity_picture:'/missing-cover.png'}});
   });
+  await page.waitForFunction(()=>!document.querySelector('music-manager-beta-card').shadowRoot.querySelector('.beta-art img'));
   for(const width of [320,390,430,768,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);await page.mouse.move(0,0);
    const report=await beta().evaluate(el=>{

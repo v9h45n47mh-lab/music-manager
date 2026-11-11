@@ -1788,8 +1788,8 @@ const BETA_CSS = `
   .beta-box{width:220px;max-width:70%;min-width:0}.beta-box select{width:100%;min-width:0}
   .beta-fixed-box{min-width:0;overflow-wrap:anywhere;text-align:right;color:var(--secondary-text-color,#727272)}
   .beta-playing{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:16px;padding:8px 0 16px;border-bottom:1px solid var(--divider-color,#ddd)}
-  .beta-art{width:88px;height:88px;display:grid;place-items:center;overflow:hidden;border-radius:12px;background:var(--secondary-background-color,#f2f2f2);color:var(--primary-color,#03a9f4)}
-  .beta-art img{width:100%;height:100%;object-fit:cover}.beta-art svg{width:44px;height:44px;fill:currentColor}
+  .beta-art{position:relative;width:88px;height:88px;display:grid;place-items:center;overflow:hidden;border-radius:12px;background:var(--secondary-background-color,#f2f2f2);color:var(--primary-color,#03a9f4)}
+  .beta-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.beta-art svg{width:44px;height:44px;fill:currentColor}
   .beta-navigation-status:empty{display:none}.beta-navigation-status{min-width:0}
   .music-transport{align-items:center;justify-content:center}.music-transport button{flex:0 1 64px;background:transparent;border-radius:50%}
   .music-transport [data-action="play-pause"]{height:56px;flex-basis:56px;background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff)}
@@ -1855,12 +1855,14 @@ class MusicManagerBetaCard extends MusicManagerCard {
     if(!choices.some(p=>p.value===current))choices.unshift({value:current,label:name});
     const box=this._canSelectBox?`<div class="beta-box">${selectField({id:'music-beta-box',label:'Box',value:current,options:choices,disabled:this._busy||this._navigationLoading||this._navigationSaving}).replace('<select ', '<select aria-label="Box" ')}</div>`:`<div class="beta-fixed-box" aria-label="Box">${escapeHtml(name)}</div>`;
     const picture=stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail);
-    const art=picture?`<img src="${escapeHtml(picture)}" alt="" referrerpolicy="no-referrer">`:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3v11.6a4 4 0 1 0 2 3.4V7h4V3h-6ZM8 6H2v2h6V6Zm0 5H2v2h6v-2Zm-2 5H2v2h4v-2Z"/></svg>`;
+    const art=(picture?`<img src="${escapeHtml(picture)}" alt="" referrerpolicy="no-referrer">`:'')+`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3v11.6a4 4 0 1 0 2 3.4V7h4V3h-6ZM8 6H2v2h6V6Zm0 5H2v2h6v-2Zm-2 5H2v2h4v-2Z"/></svg>`;
     return `<div class="beta-heading">${statusBadge({label:'Beta'})}${box}</div><div class="beta-playing"><div class="beta-art" aria-hidden="true">${art}</div><div class="music-now-playing"><h2 class="music-title">${escapeHtml(title)}</h2><div class="music-detail">${escapeHtml(detail)}</div></div></div><div class="beta-navigation-status" aria-live="polite">${this._navigationError?notice(this._navigationError,{error:true})+button({label:'Erneut laden',action:'beta-reload'}):this._navigationLoading?'<small>Persönliche Box wird geladen …</small>':this._navigationSaving?'<small>Box wird gespeichert …</small>':''}</div>`;
   }
   _renderPlayer(){
     if(this.shadowRoot?.activeElement?.id==='music-beta-box'&&!this._navigationTransition&&!this._navigationSaving){this._betaDeferred=true;return;}
     super._renderPlayer();
+    const cover=this._player?.querySelector('.beta-art img');
+    cover?.addEventListener('error',()=>cover.remove(),{once:true});
     const select=this.shadowRoot?.getElementById('music-beta-box');
     select?.addEventListener('change',()=>{void this._selectBox(select.value);});
     select?.addEventListener('blur',()=>{if(this._betaDeferred){this._betaDeferred=false;queueMicrotask(()=>this._renderPlayer());}});
