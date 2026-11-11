@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.5.1';
+export const MUSIC_VERSION = '1.5.2';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -39,6 +39,21 @@ export function playbackProgress(state,now=Date.now()) {
 export function mediaIdentity(state) {
   const a=state?.attributes||{};
   return JSON.stringify([a.media_content_id||'',a.media_title||'',a.media_artist||'',a.media_duration??null]);
+}
+// The native Sonos transport is stronger evidence than a cached MA queue.
+// MA uses /flow/ and /single/ stream routes, also when Sonos wraps a flow
+// stream in x-rincon-mp3radio. Group members expose only their coordinator.
+export function sonosContentId(state) {
+  return typeof state?.attributes?.media_content_id==='string'?state.attributes.media_content_id:'';
+}
+export function sonosPlaybackSource(state) {
+  if(!isAvailable(state))return '';
+  const a=state.attributes||{},id=sonosContentId(state);
+  if(!id || /^x-rincon:/i.test(id))return '';
+  if(/(?:^https?:|^x-rincon-mp3radio:).*\/(?:flow|single)\/[^/]+\/[^/]+/i.test(id))return 'apple';
+  if(isRadioId(id) || /^(?:x-rincon-mp3radio|x-sonosapi-(?:stream|radio)):/i.test(id) ||
+    (/^https?:/i.test(id) && !(Number.isFinite(a.media_duration)&&a.media_duration>0)))return 'radio';
+  return 'native';
 }
 export function isRadioId(value) { return typeof value === 'string' && (value === RADIO_ROOT || value.startsWith(RADIO_ROOT + '/')); }
 export function normalizeMedia(items) {

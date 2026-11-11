@@ -7,7 +7,7 @@ import {
   MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
   isAvailable, volumePercent, normalizeMedia, isRadioId, stationPayload,
   playbackAction, errorText, sonosOptions, musicAssistantOptions, FAVORITES_KEY, normalizeFavorites, stationLogo, saveFavorite,
-  formatTime, playbackProgress, mediaIdentity, appleFavorite, moveFavorite
+  formatTime, playbackProgress, mediaIdentity, appleFavorite, moveFavorite, sonosContentId, sonosPlaybackSource
 } from './core.js';
 
 // UI Kit components remain unchanged; the music controls have their own
@@ -99,7 +99,7 @@ class MusicManagerCard extends HTMLElement {
     const changed = this._config?.entity !== next.entity || this._config?.music_assistant_entity !== next.music_assistant_entity;
     this._config = next;
     if (changed) {
-      this._playbackSource=null;this._radioSnapshot=null;this._cancelSeek();
+      this._playbackSource=null;this._playbackIntent=null;this._radioContentId=null;this._cancelSeek();
       this._epoch++;
       this._request++;
       this._busy = false;
@@ -120,7 +120,8 @@ class MusicManagerCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     this._ensureDOM();
-    if(userChanged){this._epoch++;this._busy=false;this._playbackSource=null;this._selectedStation=null;this._radioSnapshot=null;this._cancelSeek();this._resetApple();}
+    if(userChanged){this._epoch++;this._busy=false;this._playbackSource=null;this._selectedStation=null;this._playbackIntent=null;this._radioContentId=null;this._cancelSeek();this._resetApple();}
+    this._syncRadioStation();
     if(mediaIdentity(previous)!==mediaIdentity(this._state))this._cancelSeek();
     if(this._hass.states?.[this._musicAssistantEntity]?.attributes?.active_queue)this._applePreferred=false;
     this._connectFavorites();
@@ -129,9 +130,26 @@ class MusicManagerCard extends HTMLElement {
     this._resolveApplePlayer();
   }
   get _controlEntity() {
-    if(this._playbackSource==='radio')return this._config?.entity;
+    const native=this._hass?.states?.[this._config?.entity];
     const entity=this._musicAssistantEntity, state=this._hass?.states?.[entity];
+    const intent=this._playbackIntent;
+    // Hold a successful command while Sonos still reports its previous URI.
+    // Apple starts have a bounded grace period; radio must never fall back to
+    // an old queue just because MA sends another metadata update.
+    if(intent && sonosContentId(native)===intent.previousId &&
+      (intent.source==='radio' || Date.now()<intent.until))return intent.source==='radio'||!isAvailable(state)?this._config?.entity:entity;
+    const source=sonosPlaybackSource(native);
+    if(source==='radio'||source==='native')return this._config?.entity;
+    if(source==='apple')return isAvailable(state)?entity:this._config?.entity;
+    if(this._playbackSource==='radio')return this._config?.entity;
     return isAvailable(state) && (state.attributes?.active_queue || this._applePreferred) ? entity : this._config?.entity;
+  }
+  _syncRadioStation() {
+    if(this._playbackSource!=='radio'||!this._selectedStation)return;
+    const native=this._hass?.states?.[this._config?.entity],id=sonosContentId(native);
+    if(!id || id===this._playbackIntent?.previousId)return;
+    if(!this._radioContentId && sonosPlaybackSource(native)!=='apple'){this._radioContentId=id;return;}
+    if(id!==this._radioContentId){this._selectedStation=null;this._playbackSource=null;this._playbackIntent=null;}
   }
   get _musicAssistantEntity() { return this._appleEntity || this._config?.music_assistant_entity; }
   get _state() { return this._hass?.states?.[this._controlEntity]; }
@@ -425,11 +443,14 @@ class MusicManagerCard extends HTMLElement {
     const playing=['playing','buffering'].includes(state?.state);
     const playbackLabel=playing ? (action==='media_stop'?'Stop':'Pause') : 'Play';
     const stateLabel={playing:'Wiedergabe',paused:'Pausiert',idle:'Bereit',off:'Aus',buffering:'Wird geladen',unavailable:'Nicht erreichbar',unknown:'Status unbekannt'}[state?.state] || 'Nicht gefunden';
-    const radio=this._playbackSource==='radio' && this._selectedStation;
-    const radioFresh=!this._radioSnapshot || mediaIdentity(state)!==this._radioSnapshot;
-    const title=radio?((radioFresh&&attrs.media_channel) || this._selectedStation.title):(attrs.media_title || attrs.media_channel || 'Keine Wiedergabe');
-    const detail=radio?['Radio',radioFresh&&attrs.media_title!==title?attrs.media_title:'',stateLabel].filter(Boolean).join(' · '):[attrs.media_artist || attrs.media_album_name, attrs.media_channel && attrs.media_channel!==title ? attrs.media_channel : '', stateLabel].filter(Boolean).join(' · ');
     const apple=this._isApplePlayback,progress=apple?playbackProgress(state):null;
+    const selectedRadio=!apple && this._playbackSource==='radio' && this._selectedStation;
+    const radio=!apple && (selectedRadio || sonosPlaybackSource(state)==='radio');
+    // A title/artist refresh is not confirmation of a new radio station.
+    // Pin the chosen station until its own channel metadata arrives.
+    const title=selectedRadio?this._selectedStation.title:radio?(attrs.media_channel || attrs.media_title || 'Radio'):(attrs.media_title || attrs.media_channel || 'Keine Wiedergabe');
+    const radioFresh=!selectedRadio || attrs.media_channel===this._selectedStation.title;
+    const detail=radio?['Radio',radioFresh&&attrs.media_title!==title&&attrs.media_title!==this._radioPreviousTitle?attrs.media_title:'',stateLabel].filter(Boolean).join(' · '):[attrs.media_artist || attrs.media_album_name, attrs.media_channel && attrs.media_channel!==title ? attrs.media_channel : '', stateLabel].filter(Boolean).join(' · ');
     const transport=[];
     if (controls.previous) transport.push(musicButton({label:'Zurück',icon:'previous',action:'previous',disabled:disabled||!hasFeature(state,'previous')}));
     if (controls.play_pause) transport.push(musicButton({label:playbackLabel,icon:playing?(action==='media_stop'?'stop':'pause'):'play',action:'play-pause',disabled:disabled||!action}));
@@ -544,11 +565,11 @@ class MusicManagerCard extends HTMLElement {
     if(!hasFeature(this._hass?.states?.[this._config.entity],'playMedia'))return;
     let payload;
     try {payload=stationPayload(station);} catch(error) {this._radioError=errorText(error);this._renderBrowser();return;}
-    const previousMedia=mediaIdentity(this._hass?.states?.[this._config.entity]);
+    const previousNative=this._hass?.states?.[this._config.entity],previousId=sonosContentId(previousNative),previousTitle=previousNative?.attributes?.media_title;
     await this._service('play_media',payload,()=>{
-      this._playbackSource='radio';this._radioSnapshot=previousMedia;this._cancelSeek();
+      this._playbackSource='radio';this._radioPreviousTitle=previousTitle;this._radioContentId=null;this._playbackIntent={source:'radio',previousId};this._cancelSeek();
       this._selectedStation={...station};
-      this._applePreferred=false;
+      this._applePreferred=false;this._syncRadioStation();
       this._dialog.close();
     },this._config.entity);
   }
@@ -631,7 +652,7 @@ class MusicManagerCard extends HTMLElement {
 
   async _playApple(item) {
     if(this._busy||this._appleLoading||!item)return;
-    const epoch=this._epoch;
+    const epoch=this._epoch,previousId=sonosContentId(this._hass?.states?.[this._config.entity]);
     this._busy=true;this._appleError='';this._error='';this._renderApple();this._renderPlayer();
     try {
       if(!this._musicAssistantEntity){
@@ -641,7 +662,7 @@ class MusicManagerCard extends HTMLElement {
       }
       await this._appleCommand('play',{uri:item.uri});
       if(epoch!==this._epoch)return;
-      this._playbackSource='apple';this._radioSnapshot=null;this._cancelSeek();
+      this._playbackSource='apple';this._radioContentId=null;this._playbackIntent={source:'apple',previousId,until:Date.now()+15000};this._cancelSeek();
       this._applePreferred=true;this._selectedStation=null;this._appleDialog.close();
     } catch(error) {
       if(epoch===this._epoch){this._appleError=this._appleFailure(error);if(!this._appleDialog.open)this._error=this._appleError;}

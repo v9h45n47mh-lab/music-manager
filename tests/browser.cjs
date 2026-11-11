@@ -299,6 +299,26 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.equal(await card().locator('#music-seek').count(),0);assert.equal(await action('shuffle').count(),0);
   await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
  });
+ await check('radio survives stale MA updates, a recreated card and a different HA user',async()=>{
+  await reset();const apple=card().locator('#music-apple-dialog');await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
+  await page.evaluate(()=>demo.cards[0]._playStation(demo.station('swr3','SWR3')));
+  await page.evaluate(()=>{demo.cards[0].remove();demo.cards.shift();const c=demo.addCard('media_player.wohnzimmer','Neue Karte');document.querySelector('#cards').prepend(c);demo.cards.unshift(demo.cards.pop());});
+  await page.waitForFunction(()=>demo.cards[0]._musicAssistantEntity==='media_player.ma_wohnzimmer');
+  for(let i=0;i<3;i++)await page.evaluate(n=>{demo.update('media_player.ma_wohnzimmer',{attributes:{active_queue:'old-queue',media_title:'Alter Apple-Titel '+n}});demo.update('media_player.wohnzimmer',{attributes:{volume_level:0.2+n/10}});},i);
+  await page.evaluate(()=>demo.switchUser('vera'));
+  assert.match(await card().locator('#player').innerText(),/SWR3/);assert(!((await card().locator('#player').innerText()).includes('Alter Apple-Titel')));
+  assert.equal(await card().locator('#music-seek').count(),0);assert.equal(await action('shuffle').count(),0);
+  await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
+  await page.screenshot({path:path.join(screens,'radio-after-reload.png'),fullPage:true});
+ });
+ await check('partial old radio metadata cannot replace the selected station and external Apple playback is detected',async()=>{
+  await reset();await page.evaluate(()=>demo.cards[0]._playStation(demo.station('swr3','SWR3')));
+  await page.evaluate(()=>{demo.update('media_player.wohnzimmer',{attributes:{media_channel:'Apple Music',media_title:'Alter Apple-Titel',media_artist:'Alter Interpret'}});demo.update('media_player.ma_wohnzimmer',{state:'playing',attributes:{active_queue:'old-queue',media_title:'Alter Apple-Titel',media_duration:240}});});
+  assert.match(await card().locator('#player').innerText(),/SWR3/);assert(!((await card().locator('#player').innerText()).includes('Alter Apple-Titel')));
+  await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{media_content_id:'http://music-assistant.example:8095/single/session/queue/item/player.flac',media_channel:'Music Assistant'}}));
+  await card().locator('#music-seek').waitFor();assert.equal(await page.evaluate(()=>demo.cards[0]._controlEntity),'media_player.ma_wohnzimmer');
+ });
  await check('Apple timeline and shuffle fit narrow mobile and desktop views in both themes',async()=>{
   await reset();const apple=card().locator('#music-apple-dialog');await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});

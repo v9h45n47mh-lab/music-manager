@@ -295,6 +295,45 @@ test('failed radio switch preserves Apple playback and a successful Apple start 
  env.wsHook=msg=>msg.type==='music_manager/apple_music'?{started:true}:undefined;
  await card._playApple({uri:'apple_music--a://track/42'});assert.equal(card._controlEntity,'media_player.ma_a');assert.equal(card._selectedStation,null);card.remove();
 });
+test('native radio wins over stale MA queues after recreation, user changes and late updates',async()=>{
+ const env=setup();
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='status'?{entity_id:'media_player.ma_a'}:undefined;
+ env.update('media_player.a',{attributes:{media_content_id:'x-rincon-mp3radio://radio.example/swr3',media_channel:'SWR3',media_title:'Aktueller Radiotitel',media_duration:null}});
+ env.update('media_player.ma_a',{attributes:{active_queue:'old-queue',media_title:'Alter Apple-Titel',media_duration:240,media_position:30}});
+ const first=env.add(),second=env.add();await flush();
+ for(const card of [first,second]){assert.equal(card._controlEntity,'media_player.a');assert.match(card._player.textContent,/SWR3/);assert(!card._player.textContent.includes('Alter Apple'));assert.equal(card.shadowRoot.querySelector('#music-seek'),null);}
+ for(let i=0;i<3;i++){env.update('media_player.ma_a',{attributes:{media_title:'Später Apple-Titel '+i}});env.update('media_player.a',{attributes:{volume_level:0.2+i/10}});assert.equal(second._controlEntity,'media_player.a');assert(!second._player.textContent.includes('Apple-Titel'));}
+ first.remove();const recreated=env.add();await flush();env.switchUser('vera');await flush();
+ assert.equal(recreated._controlEntity,'media_player.a');assert.match(recreated._player.textContent,/SWR3/);
+ env.click(recreated,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');
+ second.remove();recreated.remove();
+});
+test('radio station stays pinned through partial old Sonos metadata and follows later external source changes',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ const flow='http://ma.example:8095/flow/session/queue/item/player.aac';
+ env.update('media_player.a',{attributes:{media_content_id:flow,media_channel:'Apple Music',media_title:'Alter Apple-Titel',media_duration:null}});
+ env.update('media_player.ma_a',{attributes:{active_queue:'queue',media_title:'Alter Apple-Titel',media_duration:240}});
+ await card._playStation(station('swr3'));
+ env.update('media_player.a',{attributes:{media_artist:'Noch alter Interpret',media_duration:240}});
+ assert.equal(card._controlEntity,'media_player.a');assert.match(card._player.textContent,/SWR3/);assert(!card._player.querySelector('.music-box').nextElementSibling.textContent.includes('Apple Music'));assert(!card._player.textContent.includes('Alter Apple-Titel'));
+ env.update('media_player.a',{attributes:{media_content_id:'https://radio.example/swr3'}});
+ assert.match(card._player.textContent,/SWR3/);assert(!card._player.querySelector('.music-box').nextElementSibling.textContent.includes('Apple Music'));
+ env.update('media_player.a',{attributes:{media_channel:'SWR3'}});assert(!card._player.textContent.includes('Alter Apple-Titel'));
+ env.update('media_player.a',{attributes:{media_duration:null,media_title:'Neuer Radiotitel'}});assert.match(card._player.textContent,/Neuer Radiotitel/);
+ env.update('media_player.a',{attributes:{media_content_id:'https://radio.example/energy',media_channel:'Energy',media_title:'Energy Song'}});assert.match(card._player.textContent,/Energy/);assert(!card._player.textContent.includes('SWR3'));
+ env.update('media_player.a',{attributes:{media_content_id:flow,media_channel:'Music Assistant'}});assert.equal(card._controlEntity,'media_player.ma_a');assert(card.shadowRoot.querySelector('#music-seek'));card.remove();
+});
+test('a real MA flow remains controllable after recreation and a new Apple start tolerates old radio transport briefly',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.a',{attributes:{media_content_id:'x-rincon-mp3radio://ma.example:8095/flow/session/queue/item/player.aac',media_channel:'Music Assistant',media_duration:null}});
+ env.update('media_player.ma_a',{attributes:{active_queue:'queue',media_title:'Aktueller Apple-Titel',media_duration:240}});
+ assert.equal(card._controlEntity,'media_player.ma_a');assert(card.shadowRoot.querySelector('#music-seek'));
+ env.update('media_player.a',{attributes:{media_content_id:'https://radio.example/swr3',media_channel:'SWR3'}});assert.equal(card._controlEntity,'media_player.a');
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='play'?{started:true}:undefined;
+ await card._playApple({uri:'apple_music--a://album/42'});assert.equal(card._controlEntity,'media_player.ma_a');
+ card._playbackIntent.until=0;env.update('media_player.ma_a',{attributes:{media_title:'Nur alter Queue-Titel'}});assert.equal(card._controlEntity,'media_player.a');
+ env.update('media_player.a',{attributes:{media_content_id:'http://ma.example:8095/single/session/queue/item/player.flac'}});assert.equal(card._controlEntity,'media_player.ma_a');card.remove();
+});
 test('Apple shuffle controls the selected MA player and reflects confirmed state and service errors',async()=>{
  const env=setup(),card=env.add(),other=env.add('media_player.b');card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
  env.update('media_player.ma_a',{attributes:{active_queue:'queue',shuffle:false}});
