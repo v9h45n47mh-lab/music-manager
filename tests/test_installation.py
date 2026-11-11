@@ -7,7 +7,7 @@ import sys
 import types
 from types import SimpleNamespace as NS
 from unittest import IsolatedAsyncioTestCase, TestCase
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 ROOT = Path(__file__).parents[1]
 COMPONENT = ROOT / 'custom_components/music_manager'
@@ -71,6 +71,10 @@ def load_installation():
     frontend = module('homeassistant.components.frontend')
     frontend.add_extra_js_url = lambda hass, url: hass.extra.add(url)
     frontend.remove_extra_js_url = lambda hass, url: hass.extra.remove(url)
+    frontend.async_remove_panel = lambda hass, path: hass.panels.pop(path, None)
+    async def register_panel(hass, **kwargs):
+        hass.panels[kwargs['frontend_url_path']] = kwargs
+    module('homeassistant.components.panel_custom').async_register_panel = AsyncMock(side_effect=register_panel)
     module('homeassistant.components.frontend.storage').async_user_store = AsyncMock()
     http = module('homeassistant.components.http')
     http.StaticPathConfig = lambda url, path, cache_headers: NS(url=url, path=path, cache_headers=cache_headers)
@@ -145,7 +149,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
 
     def make_hass(self, collection=None):
         return NS(data={'lovelace': NS(resources=collection if collection is not None else Resources())},
-                  http=NS(async_register_static_paths=AsyncMock()), extra=set())
+                  http=NS(async_register_static_paths=AsyncMock()), extra=set(), panels={})
 
     async def test_new_install_registers_bundled_card_without_music_assistant(self):
         hass = self.make_hass()
@@ -158,6 +162,11 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertTrue((Path(path.path) / 'music-manager-card.js').is_file())
         self.assertEqual(hass.data['music_manager']['manager'], entry)
         self.assertNotIn('homeassistant.components.music_assistant.helpers', sys.modules)
+        panel = hass.panels['music-manager']
+        self.assertTrue(panel['require_admin'])
+        self.assertEqual(panel['config_panel_domain'], 'music_manager')
+        self.assertEqual(panel['module_url'], self.frontend.CARD_URL)
+        self.assertEqual(panel['webcomponent_name'], 'music-manager-panel')
 
     async def test_legacy_resource_migration_preserves_unrelated_cards_and_user_data(self):
         other = {'id': 'other', 'url': '/hacsfiles/other-card/other-card.js', 'type': 'module'}
@@ -183,6 +192,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertEqual(len(hass.extra), 1)
         await self.package.async_unload_entry(hass, entry)
         self.assertFalse(hass.extra)
+        self.assertNotIn('music-manager', hass.panels)
         self.assertEqual(hass.data['lovelace'].resources.items, [])
         await self.package.async_setup_entry(hass, entry)
         self.assertEqual(hass.http.async_register_static_paths.await_count, 1)
@@ -416,6 +426,45 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertEqual(saved['data']['accounts'], flow.config_entry.options['accounts'])
         self.assertEqual(saved['data']['unrelated'], {'keep': True})
         self.assertEqual((await flow.async_step_alarm_edit({'alarm_id': 'missing'}))['reason'], 'invalid_alarm')
+
+    async def test_configuration_panel_snapshot_is_admin_only_read_only_and_hides_credentials(self):
+        import copy
+        from unittest.mock import patch
+        config = importlib.import_module('installation_test.configuration')
+        flow, mass, stores, _ = self.configured_options_flow()
+        entry = flow.config_entry
+        entry.entry_id = 'manager'
+        entry.data['password'] = 'PRIVATE-PASSWORD'
+        entry.options['accounts'][0]['token'] = 'PRIVATE-TOKEN'
+        mass.providers[0].password = 'PRIVATE-PROVIDER-PASSWORD'
+        flow.hass.data = {'music_manager': {'manager': entry}}
+        before = copy.deepcopy(entry.options)
+        connection = NS(user=NS(is_admin=True, is_active=True, system_generated=False),
+                        send_result=Mock(), send_error=Mock())
+        with patch.object(config, 'music_assistant_client', return_value=mass), patch.object(
+                config, 'async_user_store', new=AsyncMock(side_effect=lambda hass, owner: stores[owner])):
+            await config.websocket_configuration(flow.hass, connection, {'id': 1, 'type': 'music_manager/configuration'})
+            connection.send_error.assert_not_called()
+            data = connection.send_result.call_args.args[1]
+            self.assertEqual([a['ha_name'] for a in data['accounts']], ['One', 'Two'])
+            self.assertEqual([a['music_title'] for a in data['alarms']], ['Morning One', 'Morning Two'])
+            serialized = json.dumps(data)
+            self.assertNotIn('PRIVATE-', serialized)
+            self.assertNotIn('://playlist/', serialized)
+            mass.auth.list_users.side_effect = ConnectionError('PRIVATE-UPSTREAM-ERROR')
+            offline = await config.configuration_snapshot(flow.hass, entry)
+            self.assertFalse(offline['connection']['reachable'])
+            self.assertEqual(len(offline['accounts']), 2)
+            self.assertEqual(len(offline['alarms']), 2)
+            self.assertNotIn('PRIVATE-', json.dumps(offline))
+        self.assertEqual(entry.options, before)
+        for user in [None, NS(is_admin=False, is_active=True, system_generated=False),
+                     NS(is_admin=True, is_active=False, system_generated=False),
+                     NS(is_admin=True, is_active=True, system_generated=True)]:
+            denied = NS(user=user, send_result=Mock(), send_error=Mock())
+            await config.websocket_configuration(flow.hass, denied, {'id': 2})
+            denied.send_result.assert_not_called()
+            self.assertEqual(denied.send_error.call_args.args[1], 'unauthorized')
 
     async def test_frontend_failure_requests_setup_retry_without_registering_an_entry(self):
         hass = self.make_hass()

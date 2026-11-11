@@ -1,4 +1,4 @@
-import {UI_CSS, row, button, dialog, combobox, notice, loadingState, bindUI} from './family-ui/1.2.2/family-ui.js';
+import {UI_CSS, row, button, dialog, combobox, notice, loadingState, bindUI} from './family-ui/1.3.1/family-ui.js';
 
 /** An entities-card row. The backend resolves the configured owner and box. */
 class MusicManagerAlarmRow extends HTMLElement {

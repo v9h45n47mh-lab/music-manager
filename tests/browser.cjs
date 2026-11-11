@@ -180,7 +180,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();await page.keyboard.press('Escape');
   // A separate untouched UI Kit reference ensures local styles do not alter shared components.
   await page.evaluate(async()=>{
-   const kit=await import('/src/family-ui/1.2.2/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
+   const kit=await import('/src/family-ui/1.3.1/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Beschreibung',trailing:kit.button({label:'Abspielen',action:'ref'})})}`;
   });
   for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
@@ -420,6 +420,46 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{volume_level:.1}}));assert.equal(await native.evaluate(el=>el.value),61);
   await native.evaluate(el=>el.dispatchEvent(new CustomEvent('value-changed',{detail:{value:61},bubbles:true})));
   await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.61);
+ });
+ const configURL=url.replace('fixture.html','configuration-fixture.html');
+ const openConfiguration=async()=>{await page.goto(configURL);await page.waitForFunction(()=>window.configurationDemo?.panel._data);};
+ const panel=()=>page.locator('music-manager-panel');
+ const editor=()=>panel().locator('#configuration-dialog');
+ await check('UI Kit configuration edits and removes selected rows through the native HA options flow',async()=>{
+  await openConfiguration();await panel().getByText('Benutzerzuordnungen (2)',{exact:true}).waitFor();
+  await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().locator('#config-provider_id').waitFor();
+  assert.equal(await editor().locator('#config-ha_user_id').inputValue(),'ha-one');assert.equal(await editor().locator('#config-provider_id').inputValue(),'apple--one');
+  await editor().locator('#config-provider_id').selectOption('apple--two');await page.evaluate(()=>{configurationDemo.failSave=true;configurationDemo.push();});
+  assert.equal(await editor().locator('#config-provider_id').inputValue(),'apple--two');await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().getByRole('alert').waitFor();
+  assert.equal(await page.evaluate(()=>configurationDemo.data.accounts[0].provider_id),'apple--one');
+  await page.evaluate(()=>configurationDemo.failSave=false);await editor().locator('#config-provider_id').selectOption('apple--one');await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().waitFor({state:'hidden'});
+  const calls=await page.evaluate(()=>configurationDemo.requests.filter(r=>r.method==='POST'));assert(calls.filter(r=>!r.body.handler).every(r=>/\/flow\/flow-\d+$/.test(r.path)),'flow IDs must never be replaced by row IDs');
+  await panel().locator('[data-action="remove"][data-id="ha-two"]').click();await editor().getByRole('button',{name:'Entfernen',exact:true}).waitFor();assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),2);
+  await editor().getByRole('button',{name:'Abbrechen',exact:true}).click();await editor().waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),2);
+  await panel().locator('[data-action="remove"][data-id="ha-two"]').click();await editor().getByRole('button',{name:'Entfernen',exact:true}).click();await editor().waitFor({state:'hidden'});
+  assert.deepEqual(await page.evaluate(()=>configurationDemo.data.accounts.map(a=>a.ha_user_id)),['ha-one']);assert.equal(await page.evaluate(()=>configurationDemo.data.alarms.length),1);
+  await panel().locator('[data-action="alarm_edit"]').click();await editor().locator('#config-source_entity').waitFor();assert.equal(await editor().locator('#config-alarm_id').inputValue(),'school_alarm');
+  await editor().locator('#config-source_entity').selectOption('media_player.office');await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().waitFor({state:'hidden'});
+  assert.equal(await page.evaluate(()=>configurationDemo.data.alarms[0].source_entity),'media_player.office');
+ });
+ await check('configuration connection changes require explicit confirmation and late responses do not leak after user switch',async()=>{
+  await openConfiguration();await panel().locator('[data-action="connect"]').click();await editor().locator('#config-music_assistant_entry').selectOption('');
+  await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().getByRole('button',{name:'Verbindung wechseln',exact:true}).waitFor();assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),2);
+  await editor().getByRole('button',{name:'Verbindung wechseln',exact:true}).click();await editor().waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),0);await panel().getByText('Nur Radio',{exact:true}).waitFor();
+  await openConfiguration();await page.evaluate(()=>configurationDemo.delayCreate=new Promise(resolve=>window.releaseConfigFlow=resolve));await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().getByText('Einstellung wird geladen …',{exact:true}).waitFor();
+  await page.evaluate(()=>{configurationDemo.switchUser(false);window.releaseConfigFlow();});await panel().getByRole('alert').waitFor();
+  assert(!(await panel().innerText()).includes('Erster Benutzer'));assert(!await editor().isVisible());
+ });
+ await check('configuration follows UI Kit typography and fits desktop mobile and both themes',async()=>{
+  await openConfiguration();await page.evaluate(async()=>{const kit=await import('/src/family-ui/1.3.1/family-ui.js');const root=document.querySelector('#reference').attachShadow({mode:'open'});root.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Text'})}`;});
+  for(const width of [320,390,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   const report=await panel().evaluate(el=>{const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;const styles=e=>{const s=getComputedStyle(e);return [s.fontFamily,s.fontSize,s.fontWeight,s.color];};return {over:[...root.querySelectorAll('#configuration *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<0||r.right>innerWidth+1)}).map(e=>e.outerHTML.slice(0,100)),actual:styles(root.querySelector('.row-text strong')),reference:styles(ref.querySelector('.row-text strong'))};});
+   assert.deepEqual(report.over,[],`${width} configuration overflow`);assert.deepEqual(report.actual,report.reference);
+   await page.screenshot({path:path.join(screens,`configuration-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+   await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().locator('#config-provider_id').waitFor();assert(!await editor().evaluate(el=>el.scrollWidth>el.clientWidth),`${width} editor overflow`);
+   await page.screenshot({path:path.join(screens,`configuration-editor-${width}-${dark?'dark':'light'}.png`),fullPage:true});await editor().getByRole('button',{name:'Schließen',exact:true}).click();
+  }
  });
  assert.deepEqual(errors,[]);console.log(`${checks} browser scenarios passed; no JavaScript errors.`);
  await browser.close();server.close();

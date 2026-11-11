@@ -31,7 +31,7 @@
           "edit": "Edit existing user assignment",
           "alarm_edit": "Edit existing alarm"
         },
-        "description": "**Music Assistant**\n{connection}\n\n**Account assignments · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Alarms · {alarm_count}**\nID · user → speaker · alarm music\n{alarms}\n\n— means no assignment or, for alarm music, the last Sonos playback. ⚠ means the saved alarm music could not be read. When Music Assistant is unavailable, saved IDs appear instead of account names."
+        "description": "[Open configuration panel](/music-manager)\n\n**Music Assistant**\n{connection}\n\n**Account assignments · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Alarms · {alarm_count}**\nID · user → speaker · alarm music\n{alarms}\n\n— means no assignment or, for alarm music, the last Sonos playback. ⚠ means the saved alarm music could not be read. When Music Assistant is unavailable, saved IDs appear instead of account names."
       },
       "add": {
         "title": "Assign personal Apple Music account",

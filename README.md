@@ -1,10 +1,10 @@
-# Music Manager 1.6.1
+# Music Manager 1.7.0
 
 ![Music Manager](brand/icon.png)
 
 [![Prüfungen](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml/badge.svg)](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml)
 
-**Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
+**Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.3.1**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
 Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
 
@@ -68,9 +68,11 @@ Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls
 
 ## Konfiguration im Überblick
 
-Unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren** erscheinen direkt die gespeicherte Music-Assistant-Verbindung, alle Benutzerzuordnungen (HA → MA → Apple Music) sowie alle Wecker mit Benutzer, Sonos-Box und ausgewählter Weckmusik. Die Übersicht verändert keine Einstellungen. Auch bei nicht erreichbarem Music Assistant bleiben die gespeicherten Zuordnungen mit ihren Kennungen sichtbar.
+Unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren** öffnet sich die eigene Verwaltungsseite. Sie ist für HA-Administratoren auch über **Music Manager** in der Seitenleiste erreichbar. Drei einklappbare Bereiche zeigen die Music-Assistant-Verbindung, alle HA-/MA-/Apple-Music-Zuordnungen und sämtliche Wecker mit Benutzer, Box und gespeicherter Weckmusik.
 
-Über **Vorhandene Benutzerzuordnung bearbeiten** oder **Vorhandenen Wecker bearbeiten** einen Eintrag auswählen. Das folgende Formular enthält seine aktuellen Werte. Die HA-Benutzerkennung einer Kontozuordnung und die Weckerkennung bleiben beim Bearbeiten fest; die zugehörigen Konten bzw. Benutzer und Box können geändert werden. Andere Einträge und Einstellungen bleiben erhalten.
+Die Seite verwendet das fest eingebundene **HA UI Kit 1.3.1** für Kopfbereich, Bereiche, Zeilen, Symbole, Buttons, Auswahlfelder, Meldungen und Dialoge. Über das Stiftsymbol einen Eintrag bearbeiten; seine aktuellen Werte sind vorausgefüllt. Der Papierkorb öffnet eine ausdrückliche Bestätigung. Beim Wechsel der MA-Verbindung wird das Entfernen bestehender Kontozuordnungen zusätzlich bestätigt.
+
+Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutige Konten, Quellenfilter, Benutzer- und Boxfreigaben werden weiterhin serverseitig geprüft. Die neue Übersichtsabfrage ist nur lesend und nur für aktive HA-Administratoren zugelassen. Sie liefert keine Zugangsdaten, Tokens oder Favoriten-URIs. Gespeicherte Zuordnungen bleiben auch bei nicht erreichbarem MA-Server sichtbar. Nach einem Benutzerwechsel werden offene Eingaben und Daten des vorherigen Benutzers verworfen.
 
 ## Weckmusik aus persönlichen Apple-Music-Favoriten
 

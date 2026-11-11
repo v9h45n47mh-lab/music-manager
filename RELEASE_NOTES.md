@@ -1,8 +1,9 @@
-# Music Manager 1.6.1
+# Music Manager 1.7.0
 
-- **Konfiguration im Überblick:** Direkt unter „Konfigurieren“ sind die Music-Assistant-Verbindung, sämtliche HA-/MA-/Apple-Music-Zuordnungen und alle Wecker mit Benutzer, Box und gespeicherter Weckmusik sichtbar.
-- **Vorhandene Einträge bearbeiten:** Neue Menüpunkte öffnen gezielt eine vorhandene Benutzer- oder Weckerzuordnung und füllen ihre aktuellen Werte vor. Beim Speichern bleiben andere Zuordnungen und Optionen erhalten.
-- **Auch ohne erreichbaren MA-Server:** Gespeicherte Zuordnungen bleiben in der Übersicht sichtbar; nicht auflösbare Kontonamen werden durch ihre Kennungen ersetzt.
-- **Bestehende Auswahl erhalten:** Fehlende Konten oder Boxen bleiben als gespeicherte Auswahl erkennbar, bis sie durch einen gültigen Eintrag ersetzt werden. Keine automatische Umstellung auf ein anderes Konto oder eine andere Box.
+- **Neue Konfigurationsseite mit HA UI Kit 1.3.1:** Gemeinsamer Kopfbereich, einklappbare Bereiche, übersichtliche Listen und die standardisierten Bearbeiten-/Entfernen-Symbole ersetzen die bisherige reine Textübersicht.
+- **Direkt erreichbar:** Unter Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren sowie für Administratoren über Music Manager in der HA-Seitenleiste.
+- **Drei klare Bereiche:** Music-Assistant-Verbindung, persönliche Benutzerzuordnungen und Wecker mit Benutzer, Box und gespeicherter Weckmusik.
+- **Bearbeiten im Dialog:** Aktuelle Werte sind vorausgefüllt. Entfernen und ein Verbindungswechsel mit bestehenden Zuordnungen werden ausdrücklich bestätigt.
+- **Bestehende Prüfungen bleiben aktiv:** Änderungen laufen durch die vorhandenen Home-Assistant-Options-Flows. Die neue Übersicht ist nur für Administratoren lesbar und enthält keine Zugangsdaten oder Tokens.
 
-Nach dem Update Home Assistant neu starten. Anschließend unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren** die Übersicht öffnen. Bestehende Karten und Weckerautomationen benötigen keine Änderung.
+Im Marketplace auf **1.7.0** aktualisieren, Home Assistant neu starten und die HA-Seite neu laden. Danach **Music Manager → Konfigurieren** öffnen.

@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from homeassistant.components.frontend import add_extra_js_url, remove_extra_js_url
+from homeassistant.components.frontend import add_extra_js_url, remove_extra_js_url, async_remove_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace import LOVELACE_DATA
 from homeassistant.components.lovelace.resources import ResourceStorageCollection
@@ -83,6 +83,15 @@ async def async_register_frontend(hass):
         # in the browser. Loading it early also makes the visual editor available.
         add_extra_js_url(hass, CARD_URL)
         state["url"] = CARD_URL
+        if not state.get("panel_registered"):
+            from homeassistant.components.panel_custom import async_register_panel
+
+            await async_register_panel(
+                hass, frontend_url_path="music-manager", webcomponent_name="music-manager-panel",
+                sidebar_title="Music Manager", sidebar_icon="mdi:music-box",
+                module_url=CARD_URL, require_admin=True, config_panel_domain=DOMAIN,
+            )
+            state["panel_registered"] = True
 
 
 async def async_unregister_frontend(hass):
@@ -91,6 +100,8 @@ async def async_unregister_frontend(hass):
     if not state:
         return
     async with state["lock"]:
+        if state.pop("panel_registered", False):
+            async_remove_panel(hass, "music-manager")
         if url := state.pop("url", None):
             try:
                 remove_extra_js_url(hass, url)

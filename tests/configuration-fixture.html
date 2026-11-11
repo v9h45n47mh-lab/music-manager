@@ -1,0 +1,43 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Music Manager – Konfiguration mit Beispieldaten</title>
+<style>body{margin:0;--primary-color:#03a9f4;--ha-font-family-body:Arial,sans-serif;--primary-text-color:#212121;--secondary-text-color:#727272;--primary-background-color:#f3f5f7;--card-background-color:#fff;--secondary-background-color:#f5f5f5;--divider-color:#ddd}body.dark{--primary-text-color:#f1f3f5;--secondary-text-color:#afb7c1;--primary-background-color:#11151b;--card-background-color:#1b222c;--secondary-background-color:#252e3a;--divider-color:#394451}music-manager-panel{height:100dvh}#reference{display:none}</style>
+<music-manager-panel></music-manager-panel><div id="reference"></div>
+<script type="module" src="../custom_components/music_manager/frontend/music-manager-card.js"></script>
+<script type="module">
+await customElements.whenDefined('music-manager-panel');
+const copy=value=>JSON.parse(JSON.stringify(value)),requests=[],flows=new Map();let counter=0,failSave=false,delayCreate=null;
+const data={entry_id:'manager',version:'1.7.0',connection:{id:'mass',name:'Music Assistant Zuhause',reachable:true},accounts:[{ha_user_id:'ha-one',ma_user_id:'ma-one',provider_id:'apple--one',ha_name:'Erster Benutzer mit sehr langem Namen',ma_name:'Persönliches Music-Assistant-Konto',provider_name:'Apple Music – persönlicher Zugang'},{ha_user_id:'ha-two',ma_user_id:'ma-two',provider_id:'apple--two',ha_name:'Zweiter Benutzer',ma_name:'Zweites MA-Konto',provider_name:'Apple Music Zwei'}],alarms:[{alarm_id:'school_alarm',ha_user_id:'ha-one',source_entity:'media_player.bedroom',owner_name:'Erster Benutzer mit sehr langem Namen',source_name:'Sonos im Kinderzimmer mit langem Namen',music_title:'Lieblingsplaylist für einen entspannten Start in den Morgen',music_readable:true}]};
+const connections=new Map();let admin=true;
+const select=(name,options,value)=>({name,required:true,type:'selector',selector:{select:{options}},...(value===undefined?{}:{default:value})});
+const accountForm=record=>[select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name})),record?.ha_user_id),select('ma_user_id',data.accounts.map(a=>({value:a.ma_user_id,label:a.ma_name})),record?.ma_user_id),select('provider_id',data.accounts.map(a=>({value:a.provider_id,label:a.provider_name})),record?.provider_id)];
+const makeHass=()=>({user:{id:admin?'admin':'child',is_admin:admin},connection:connections.get(admin)||connections.set(admin,{}).get(admin),
+ async callWS(msg){requests.push({ws:copy(msg)});if(msg.type!=='music_manager/configuration'||!admin)throw Error('Denied');return copy(data);},
+ async callApi(method,path,body){requests.push({method,path,body:body?copy(body):null});
+  if(!admin)throw Error('Denied');
+  if(method==='POST'&&path==='config/config_entries/options/flow'){
+   if(delayCreate)await delayCreate;
+   const flow_id='flow-'+(++counter),flow={flow_id,type:'menu',step_id:'init',menu_options:['connect','add','edit','remove','alarm','alarm_edit','alarm_remove']};flows.set(flow_id,flow);return copy(flow);
+  }
+  const id=path.split('/').at(-1),flow=flows.get(id);if(!flow)throw Error('Unknown flow ID');
+  if(method==='DELETE'){flows.delete(id);return null;}
+  if(body.next_step_id){flow.action=body.next_step_id;flow.type='form';flow.step_id=flow.action;
+   if(flow.action==='connect')flow.data_schema=[select('music_assistant_entry',[{value:'mass',label:'Music Assistant Zuhause'},{value:'',label:'Nur Radio'}],data.connection.id)];
+   if(flow.action==='edit'||flow.action==='remove')flow.data_schema=[select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name})))];
+   if(flow.action==='alarm_edit'||flow.action==='alarm_remove')flow.data_schema=[select('alarm_id',data.alarms.map(a=>({value:a.alarm_id,label:a.alarm_id})))];
+   if(flow.action==='add')flow.data_schema=accountForm();
+   if(flow.action==='alarm')flow.data_schema=[{name:'alarm_id',required:true,type:'string',default:'school_alarm'},select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name}))),select('source_entity',[{value:'media_player.bedroom',label:'Kinderzimmer'}])];
+   return copy(flow);
+  }
+  if(flow.step_id==='edit'){flow.step_id='account_edit';flow.data_schema=accountForm(data.accounts.find(a=>a.ha_user_id===body.ha_user_id));return copy(flow);}
+  if(flow.step_id==='alarm_edit'){const alarm=data.alarms.find(a=>a.alarm_id===body.alarm_id);flow.step_id='alarm_update';flow.data_schema=[select('alarm_id',[{value:alarm.alarm_id,label:alarm.alarm_id}],alarm.alarm_id),select('ha_user_id',data.accounts.map(a=>({value:a.ha_user_id,label:a.ha_name})),alarm.ha_user_id),select('source_entity',[{value:'media_player.bedroom',label:'Kinderzimmer'},{value:'media_player.office',label:'Büro'}],alarm.source_entity)];return copy(flow);}
+  if(failSave){flow.errors={base:'invalid_account'};return copy(flow);}
+  if(flow.action==='remove')data.accounts=data.accounts.filter(a=>a.ha_user_id!==body.ha_user_id);
+  if(flow.action==='alarm_remove')data.alarms=data.alarms.filter(a=>a.alarm_id!==body.alarm_id);
+  if(flow.action==='edit'){Object.assign(data.accounts.find(a=>a.ha_user_id===body.ha_user_id),body);}
+  if(flow.action==='alarm_edit')Object.assign(data.alarms.find(a=>a.alarm_id===body.alarm_id),body);
+  if(flow.action==='connect'){if(body.music_assistant_entry!==data.connection.id)data.accounts=[];data.connection={id:body.music_assistant_entry,name:body.music_assistant_entry?'Music Assistant Zuhause':'',reachable:true};}
+  flows.delete(id);return {type:'create_entry',flow_id:id};
+ }
+});
+const panel=document.querySelector('music-manager-panel');panel.hass=makeHass();
+window.configurationDemo={panel,data,requests,flows,makeHass,push(){panel.hass=makeHass();},set failSave(value){failSave=value},set delayCreate(value){delayCreate=value},switchUser(value){admin=value;panel.hass=makeHass();}};
+</script></html>

@@ -31,7 +31,7 @@
           "edit": "Vorhandene Benutzerzuordnung bearbeiten",
           "alarm_edit": "Vorhandenen Wecker bearbeiten"
         },
-        "description": "**Music Assistant**\n{connection}\n\n**Benutzerzuordnungen · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Wecker · {alarm_count}**\nKennung · Benutzer → Box · Weckmusik\n{alarms}\n\n— bedeutet: keine Zuordnung oder beim Wecker die letzte Sonos-Wiedergabe. ⚠ bedeutet: die gespeicherte Weckmusik konnte gerade nicht gelesen werden. Ist Music Assistant nicht erreichbar, erscheinen die gespeicherten Kennungen anstelle der Kontonamen."
+        "description": "[Gestaltete Konfiguration öffnen](/music-manager)\n\n**Music Assistant**\n{connection}\n\n**Benutzerzuordnungen · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Wecker · {alarm_count}**\nKennung · Benutzer → Box · Weckmusik\n{alarms}\n\n— bedeutet: keine Zuordnung oder beim Wecker die letzte Sonos-Wiedergabe. ⚠ bedeutet: die gespeicherte Weckmusik konnte gerade nicht gelesen werden. Ist Music Assistant nicht erreichbar, erscheinen die gespeicherten Kennungen anstelle der Kontonamen."
       },
       "add": {
         "title": "Persönliches Apple-Music-Konto zuordnen",
