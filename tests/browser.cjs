@@ -375,7 +375,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  });
  await check('alarm row selects and persists the configured owners Apple Music favorite without playback',async()=>{
   await reset();await page.evaluate(()=>{demo.seedFavorites('maximilian',[{kind:'apple_music',uri:'apple_music--demo://playlist/wake',media_type:'playlist',title:'Meine Weckmusik'},{kind:'apple_music',uri:'apple_music--demo://album/morning',media_type:'album',title:'Guten Morgen'}]);demo.addAlarmRow();});
-  let alarm=page.locator('music-manager-alarm-row').first();await alarm.getByText('Letzte Sonos-Wiedergabe',{exact:true}).waitFor();
+  let alarm=page.locator('music-manager-alarm-row').first();await alarm.locator('#alarm-row').getByText('Letzte Sonos-Wiedergabe',{exact:true}).waitFor();
   await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();let picker=alarm.locator('#alarm-dialog');await picker.getByText('Maximilian',{exact:true}).waitFor();
   await picker.getByRole('button',{name:'Weckmusik aufklappen',exact:true}).click();await picker.getByRole('option').filter({hasText:'Meine Weckmusik'}).click();await picker.waitFor({state:'hidden'});
   await alarm.locator('#alarm-row').getByText('Meine Weckmusik',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>demo.calls.length),0);
