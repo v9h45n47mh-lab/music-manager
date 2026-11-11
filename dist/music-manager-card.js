@@ -822,7 +822,7 @@ class MusicManagerCard extends HTMLElement {
     // Hold a successful command while Sonos still reports its previous URI.
     // Apple starts have a bounded grace period; radio must never fall back to
     // an old queue just because MA sends another metadata update.
-    if(intent && sonosContentId(native)===intent.previousId &&
+    if(intent && (intent.source!=='radio'||!this._radioContentId) && sonosContentId(native)===intent.previousId &&
       (intent.source==='radio' || Date.now()<intent.until))return intent.source==='radio'||!isAvailable(state)?this._config?.entity:entity;
     const source=sonosPlaybackSource(native);
     if(source==='radio'||source==='native')return this._config?.entity;
@@ -833,7 +833,7 @@ class MusicManagerCard extends HTMLElement {
   _syncRadioStation() {
     if(this._playbackSource!=='radio'||!this._selectedStation)return;
     const native=this._hass?.states?.[this._config?.entity],id=sonosContentId(native);
-    if(!id || id===this._playbackIntent?.previousId)return;
+    if(!id || (!this._radioContentId && id===this._playbackIntent?.previousId))return;
     if(!this._radioContentId && sonosPlaybackSource(native)!=='apple'){this._radioContentId=id;return;}
     if(id!==this._radioContentId){this._selectedStation=null;this._playbackSource=null;this._playbackIntent=null;}
   }
