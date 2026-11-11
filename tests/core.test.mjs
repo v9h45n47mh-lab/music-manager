@@ -84,3 +84,16 @@ test('sorting merges with concurrent adds and removals without losing mixed favo
  await Promise.all([saveFavorite(hass,album,false),moveFavorite(hass,album.uri,'up')]);assert.deepEqual(items.map(i=>i.title),['radio','Playlist','new']);
  await assert.rejects(moveFavorite(hass,playlist.uri,'invalid'));
 });
+test('alarm marking is explicit for single songs, survives sorting and metadata updates and never applies to albums',async()=>{
+ const {appleFavorite,normalizeFavorites,saveFavorite,saveAlarmSong,moveFavorite}=await import('../src/core.js');
+ const song=appleFavorite({uri:'apple_music--a://track/wake',media_type:'track',title:'Wake up'});
+ const album=appleFavorite({uri:'apple_music--a://album/42',media_type:'album',title:'Album',alarm_song:true});
+ assert.equal(song.alarm_song,undefined);assert.equal(album.alarm_song,undefined);
+ let items=[album];const hass={user:{id:'child'},connection:{},async callWS(msg){if(msg.type==='frontend/get_user_data')return {value:items};items=msg.value;}};
+ await Promise.all([saveAlarmSong(hass,song,true),saveFavorite(hass,{...song,title:'Updated title'},true)]);
+ assert.equal(items.length,2);assert.equal(items[1].alarm_song,true);assert.equal(items[1].title,'Updated title');
+ await moveFavorite(hass,song.uri,'up');assert.equal(items[0].alarm_song,true);
+ assert.equal(normalizeFavorites(items)[0].alarm_song,true);
+ await saveAlarmSong(hass,song,false);assert.equal(items.length,2);assert.equal(items[0].alarm_song,undefined);
+ await assert.rejects(saveAlarmSong(hass,album,true));
+});

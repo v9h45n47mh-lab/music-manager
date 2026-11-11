@@ -427,17 +427,17 @@ test('mixed favorites can be reordered and removed without Radio Browser and fai
  env.failFavorites=false;const checkbox=[...a.shadowRoot.querySelectorAll('[data-managed-favorite-id]')].find(el=>el.dataset.managedFavoriteId===album.uri);checkbox.checked=false;checkbox.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();
  assert.deepEqual(env.favoriteData.get('manuel').map(f=>f.title),['Eins','Zwei']);assert.equal(b._favorites.length,2);assert(!env.wsCalls.some(m=>m.type==='media_source/browse_media'));a.remove();b.remove();
 });
-test('Apple tracks have no favorite star and failed album writes leave existing shortcuts unchanged',async()=>{
+test('Apple tracks can be marked as alarm songs while failed writes preserve favorites',async()=>{
  const env=setup(),card=env.add();await flush();
  env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{items:[{uri:'apple_music--a://'+msg.media_type+'/42',media_type:msg.media_type,title:'Titel'}]}:undefined;
  env.click(card,'open-apple');await flush();env.failFavorites=true;env.click(card,'apple-favorite');await flush();assert.match(card._appleDialog.textContent,/nicht gespeichert/);assert.equal(card._favorites.length,0);
- env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();assert.equal(card._appleDialog.querySelector('[data-action="apple-favorite"]'),null);card.remove();
+ env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();env.click(card,'apple-alarm-song');await flush();assert.equal(card._favorites[0].alarm_song,true);assert.equal(card._favorites[0].media_type,'track');assert.equal(card._appleDialog.querySelector('[data-action="apple-alarm-song"]').getAttribute('aria-pressed'),'true');env.click(card,'apple-alarm-song');await flush();assert.equal(card._favorites[0].alarm_song,undefined);assert.equal(card._favorites.length,1);card.remove();
 });
 
 
 test('alarm row loads its configured owner, persists an exact favorite and keeps the previous choice after save errors',async()=>{
  const env=setup(), row=env.document.createElement('music-manager-alarm-row');
- const favorite={uri:'apple_music--a://playlist/wake',title:'Aufwachen',media_type:'playlist'};
+ const favorite={uri:'apple_music--a://track/wake',title:'Aufwachen',media_type:'track'};
  let selected=null,fail=false;
  env.wsHook=msg=>{if(msg.type==='music_manager/alarm'){
   if(msg.action==='select'){if(fail)throw new Error('Speichern fehlgeschlagen');selected=msg.uri?favorite:null;}
@@ -464,7 +464,7 @@ test('alarm row retains an unstarred saved favorite and handles missing assignme
  const env=setup(),row=env.document.createElement('music-manager-alarm-row');
  env.wsHook=msg=>msg.type==='music_manager/alarm'?{owner:'Maximilian',source:'Sonos',selection:{uri:'apple_music--a://album/42',title:'Gespeichertes Album'},favorites:[],in_favorites:false}:undefined;
  row.setConfig({alarm_id:'school_alarm'});env.document.body.append(row);row.hass=env.makeHass();await flush();env.click(row,'alarm-open');await flush();
- assert.match(row._dialog.textContent,/Auswahl bleibt/);assert(row._dialog.querySelector('[data-ui-option][disabled]'));row._dialog.close();
+ assert.match(row._dialog.textContent,/Weckmusik bleibt gespeichert/);assert.equal(row._dialog.querySelectorAll('[data-ui-option]').length,0);assert.match(row._dialog.textContent,/Gespeichertes Album/);row._dialog.close();
  env.wsHook=()=>{throw new Error('Wecker unter Konfigurieren zuordnen.');};await row._load(true);assert.match(row.shadowRoot.querySelector('#alarm-row').textContent,/zuordnen/);
  assert(env.wsCalls.every(m=>m.type==='music_manager/alarm'&&m.action==='get'));row.remove();
 });

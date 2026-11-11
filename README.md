@@ -1,4 +1,4 @@
-# Music Manager 1.7.1
+# Music Manager 1.8.0
 
 ![Music Manager](brand/icon.png)
 
@@ -57,11 +57,12 @@ Für einen weiteren Raum kannst du eine zweite Karte mit einer anderen Sonos-Ent
 
 ## Persönliche Favoriten und Reihenfolge
 
-Sender, Apple-Music-Alben und Apple-Music-Playlists erscheinen gemeinsam als Kurzwahl unter den Bedienelementen. Die Liste und ihre Reihenfolge gehören dem angemeldeten HA-Benutzer und gelten für alle seine Boxen und Karten. Bereits gespeicherte Senderfavoriten bleiben einschließlich ihrer bisherigen Reihenfolge erhalten.
+Sender, einzelne Apple-Music-Titel, Apple-Music-Alben und Apple-Music-Playlists erscheinen gemeinsam als Kurzwahl unter den Bedienelementen. Die Liste und ihre Reihenfolge gehören dem angemeldeten HA-Benutzer und gelten für alle seine Boxen und Karten. Bereits gespeicherte Senderfavoriten bleiben einschließlich ihrer bisherigen Reihenfolge erhalten.
 
-- **Hinzufügen oder entfernen:** Im Radio Browser sowie bei Alben und Playlists im Apple-Music-Dialog den Stern betätigen. Einzelne Apple-Music-Titel sind nicht Teil dieser Favoritenfunktion.
+- **Hinzufügen oder entfernen:** Im Radio Browser sowie bei Titeln, Alben und Playlists im Apple-Music-Dialog den Stern betätigen.
+- **Wecklied markieren:** Bei einem einzelnen Apple-Music-Titel das Weckersymbol betätigen. Der Titel wird bei Bedarf als Favorit hinzugefügt und ausdrücklich als **Wecklied** markiert. Die Markierung lässt sich auch in der Favoritenverwaltung setzen und entfernen. Das Entfernen der Markierung behält den normalen Favoriten. Ein Stern allein macht einen Titel noch nicht zum Wecklied. Alben, Playlists und Radiosender können nicht als Wecklied markiert werden.
 - **Sortieren:** Unter der Kurzwahl **Favoriten** öffnen. Alternativ ist **Favoriten verwalten** in beiden Auswahldialogen verfügbar. Mit **↑ / ↓** wird der jeweilige Eintrag um einen Platz verschoben. Die neue Reihenfolge wird direkt gespeichert und auf den anderen Karten übernommen. Die Pfeile sind auch auf dem Handy sichtbar und per Tastatur bedienbar.
-- **Entfernen:** In derselben Verwaltung das Häkchen beim betreffenden Sender, Album oder der Playlist entfernen.
+- **Entfernen:** In derselben Verwaltung das Häkchen beim betreffenden Sender, Titel, Album oder der Playlist entfernen.
 - **Abspielen:** Ein Klick auf eine Kachel startet den Favoriten auf der Sonos-Box dieser Karte. Apple-Music-Favoriten werden beim Start erneut gegen die persönliche Kontozuordnung geprüft. Für ein nicht mehr verfügbares oder anders zugeordnetes Konto erscheint ein Fehler; der Connector startet kein Ersatzkonto.
 
 Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls das Apple-Music-Logo. Die allgemeine Apple-Music-Kachel öffnet weiterhin die Mediathek und bleibt hinter den persönlichen Favoriten stehen. Fehler beim Speichern oder Sortieren verändern die bestehende Liste nicht. Parallel gestartete Änderungen mehrerer Karten derselben HA-Verbindung werden nacheinander mit dem jeweils aktuellen Stand gespeichert.
@@ -82,7 +83,7 @@ Beispiel: `kind_1_wecker` mit Benutzer 1 und dessen Sonos-Box sowie `kind_2_weck
 
 Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm-row` und die Aktion `music_manager.play_alarm`. Die Auswahl wird serverseitig im HA-Benutzerspeicher gesichert; die Automation funktioniert auch bei geschlossenem Dashboard und nach einem HA-Neustart.
 
-1. In Music Manager die Apple-Music-Zuordnung des Wecker-Benutzers einrichten und gewünschte **Alben oder Playlists favorisieren**.
+1. In Music Manager die Apple-Music-Zuordnung des Wecker-Benutzers einrichten und einen gewünschten **einzelnen Titel über das Weckersymbol als Wecklied markieren**.
 2. Als Administrator unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren → Wecker hinzufügen** die Kennung `school_alarm`, den HA-Benutzer **Wecker-Benutzer** und **seine Sonos-Box** auswählen. Bei mehreren Weckern muss jede Kennung eindeutig sein. Die Zuordnung kann später über das Stiftsymbol bearbeitet werden; die Kennung bleibt dabei erhalten.
 3. Die passende Entities-Zeile in die vorhandene Weckerkarte einfügen:
 
@@ -92,7 +93,7 @@ Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm
   name: Weckmusik
 ```
 
-4. Unter **Weckmusik → Auswählen** ein Album oder eine Playlist aus den persönlichen Favoriten des Wecker-Benutzers wählen. Ein Administrator darf dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
+4. Unter **Weckmusik → Auswählen** ein ausdrücklich markiertes Wecklied aus den persönlichen Favoriten des Wecker-Benutzers wählen. Ein Administrator darf dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
 5. Im bestehenden Sonos-Zweig der Weckerautomation den bisherigen Start durch folgende Aktion ersetzen:
 
 ```yaml
@@ -103,7 +104,7 @@ Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm
 
 Neutrale Einfügebeispiele stehen unter [`examples/alarm_row.yaml`](examples/alarm_row.yaml) und [`examples/alarm_action.yaml`](examples/alarm_action.yaml). Füge die Auswahl nur in den Abschnitt ein, dessen Automation tatsächlich Musik startet. Licht-, Rollladen-, Kalender- und Stop-Aktionen bleiben in der vorhandenen Automation. Die Beispiele enthalten keine persönlichen Entitätsnamen oder vollständigen privaten Automationen.
 
-**Letzte Sonos-Wiedergabe** setzt wie der bisherige Wecker die letzte Wiedergabe auf der zugeordneten Sonos-Box fort. Das ist der Standard, solange kein Favorit ausgewählt wurde; diese Option kann auch später bewusst wieder gewählt werden. Ein ausgewähltes Album oder eine Playlist bleibt als Weckmusik gespeichert, wenn es anschließend aus den Favoriten entfernt wird. Die Auswahl kann jederzeit geändert werden.
+In der Auswahlliste stehen ausschließlich ausdrücklich markierte **einzelne Wecklieder** des zugeordneten Benutzers. Normale Favoriten, Alben und Playlists werden dort nicht angeboten. Die bisherige Auswahl wird separat angezeigt; **Auswahl zurücksetzen** entfernt sie. Ohne Auswahl wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt. Bereits gespeicherte Weckmusik bleibt bis zum ausdrücklichen Austausch erhalten, auch ältere Album-/Playlist-Auswahlen oder später entfernte Wecklied-Markierungen. Beim Öffnen wird daraus kein zusätzlicher Listeneintrag erzeugt. So wird ein bestehender Wecker durch das Update oder das Entfernen einer Markierung nicht stillschweigend abgeschaltet.
 
 Der Hintergrundstart akzeptiert ausschließlich die vorher vom Administrator konfigurierte **Weckerkennung**, keine frei übergebenen Benutzer-, Konto- oder Lautsprecherkennungen. Er prüft vor Apple-Music-Wiedergabe erneut den aktiven HA-Besitzer, seine HA- und MA-Boxfreigaben, das persönliche MA-Konto und den exakten Apple-Music-Anbieter. Bei gelöschten Konten, geänderten Zuordnungen oder nicht erreichbarer Box erscheint ein Fehler in der Automation; eine fehlgeschlagene Apple-Music-Wiedergabe wechselt nicht automatisch zu einer anderen Quelle.
 

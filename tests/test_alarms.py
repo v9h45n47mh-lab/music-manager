@@ -41,7 +41,7 @@ class AlarmTests(IsolatedAsyncioTestCase):
         hass.services = NS(async_call=AsyncMock(), async_register=Mock())
         entry = hass.data['music_manager']['entry']
         entry.options['alarms'] = [{'alarm_id': 'school_alarm', 'ha_user_id': 'ha-a', 'source_entity': 'media_player.sonos'}]
-        favorite = {'kind': 'apple_music', 'uri': 'apple_music--a://playlist/pl.wake', 'media_type': 'playlist', 'title': 'Aufwachen'}
+        favorite = {'kind': 'apple_music', 'uri': 'apple_music--a://track/wake', 'media_type': 'track', 'title': 'Aufwachen', 'alarm_song': True}
         store = NS(data={'music_manager_favorites': [favorite]})
         async def save(key, value):
             store.data[key] = value
@@ -64,11 +64,11 @@ class AlarmTests(IsolatedAsyncioTestCase):
             await self.alarms.play_alarm(hass, call)
         hass.services.async_call.assert_not_awaited()
 
-    async def test_selection_uses_owners_exact_album_playlist_favorites_and_preserves_other_alarms(self):
+    async def test_selection_uses_owners_marked_songs_and_preserves_other_alarms(self):
         hass, owner, _, _, store, favorite, _, _, _ = self.setup_alarm()
         store.data[self.alarms.SELECTION_KEY] = {'other_alarm': {'title': 'Andere Auswahl'}}
         store.data[self.alarms.FAVORITES_KEY] += [dict(favorite), dict(favorite, uri='apple_music--b://playlist/secret'),
-            dict(favorite, uri='apple_music--a://track/42', media_type='track'), {'media_content_id': 'media-source://radio_browser/swr3'}]
+            dict(favorite, uri='apple_music--a://track/42', media_type='track', alarm_song=False), {'media_content_id': 'media-source://radio_browser/swr3'}]
         result = await self.alarms.alarm_data(hass, owner, 'school_alarm', favorite['uri'])
         self.assertEqual(len(result['favorites']), 1)
         self.assertEqual(result['selection']['uri'], favorite['uri'])
@@ -89,13 +89,13 @@ class AlarmTests(IsolatedAsyncioTestCase):
         entry.options['alarms'] += [
             {'alarm_id': 'second_alarm', 'ha_user_id': other.id, 'source_entity': 'media_player.other_sonos'},
             {'alarm_id': 'weekend_alarm', 'ha_user_id': owner.id, 'source_entity': 'media_player.sonos'}]
-        second_favorite = dict(first_favorite, uri='apple_music--b://playlist/second', title='Second playlist')
+        second_favorite = dict(first_favorite, uri='apple_music--b://track/second', title='Second song')
         second_store = NS(data={self.alarms.FAVORITES_KEY: [second_favorite]})
         async def save(key, value):
             second_store.data[key] = value
         second_store.async_set_item = AsyncMock(side_effect=save)
         hass.user_stores[other.id] = second_store
-        weekend = dict(first_favorite, uri='apple_music--a://album/weekend', media_type='album', title='Weekend album')
+        weekend = dict(first_favorite, uri='apple_music--a://track/weekend', media_type='track', title='Weekend song')
         first_store.data[self.alarms.FAVORITES_KEY].append(weekend)
         hass.mass.auth.get_user.side_effect = lambda uid: NS(enabled=True, role='user', provider_filter=['apple_music--a' if uid=='ma-a' else 'apple_music--b'])
         hass.mass.players[second_uid] = NS(available=True)
@@ -116,6 +116,39 @@ class AlarmTests(IsolatedAsyncioTestCase):
             hass.mass.player_queues.play_media.assert_awaited_with(queue_id=uid, media=favorite['uri'], option='replace', user=ma_user)
         self.assertEqual(hass.mass.player_queues.play_media.await_count, 3)
         hass.services.async_call.assert_not_awaited()
+
+    async def test_picker_only_accepts_explicitly_marked_single_songs_from_the_owners_account(self):
+        hass, owner, _, _, store, favorite, _, _, _ = self.setup_alarm()
+        excluded = [dict(favorite, uri='apple_music--a://track/normal', alarm_song=False),
+                    dict(favorite, uri='apple_music--a://track/no_flag'),
+                    dict(favorite, uri='apple_music--a://album/album', media_type='album'),
+                    dict(favorite, uri='apple_music--a://playlist/list', media_type='playlist'),
+                    dict(favorite, uri='apple_music--b://track/foreign'),
+                    dict(favorite, uri='apple_music--a://track/not_boolean', alarm_song=1)]
+        excluded[1].pop('alarm_song')
+        store.data[self.alarms.FAVORITES_KEY] += excluded + [dict(favorite)]
+        result = await self.alarms.alarm_data(hass, owner, 'school_alarm')
+        self.assertEqual([f['uri'] for f in result['favorites']], [favorite['uri']])
+        for item in excluded:
+            with self.assertRaises(self.alarms.AccessError):
+                await self.alarms.alarm_data(hass, owner, 'school_alarm', item['uri'])
+        store.async_set_item.assert_not_awaited()
+
+    async def test_legacy_saved_music_continues_but_can_no_longer_be_selected_from_the_list(self):
+        hass, owner, _, _, store, favorite, call, _, _ = self.setup_alarm()
+        for media_type in ('album', 'playlist'):
+            legacy = {'uri': f'apple_music--a://{media_type}/old', 'media_type': media_type, 'title': 'Old choice'}
+            store.data[self.alarms.SELECTION_KEY] = {'school_alarm': legacy}
+            store.data[self.alarms.FAVORITES_KEY] = [{'kind': 'apple_music', **legacy}, favorite]
+            result = await self.alarms.alarm_data(hass, owner, 'school_alarm')
+            self.assertEqual(result['selection'], legacy)
+            self.assertTrue(result['selection_compatible'])
+            self.assertFalse(result['in_favorites'])
+            self.assertEqual([f['uri'] for f in result['favorites']], [favorite['uri']])
+            with self.assertRaises(self.alarms.AccessError):
+                await self.alarms.alarm_data(hass, owner, 'school_alarm', legacy['uri'])
+            await self.alarms.play_alarm(hass, call)
+            hass.mass.player_queues.play_media.assert_awaited_with(queue_id='RINCON_AABBCCDDEEFF01400', media=legacy['uri'], option='replace', user='ma-a')
 
     async def test_saved_music_starts_without_browser_and_survives_unstarring(self):
         hass, owner, _, _, store, favorite, call, _, _ = self.setup_alarm()

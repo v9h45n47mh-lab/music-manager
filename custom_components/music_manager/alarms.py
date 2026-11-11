@@ -55,7 +55,7 @@ def checked_source(hass, alarm, owner):
     return source
 
 
-def favorite_item(item, provider_id):
+def music_item(item, provider_id):
     if not isinstance(item, dict) or item.get("kind") != "apple_music":
         return None
     uri, kind = item.get("uri"), item.get("media_type")
@@ -63,12 +63,19 @@ def favorite_item(item, provider_id):
         validate_uri(uri, provider_id)
     except (AccessError, TypeError):
         return None
-    if kind not in ("album", "playlist") or not uri.startswith(f"{provider_id}://{kind}/"):
+    if kind not in ("track", "album", "playlist") or not uri.startswith(f"{provider_id}://{kind}/"):
         return None
     title = item.get("title")
     if not isinstance(title, str) or not title.strip():
         return None
     return {"uri": uri, "media_type": kind, "title": title[:500]}
+
+
+def favorite_item(item, provider_id):
+    """Only explicitly marked single songs belong in the alarm picker."""
+    if not isinstance(item, dict) or item.get("media_type") != "track" or item.get("alarm_song") is not True:
+        return None
+    return music_item(item, provider_id)
 
 
 def favorites_from(store, provider_id):
@@ -121,7 +128,7 @@ async def alarm_data(hass, caller, alarm_id, uri=None):
         async with locks.setdefault(owner.id, asyncio.Lock()):
             item = next((f for f in favorites_from(store, account["provider_id"]) if f["uri"] == uri), None)
             if uri and not item:
-                raise AccessError("invalid_favorite", "Wähle ein Album oder eine Playlist aus den persönlichen Apple-Music-Favoriten.")
+                raise AccessError("invalid_favorite", "Wähle einen einzelnen Titel, der in deinen persönlichen Favoriten als Wecklied markiert ist.")
             if item:
                 await apple_target(hass, entry, alarm, owner)
             saved = store.data.get(SELECTION_KEY, {})
@@ -137,7 +144,7 @@ async def alarm_data(hass, caller, alarm_id, uri=None):
             "source": hass.states.get(source.entity_id).attributes.get("friendly_name", source.entity_id)
             if hass.states.get(source.entity_id) else source.entity_id,
             "selection": selection, "favorites": favorites,
-            "selection_compatible": not selection or favorite_item({"kind": "apple_music", **selection}, account["provider_id"]) is not None,
+            "selection_compatible": not selection or music_item({"kind": "apple_music", **selection}, account["provider_id"]) is not None,
             "in_favorites": not selection or any(f["uri"] == selection.get("uri") for f in favorites)}
 
 
@@ -178,7 +185,9 @@ async def play_alarm(hass, call):
                 return
             mass, account, target = await apple_target(hass, entry, alarm, owner)
             uri = validate_uri(selected.get("uri"), account["provider_id"])
-            if selected.get("media_type") not in ("album", "playlist") or not uri.startswith(f"{account['provider_id']}://{selected['media_type']}/"):
+            # Previously saved albums/playlists continue until explicitly
+            # replaced; new selections can only come from marked single songs.
+            if selected.get("media_type") not in ("track", "album", "playlist") or not uri.startswith(f"{account['provider_id']}://{selected['media_type']}/"):
                 raise AccessError("invalid_favorite", "Die gespeicherte Weckmusik ist ungültig. Bitte neu auswählen.")
             player = mass.players.get(target.unique_id)
             if not player or not value(player, "available", False):

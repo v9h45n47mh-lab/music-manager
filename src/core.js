@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.7.1';
+export const MUSIC_VERSION = '1.8.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -117,10 +117,11 @@ export function normalizeFavorites(value) {
   return result;
 }
 export function appleFavorite(item) {
-  const uri=item?.uri,match=typeof uri==='string'&&uri.match(/^apple_music--[a-zA-Z0-9._-]{1,128}:\/\/(album|playlist)\/[a-zA-Z0-9._-]{1,256}$/);
+  const uri=item?.uri,match=typeof uri==='string'&&uri.match(/^apple_music--[a-zA-Z0-9._-]{1,128}:\/\/(track|album|playlist)\/[a-zA-Z0-9._-]{1,256}$/);
   if(!match||item.media_type!==match[1]||typeof item.title!=='string'||!item.title.trim())return null;
   return {kind:'apple_music',uri,media_type:match[1],media_content_id:uri,media_content_type:match[1],
-    title:item.title,description:String(item.description||''),thumbnail:stationLogo(item.thumbnail),can_play:true,can_expand:false};
+    title:item.title,description:String(item.description||''),thumbnail:stationLogo(item.thumbnail),can_play:true,can_expand:false,
+    ...(match[1]==='track'&&item.alarm_song===true?{alarm_song:true}:{})};
 }
 const favoriteQueues = new WeakMap();
 async function updateFavorites(hass, update) {
@@ -147,7 +148,19 @@ export async function saveFavorite(hass, favorite, enabled) {
   return updateFavorites(hass,favorites=>{
     const index=favorites.findIndex(s=>s.media_content_id===item.media_content_id);
     const next=favorites.filter(s=>s.media_content_id!==item.media_content_id);
-    if(enabled)next.splice(index<0?next.length:index,0,item);
+    if(enabled)next.splice(index<0?next.length:index,0,{...favorites[index],...item});
+    return next;
+  });
+}
+export async function saveAlarmSong(hass,favorite,enabled) {
+  const item=appleFavorite(favorite);
+  if(item?.media_type!=='track')throw new Error('Nur einzelne Apple-Music-Titel können Wecklieder sein.');
+  return updateFavorites(hass,favorites=>{
+    const index=favorites.findIndex(f=>f.media_content_id===item.media_content_id);
+    if(index<0&&!enabled)return favorites;
+    const next=[...favorites],record={...(index<0?item:favorites[index])};
+    if(enabled)record.alarm_song=true;else delete record.alarm_song;
+    if(index<0)next.push(record);else next[index]=record;
     return next;
   });
 }
