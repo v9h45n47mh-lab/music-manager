@@ -1,4 +1,4 @@
-# Music Manager 1.3.2
+# Music Manager 1.4.0
 
 ![Music Manager](brand/icon.png)
 
@@ -58,6 +58,12 @@ Für einen weiteren Raum kannst du eine zweite Karte mit einer anderen Sonos-Ent
 ## Apple Music
 
 Die **Apple-Music-Kachel mit Logo** steht direkt unter den Bedienelementen bei den Senderfavoriten. Sie öffnet deine persönlichen **Playlists, Alben und Titel** sowie die **Apple-Music-Suche**. „Abspielen“ startet den Titel, das Album oder die Playlist auf der Sonos-Box dieser Karte. Weitere Mediathekeinträge lassen sich mit „Mehr laden“ abrufen. Für Apple Music werden die Wiedergabetasten an die zugehörige Music-Assistant-Warteschlange weitergegeben. Radiosender starten weiterhin über die native Sonos-Integration.
+
+Während Apple Music läuft, zeigt die Karte zusätzlich **Shuffle** und eine **Zeitleiste mit verstrichener Zeit und Gesamtdauer**. Die Zeitleiste lässt sich vorwärts und rückwärts ziehen; der Spulbefehl wird erst beim Loslassen gesendet. Während des Ziehens bleiben Position und Zeitangabe stabil. Bei einem Titel- oder Boxwechsel wird eine begonnene Eingabe verworfen. Die Position läuft während der Wiedergabe weiter und bleibt bei Pause stehen. Ohne bekannte Dauer wird keine Zeitleiste angezeigt.
+
+**Weiter** startet einen bereits bekannten nächsten Titel der eigenen aktiven MA-Warteschlange direkt und vermeidet dadurch deren zusätzliche Ein-Sekunden-Verzögerung. Die vorhandene Shuffle-Reihenfolge bleibt erhalten. Bei Gruppen, unbekanntem nächsten Eintrag oder Wiederholung des aktuellen Titels wird der normale MA-Befehl verwendet. Ein ausstehender Wechsel zeigt „Nächster Titel wird geladen …“ und wird nicht doppelt gesendet. Die eigentliche Ladezeit des Apple-Music-Streams bleibt von MA und Apple abhängig; MA dokumentiert mögliche Pausen bis etwa fünf Sekunden.
+
+Beim Wechsel zurück zu einem Radiosender übernimmt die Karte sofort wieder den nativen Sonos-Player und zeigt den gewählten Sender. Verspätete MA-Meldungen mit dem letzten Apple-Music-Titel ändern die Radioanzeige nicht. Shuffle und Zeitleiste verschwinden bei Radio; schlägt der Wechsel fehl, bleibt die vorherige Wiedergabe erhalten.
 
 Apple Music benötigt einen aktiven Zugang und **Music Assistant mit Apple-Music-Anbieter, Benutzerverwaltung und Musikquellenfiltern**. Die normale HA-Sonos-Integration allein stellt keinen persönlichen Apple-Music-Katalog bereit. Die Apple-Anmeldung erfolgt ausschließlich in Music Assistant; in der Karte oder in Music Manager werden keine Apple-Passwörter, Cookies oder Tokens eingetragen.
 

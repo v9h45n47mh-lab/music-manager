@@ -9,7 +9,7 @@ try {({parseHTML}=require('linkedom'));}catch(error){if(!process.env.MUSIC_TEST_
 const bundle=await readFile(new URL('../dist/music-manager-card.js',import.meta.url),'utf8');
 const ROOT='media-source://radio_browser';
 const station=(id,title='SWR3')=>({media_content_id:ROOT+'/'+id,media_content_type:'audio/mpeg',title,can_play:true});
-const features=1|4|8|16|32|512|4096|16384;
+const features=1|2|4|8|16|32|512|4096|16384|32768;
 const flush=async()=>{for(let i=0;i<12;i++)await new Promise(resolve=>setImmediate(resolve));};
 function setup() {
  const {window}=parseHTML('<!doctype html><html><body></body></html>');
@@ -221,17 +221,17 @@ test('Apple Music automatically resolves every card box without a manual MA enti
  for(const [card,source,target] of [[a,'media_player.a','media_player.ma_a'],[b,'media_player.b','media_player.ma_b']]){
   env.click(card,'open-apple');await flush();assert.equal(card._appleItems.length,1);assert.equal(card._appleEntity,target);
   env.click(card,'apple-play');await flush();assert.equal(env.wsCalls.at(-1).source_entity,source);assert.equal(env.wsCalls.at(-1).entity_id,undefined);
-  env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,target);
+  env.click(card,'next');await flush();assert.equal(env.wsCalls.at(-1).action,'next');assert.equal(env.wsCalls.at(-1).source_entity,source);
  }
  a.setConfig({entity:'media_player.b'});assert.equal(a._appleEntity,'');assert.equal(a._controlEntity,'media_player.b');
  env.switchUser('maximilian');assert.equal(b._appleEntity,'');assert.equal(b._appleAccount,'');
 });
 test('automatic MA queue controls are restored without opening the Apple Music picker',async()=>{
  const env=setup();
- env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:undefined;
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?(msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{skipped:true}):undefined;
  env.update('media_player.ma_a',{attributes:{active_queue:'queue-a'}});
  const card=env.add();await flush();assert.equal(card._controlEntity,'media_player.ma_a');assert(!card._appleDialog.open);
- env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
+ env.click(card,'next');await flush();assert.equal(env.wsCalls.at(-1).action,'next');assert.equal(env.wsCalls.at(-1).source_entity,'media_player.a');
  const before=env.wsCalls.filter(m=>m.type==='music_manager/apple_music').length;
  env.update('media_player.a',{attributes:{media_title:'Neuer Titel'}});await flush();
  assert.equal(env.wsCalls.filter(m=>m.type==='music_manager/apple_music').length,before);
@@ -243,7 +243,7 @@ test('Apple Music catalog and library use the authenticated gateway and selected
  card._appleQuery.value='Mein Titel';env.click(card,'apple-search');await flush();
  const search=env.wsCalls.at(-1);assert.equal(search.action,'search');assert.equal(search.query,'Mein Titel');assert.equal(search.entity_id,'media_player.ma_a');assert.equal(search.source_entity,'media_player.a');assert.equal(search.user_id,undefined);assert.equal(search.provider_id,undefined);
  env.click(card,'apple-play');await flush();assert.equal(env.wsCalls.at(-1).action,'play');assert.equal(env.wsCalls.at(-1).uri,'apple_music--a://track/42');assert.equal(card._appleDialog.open,false);
- env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
+ env.click(card,'next');await flush();assert.equal(env.wsCalls.at(-1).action,'next');assert.equal(env.wsCalls.at(-1).source_entity,'media_player.a');
  await card._playStation(station('swr3'));assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');assert.equal(card._applePreferred,false);
 });
 test('Apple Music user changes and box changes discard pending private catalog results',async()=>{
@@ -269,4 +269,60 @@ test('Apple Music library pagination preserves items and editor offers only the 
  assert.deepEqual([...editor.shadowRoot.querySelectorAll('#music-ma-entity-options [data-ui-option]')].map(o=>o.dataset.value),['','media_player.ma_a']);
  const events=[];editor.addEventListener('config-changed',e=>{events.push(e.detail.config);editor.setConfig(e.detail.config);});editor.shadowRoot.querySelector('#music-ma-entity-options [data-value="media_player.ma_a"]').click();await flush();assert.equal(events.at(-1).music_assistant_entity,'media_player.ma_a');
  editor.shadowRoot.querySelector('#music-entity-options [data-value="media_player.b"]').click();await flush();assert.equal(events.at(-1).music_assistant_entity,'');
+});
+
+test('radio selection immediately replaces stale MA and Sonos track metadata and control target',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.a',{attributes:{media_title:'Alter Apple-Titel',media_artist:'Alter Interpret',media_channel:'Alter Apple-Kanal'}});
+ env.update('media_player.ma_a',{attributes:{active_queue:'old-queue',media_title:'Alter Apple-Titel',media_duration:240,media_position:20}});
+ assert.equal(card._controlEntity,'media_player.ma_a');
+ await card._playStation(station('swr3'));assert.equal(card._controlEntity,'media_player.a');
+ assert.match(card.shadowRoot.querySelector('#player').textContent,/SWR3/);assert(!card.shadowRoot.querySelector('#player').textContent.includes('Alter Apple-'));
+ env.update('media_player.ma_a',{attributes:{active_queue:'old-queue',media_title:'Später alter Apple-Titel'}});
+ assert.equal(card._controlEntity,'media_player.a');assert(!card.shadowRoot.querySelector('#player').textContent.includes('Apple-Titel'));
+ assert.equal(card.shadowRoot.querySelector('#music-seek'),null);assert.equal(card.shadowRoot.querySelector('[data-action="shuffle"]'),null);
+ env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');
+ env.update('media_player.a',{attributes:{media_title:'Neuer Radio-Titel',media_channel:'SWR3'}});
+ assert.match(card.shadowRoot.querySelector('#player').textContent,/Neuer Radio-Titel/);card.remove();
+});
+test('failed radio switch preserves Apple playback and a successful Apple start releases radio mode',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.ma_a',{attributes:{active_queue:'queue'}});
+ env.failService=true;await card._playStation(station('swr3'));assert.equal(card._controlEntity,'media_player.ma_a');
+ env.failService=false;await card._playStation(station('swr3'));assert.equal(card._controlEntity,'media_player.a');
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?{started:true}:undefined;
+ await card._playApple({uri:'apple_music--a://track/42'});assert.equal(card._controlEntity,'media_player.ma_a');assert.equal(card._selectedStation,null);card.remove();
+});
+test('Apple shuffle controls the selected MA player and reflects confirmed state and service errors',async()=>{
+ const env=setup(),card=env.add(),other=env.add('media_player.b');card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.ma_a',{attributes:{active_queue:'queue',shuffle:false}});
+ env.click(card,'shuffle');await flush();assert.equal(env.calls.at(-1).service,'shuffle_set');assert.equal(env.calls.at(-1).data.shuffle,true);assert.equal(env.calls.at(-1).data.entity_id,'media_player.ma_a');
+ env.update('media_player.ma_a',{attributes:{shuffle:true}});assert.equal(card.shadowRoot.querySelector('[data-action="shuffle"]').getAttribute('aria-pressed'),'true');
+ env.failService=true;env.click(card,'shuffle');await flush();assert.equal(env.calls.at(-1).data.shuffle,false);assert.match(card.shadowRoot.querySelector('#music-player-status').textContent,/Keine Berechtigung/);
+ assert.equal(other.shadowRoot.querySelector('[data-action="shuffle"]'),null);card.remove();other.remove();
+});
+test('Apple timeline preserves a drag, formats time, seeks once on release and restores failed positions',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.ma_a',{state:'paused',attributes:{active_queue:'queue',media_content_id:'track-a',media_duration:240,media_position:20}});
+ let slider=card.shadowRoot.querySelector('#music-seek');assert(slider);slider.value='125';slider.dispatchEvent(new env.window.Event('input',{bubbles:true}));await flush();assert.equal(env.calls.length,0);
+ assert.equal(slider.getAttribute('aria-valuetext'),'2:05 / 4:00');
+ env.update('media_player.ma_a',{attributes:{media_position:33}});assert.equal(card.shadowRoot.querySelector('#music-seek'),slider);assert.equal(slider.value,'125');
+ slider.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(env.calls.length,1);assert.equal(env.calls[0].service,'media_seek');assert.equal(env.calls[0].data.seek_position,125);assert.equal(env.calls[0].data.entity_id,'media_player.ma_a');
+ env.failService=true;slider=card.shadowRoot.querySelector('#music-seek');slider.value='200';slider.dispatchEvent(new env.window.Event('input',{bubbles:true}));slider.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();
+ assert.equal(card.shadowRoot.querySelector('#music-seek').value,'33');assert.match(card.shadowRoot.querySelector('#music-player-status').textContent,/Keine Berechtigung/);card.remove();
+});
+test('a track or box change cancels an in-progress seek and live radio has no timeline',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.ma_a',{state:'paused',attributes:{active_queue:'queue',media_content_id:'a',media_duration:200,media_position:10}});
+ const slider=card.shadowRoot.querySelector('#music-seek');slider.value='100';slider.dispatchEvent(new env.window.Event('input',{bubbles:true}));
+ env.update('media_player.ma_a',{attributes:{media_content_id:'b',media_position:0}});slider.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();assert.equal(env.calls.length,0);
+ env.update('media_player.ma_a',{attributes:{media_duration:0}});assert.equal(card.shadowRoot.querySelector('#music-seek'),null);
+ card.setConfig({entity:'media_player.b'});assert.equal(card.shadowRoot.querySelector('#music-seek'),null);card.remove();
+});
+test('next-track feedback appears immediately and repeated clicks do not duplicate a pending skip',async()=>{
+ const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
+ env.update('media_player.ma_a',{attributes:{active_queue:'queue'}});let finish;
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='next'?new Promise(resolve=>{finish=()=>resolve({skipped:true});}):undefined;
+ env.click(card,'next');await flush();assert.match(card.shadowRoot.querySelector('#music-player-status').textContent,/Nächster Titel wird geladen/);
+ await card._action({action:'next'});assert.equal(env.wsCalls.filter(m=>m.action==='next').length,1);finish();await flush();assert.equal(card._busy,false);card.remove();
 });

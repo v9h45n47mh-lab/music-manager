@@ -47,3 +47,15 @@ test('favorite records keep only playable radio sources and safe logo URLs',asyn
  for(const url of ['javascript:alert(1)','data:image/svg+xml,evil','file:///etc/passwd','https://user:password@example.org'])assert.equal(stationLogo(url),'');
  assert.equal(stationLogo('/api/media_source_proxy/logo.png'),'/api/media_source_proxy/logo.png');
 });
+
+test('playback clock clamps positions and advances only playing items with a valid time anchor',async()=>{
+ const {playbackProgress,formatTime}=await import('../src/core.js');
+ const now=Date.parse('2026-11-11T08:00:10Z'),attrs={media_duration:240,media_position:20,media_position_updated_at:'2026-11-11T08:00:00Z'};
+ assert.deepEqual(playbackProgress({state:'playing',attributes:attrs},now),{duration:240,position:30});
+ assert.equal(playbackProgress({state:'paused',attributes:attrs},now).position,20);
+ assert.equal(playbackProgress({state:'playing',attributes:{...attrs,media_position:239}},now).position,240);
+ assert.equal(playbackProgress({state:'playing',attributes:{...attrs,media_position_updated_at:'invalid'}},now).position,20);
+ assert.equal(playbackProgress({state:'playing',attributes:{...attrs,media_position_updated_at:'2026-11-11T09:00:00Z'}},now).position,20);
+ for(const duration of [0,null,undefined,NaN,Infinity,'240'])assert.equal(playbackProgress({attributes:{media_duration:duration}}),null);
+ assert.equal(formatTime(125),'2:05');assert.equal(formatTime(3605),'1:00:05');assert.equal(formatTime(-2),'0:00');
+});

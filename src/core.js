@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
-export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
+export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.3.2';
+export const MUSIC_VERSION = '1.4.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -23,6 +23,23 @@ export function normalizeConfig(config) {
 export function hasFeature(state, name) { return Boolean((Number(state?.attributes?.supported_features) || 0) & FEATURES[name]); }
 export function isAvailable(state) { return Boolean(state && !['unknown','unavailable'].includes(state.state)); }
 export function volumePercent(value) { return Number.isFinite(value) ? Math.round(Math.max(0,Math.min(1,value))*100) : null; }
+export function formatTime(seconds) {
+  const n=Math.max(0,Math.floor(Number.isFinite(seconds)?seconds:0));
+  const mins=Math.floor(n/60),secs=String(n%60).padStart(2,'0');
+  return mins>=60?`${Math.floor(mins/60)}:${String(mins%60).padStart(2,'0')}:${secs}`:`${mins}:${secs}`;
+}
+export function playbackProgress(state,now=Date.now()) {
+  const a=state?.attributes||{},duration=a.media_duration;
+  if(!Number.isFinite(duration)||duration<=0)return null;
+  let position=Number.isFinite(a.media_position)?a.media_position:0;
+  const anchor=typeof a.media_position_updated_at==='string'?Date.parse(a.media_position_updated_at):NaN;
+  if(state.state==='playing'&&Number.isFinite(anchor))position+=Math.max(0,(now-anchor)/1000);
+  return {duration,position:Math.max(0,Math.min(duration,position))};
+}
+export function mediaIdentity(state) {
+  const a=state?.attributes||{};
+  return JSON.stringify([a.media_content_id||'',a.media_title||'',a.media_artist||'',a.media_duration??null]);
+}
 export function isRadioId(value) { return typeof value === 'string' && (value === RADIO_ROOT || value.startsWith(RADIO_ROOT + '/')); }
 export function normalizeMedia(items) {
   const seen = new Set();

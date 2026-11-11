@@ -6,7 +6,8 @@ import {
 import {
   MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
   isAvailable, volumePercent, normalizeMedia, isRadioId, stationPayload,
-  playbackAction, errorText, sonosOptions, musicAssistantOptions, FAVORITES_KEY, normalizeFavorites, stationLogo, saveFavorite
+  playbackAction, errorText, sonosOptions, musicAssistantOptions, FAVORITES_KEY, normalizeFavorites, stationLogo, saveFavorite,
+  formatTime, playbackProgress, mediaIdentity
 } from './core.js';
 
 // UI Kit components remain unchanged; the music controls have their own
@@ -22,6 +23,10 @@ const MUSIC_CSS = `
   .music-icon{width:20px;height:20px;fill:currentColor;vertical-align:middle}
   .music-volume{min-width:0}
   .music-volume ha-control-slider{display:block;width:100%}
+  .music-apple-playback{display:grid;gap:8px;min-width:0}
+  .music-shuffle{display:flex;justify-content:flex-end}
+  .music-shuffle button[aria-pressed="true"]{color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,transparent)}
+  .music-shuffle .music-icon{margin-inline-end:6px}
   .music-favorites:empty,#music-favorite-status:empty,#music-player-status:empty{display:none}
   .music-station-row [aria-pressed="false"] .music-icon{fill:none;stroke:currentColor;stroke-width:1.7}
   .music-favorites{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;min-width:0}
@@ -41,7 +46,8 @@ const MUSIC_ICONS = {
   previous:'M6 5h2v14H6zM18 5v14l-9-7z',next:'M16 5h2v14h-2zM6 5l9 7-9 7z',
   play:'M8 5v14l11-7z',pause:'M6 5h4v14H6zM14 5h4v14h-4z',stop:'M6 6h12v12H6z',
   star:'m12 2.5 2.9 5.9 6.5 1-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-1z',
-  radio:'M4 7h16v13H4zM6 3l13-2v2L6 5zM6 9v3h12V9zM7 14h5v4H7zM15 14h3v2h-3z'
+  radio:'M4 7h16v13H4zM6 3l13-2v2L6 5zM6 9v3h12V9zM7 14h5v4H7zM15 14h3v2h-3z',
+  shuffle:'m16 3 5 4-5 4V8h-2l-4 5-4 5H3v-2h2l4-5 4-5h3V3ZM3 6h3l3 4-1.3 1.6L5 8H3V6Zm9 7.4 2 2.6h2v-3l5 4-5 4v-3h-3l-2.3-3 1.3-1.6Z'
 };
 const musicIcon = name => `<svg class="music-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${MUSIC_ICONS[name]}"></path></svg>`;
 function musicButton({label,action,icon,disabled=false,data={},pressed}) {
@@ -92,6 +98,7 @@ class MusicManagerCard extends HTMLElement {
     const changed = this._config?.entity !== next.entity || this._config?.music_assistant_entity !== next.music_assistant_entity;
     this._config = next;
     if (changed) {
+      this._playbackSource=null;this._radioSnapshot=null;this._cancelSeek();
       this._epoch++;
       this._request++;
       this._busy = false;
@@ -112,7 +119,8 @@ class MusicManagerCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     this._ensureDOM();
-    if(userChanged){this._epoch++;this._busy=false;this._resetApple();}
+    if(userChanged){this._epoch++;this._busy=false;this._playbackSource=null;this._selectedStation=null;this._radioSnapshot=null;this._cancelSeek();this._resetApple();}
+    if(mediaIdentity(previous)!==mediaIdentity(this._state))this._cancelSeek();
     if(this._hass.states?.[this._musicAssistantEntity]?.attributes?.active_queue)this._applePreferred=false;
     this._connectFavorites();
     this._loadNativeVolume();
@@ -120,6 +128,7 @@ class MusicManagerCard extends HTMLElement {
     this._resolveApplePlayer();
   }
   get _controlEntity() {
+    if(this._playbackSource==='radio')return this._config?.entity;
     const entity=this._musicAssistantEntity, state=this._hass?.states?.[entity];
     return isAvailable(state) && (state.attributes?.active_queue || this._applePreferred) ? entity : this._config?.entity;
   }
@@ -128,6 +137,7 @@ class MusicManagerCard extends HTMLElement {
 
   connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
   disconnectedCallback() {
+    clearTimeout(this._progressTimer);this._cancelSeek();
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
     this._volumeInteracting=false;
@@ -270,7 +280,7 @@ class MusicManagerCard extends HTMLElement {
 
   _editingVolume() {
     const active=this.shadowRoot.activeElement;
-    return this._volumeInteracting || this._player?.querySelector('ha-control-slider')?.pressed || Boolean(active && this._player?.contains(active) &&
+    return this._volumeInteracting || this._seekInteracting || this._player?.querySelector('ha-control-slider')?.pressed || Boolean(active && this._player?.contains(active) &&
       (active.type==='range' || active.localName==='ha-control-slider'));
   }
 
@@ -328,6 +338,59 @@ class MusicManagerCard extends HTMLElement {
     });
   }
 
+  get _isApplePlayback() { return Boolean(this._musicAssistantEntity && this._controlEntity===this._musicAssistantEntity); }
+
+  _cancelSeek() {
+    this._seekInteracting=false;this._seekSnapshot=null;this._seekPending=null;
+    if(this.shadowRoot?.activeElement?.id==='music-seek')this.shadowRoot.activeElement.blur();
+  }
+
+  _updateProgress(position) {
+    const slider=this.shadowRoot.getElementById('music-seek');
+    const progress=this._isApplePlayback?playbackProgress(this._state):null;
+    if(!slider||!progress)return;
+    if(position===undefined&&this._seekInteracting)return;
+    const anchor=JSON.stringify([this._state.attributes.media_position,this._state.attributes.media_position_updated_at]);
+    if(this._seekPending){
+      if(this._seekPending.anchor!==anchor || Date.now()-this._seekPending.at>10000)this._seekPending=null;
+      else if(position===undefined)position=this._seekPending.position+(this._state.state==='playing'?(Date.now()-this._seekPending.at)/1000:0);
+    }
+    const current=Math.max(0,Math.min(progress.duration,position??progress.position));
+    slider.value=String(Math.round(current));
+    const text=formatTime(current)+' / '+formatTime(progress.duration);
+    slider.setAttribute('aria-valuetext',text);
+    const control=slider.closest('[data-ui-range]');
+    control.querySelector('output').textContent=text;
+    slider.style.setProperty('--range-percent',String(current/progress.duration*100)+'%');
+  }
+
+  _scheduleProgress() {
+    clearTimeout(this._progressTimer);
+    if(!this.isConnected||!this._isApplePlayback||this._state?.state!=='playing'||!playbackProgress(this._state))return;
+    this._progressTimer=setTimeout(()=>{this._updateProgress();this._scheduleProgress();},1000);
+  }
+
+  async _seek(value,phase) {
+    if(!this._isApplePlayback||!hasFeature(this._state,'seek')||!Number.isFinite(value))return;
+    const progress=playbackProgress(this._state);
+    if(!progress||this._busy)return;
+    const current={entity:this._controlEntity,track:mediaIdentity(this._state),epoch:this._epoch};
+    this._seekSnapshot ||= current;
+    if(phase==='input'){this._seekInteracting=true;this._updateProgress(value);return;}
+    if(phase!=='change')return;
+    const captured=this._seekSnapshot;
+    this._seekSnapshot=null;this._seekInteracting=false;
+    if(Object.keys(current).some(key=>current[key]!==captured[key]))return;
+    const position=Math.round(Math.max(0,Math.min(progress.duration,value)));
+    this._seekPending={position,at:Date.now(),anchor:JSON.stringify([this._state.attributes.media_position,this._state.attributes.media_position_updated_at])};
+    const ok=await this._service('media_seek',{seek_position:position},undefined,current.entity);
+    if(this._epoch!==current.epoch||mediaIdentity(this._state)!==current.track)return;
+    if(!ok)this._seekPending=null;
+    this._updateProgress(ok?position:undefined);
+    const status=this.shadowRoot.getElementById('music-player-status');
+    if(status)status.innerHTML=this._error?notice(this._error,{error:true}):'';
+  }
+
   _renderPlayer() {
     if (!this._player || !this._config) return;
     // HA state updates must not replace an input while the user drags it.
@@ -341,8 +404,11 @@ class MusicManagerCard extends HTMLElement {
     const playing=['playing','buffering'].includes(state?.state);
     const playbackLabel=playing ? (action==='media_stop'?'Stop':'Pause') : 'Play';
     const stateLabel={playing:'Wiedergabe',paused:'Pausiert',idle:'Bereit',off:'Aus',buffering:'Wird geladen',unavailable:'Nicht erreichbar',unknown:'Status unbekannt'}[state?.state] || 'Nicht gefunden';
-    const title=attrs.media_title || attrs.media_channel || 'Keine Wiedergabe';
-    const detail=[attrs.media_artist || attrs.media_album_name, attrs.media_channel && attrs.media_channel!==title ? attrs.media_channel : '', stateLabel].filter(Boolean).join(' · ');
+    const radio=this._playbackSource==='radio' && this._selectedStation;
+    const radioFresh=!this._radioSnapshot || mediaIdentity(state)!==this._radioSnapshot;
+    const title=radio?((radioFresh&&attrs.media_channel) || this._selectedStation.title):(attrs.media_title || attrs.media_channel || 'Keine Wiedergabe');
+    const detail=radio?['Radio',radioFresh&&attrs.media_title!==title?attrs.media_title:'',stateLabel].filter(Boolean).join(' · '):[attrs.media_artist || attrs.media_album_name, attrs.media_channel && attrs.media_channel!==title ? attrs.media_channel : '', stateLabel].filter(Boolean).join(' · ');
+    const apple=this._isApplePlayback,progress=apple?playbackProgress(state):null;
     const transport=[];
     if (controls.previous) transport.push(musicButton({label:'Zurück',icon:'previous',action:'previous',disabled:disabled||!hasFeature(state,'previous')}));
     if (controls.play_pause) transport.push(musicButton({label:playbackLabel,icon:playing?(action==='media_stop'?'stop':'pause'):'play',action:'play-pause',disabled:disabled||!action}));
@@ -355,18 +421,28 @@ class MusicManagerCard extends HTMLElement {
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
       <div class="music-controls">
         ${transport.length ? `<div class="music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}
+        ${apple?`<div class="music-apple-playback">
+          ${progress?rangeControl({id:'music-seek',label:'Titelposition',value:Math.round(progress.position),min:0,max:progress.duration,step:1,unit:'',action:'seek',allowKeep:false,disabled:disabled||!hasFeature(state,'seek')}):''}
+          ${hasFeature(state,'shuffle')?`<div class="music-shuffle">${button({label:'Shuffle',action:'shuffle',disabled}).replace('<button ',`<button aria-label="${attrs.shuffle?'Shuffle ausschalten':'Shuffle einschalten'}" aria-pressed="${Boolean(attrs.shuffle)}" `).replace('<span>',musicIcon('shuffle')+'<span>')}</div>`:''}
+        </div>`:''}
         ${controls.volume ? `<div class="music-volume">${this._volumeMarkup(vol??0,disabled||vol===null||!hasFeature(state,'volume'))}</div>` : ''}
       </div>
       <div id="music-favorites" class="music-favorites" aria-label="Musik und Favoritensender">${this._favorites.map((station,index)=>button({label:station.title,action:'play-favorite',data:{index},disabled:disabled||!hasFeature(state,'playMedia')}).replace('class=""','class="music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(station.title+' abspielen')}" `).replace('<span>',logoMarkup(station)+'<span>')).join('')}${button({label:'Apple Music',action:'open-apple',disabled:this._busy}).replace('class=""','class="music-favorite music-apple-tile"').replace('<span>',APPLE_MUSIC_LOGO+'<span>')}</div>
       <div class="toolbar">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}</div>
       <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Im Radio Browser mit dem Stern Sender zu deinen Favoriten hinzufügen.'):''}</div>
-      <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState('Befehl wird gesendet …') : ''}</div>`;
+      <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState(this._pendingService==='media_next_track'?'Nächster Titel wird geladen …':'Befehl wird gesendet …') : ''}</div>`;
     this._bindNativeVolume(vol??0,disabled||vol===null||!hasFeature(state,'volume'));
+    this._updateProgress();this._scheduleProgress();
+    // The shared range initializes after DOM replacement; then restore the
+    // timeline's clock formatting without changing the shared component.
+    queueMicrotask(()=>this._updateProgress(this._seekInteracting?Number(this.shadowRoot.getElementById('music-seek')?.value):undefined));
     if (focusedAction) this._player.querySelector(`[data-action="${focusedAction}"]`)?.focus();
   }
 
   async _action({action,data,value,phase,checked}) {
     switch(action) {
+      case 'seek': await this._seek(value,phase);break;
+      case 'shuffle': if(this._isApplePlayback&&hasFeature(this._state,'shuffle'))await this._service('shuffle_set',{shuffle:!Boolean(this._state.attributes?.shuffle)});break;
       case 'open-apple': await this._openApple();break;
       case 'apple-search': await this._loadApple('search');break;
       case 'apple-library': this._appleView=data.view;await this._loadApple('library');break;
@@ -421,10 +497,11 @@ class MusicManagerCard extends HTMLElement {
   async _service(service,payload={},onSuccess,entityOverride) {
     if(this._busy || !this._hass || !isAvailable(this._state))return false;
     const epoch=this._epoch, hass=this._hass, entity=entityOverride||this._controlEntity;
-    this._busy=true;this._error='';this._renderPlayer();
+    this._busy=true;this._pendingService=service;this._error='';this._renderPlayer();
     if(this._dialog.open)this._renderBrowser();
     try {
-      await hass.callService('media_player',service,{...payload,entity_id:entity});
+      if(service==='media_next_track'&&entity===this._musicAssistantEntity)await this._appleCommand('next');
+      else await hass.callService('media_player',service,{...payload,entity_id:entity});
       if(epoch!==this._epoch)return false;
       onSuccess?.();
       return true;
@@ -433,7 +510,7 @@ class MusicManagerCard extends HTMLElement {
       return false;
     } finally {
       if(epoch===this._epoch) {
-        this._busy=false;this._renderPlayer();
+        this._busy=false;this._pendingService=null;this._renderPlayer();
         if(this._dialog.open)this._renderBrowser();
       }
     }
@@ -443,7 +520,9 @@ class MusicManagerCard extends HTMLElement {
     if(!hasFeature(this._hass?.states?.[this._config.entity],'playMedia'))return;
     let payload;
     try {payload=stationPayload(station);} catch(error) {this._radioError=errorText(error);this._renderBrowser();return;}
+    const previousMedia=mediaIdentity(this._hass?.states?.[this._config.entity]);
     await this._service('play_media',payload,()=>{
+      this._playbackSource='radio';this._radioSnapshot=previousMedia;this._cancelSeek();
       this._selectedStation={...station};
       this._applePreferred=false;
       this._dialog.close();
@@ -533,6 +612,7 @@ class MusicManagerCard extends HTMLElement {
     try {
       await this._appleCommand('play',{uri:item.uri});
       if(epoch!==this._epoch)return;
+      this._playbackSource='apple';this._radioSnapshot=null;this._cancelSeek();
       this._applePreferred=true;this._selectedStation=null;this._appleDialog.close();
     } catch(error) {
       if(epoch===this._epoch)this._appleError=this._appleFailure(error);

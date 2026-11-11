@@ -234,7 +234,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
   const command=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
   assert.equal(command.action,'play');assert.equal(command.entity_id,undefined);assert.equal(command.source_entity,'media_player.wohnzimmer');assert.equal(command.user_id,undefined);
-  await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.ma_wohnzimmer');
+  await action('next').click();assert.equal(await page.evaluate(()=>demo.wsCalls.at(-1).action),'next');assert.equal(await page.evaluate(()=>demo.wsCalls.at(-1).source_entity),'media_player.wohnzimmer');
  });
  await check('one user can play Apple Music on each box without manual MA configuration',async()=>{
   await reset();
@@ -245,7 +245,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
    const command=await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='music_manager/apple_music').at(-1));
    assert.equal(command.source_entity,source);assert.equal(command.entity_id,undefined);
-   await box.locator('[data-action="next"]').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),target);
+   await box.locator('[data-action="next"]').click();assert.equal(await page.evaluate(()=>demo.wsCalls.at(-1).action),'next');assert.equal(await page.evaluate(()=>demo.wsCalls.at(-1).source_entity),source);
   }
  });
  await check('Apple Music dialog handles missing setup, account changes and rejected playback',async()=>{
@@ -266,6 +266,43 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    const bounds=await apple.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
    await page.screenshot({path:path.join(screens,`apple-music-${width}-${dark?'dark':'light'}.png`),fullPage:true});
    await apple.getByRole('button',{name:'Schließen',exact:true}).click();
+  }
+ });
+ await check('Apple timeline seeks forwards and backwards only on release, and shuffle stays on the selected box',async()=>{
+  await reset();const apple=card().locator('#music-apple-dialog');
+  await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
+  await page.evaluate(()=>demo.update('media_player.ma_wohnzimmer',{state:'paused'}));
+  for(const position of [120,30]){
+   const before=await page.evaluate(()=>demo.calls.length),seek=card().locator('#music-seek');
+   await seek.focus();await seek.evaluate((el,value)=>{el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));},String(position));
+   assert.equal(await page.evaluate(()=>demo.calls.length),before);
+   await seek.evaluate(el=>el.dispatchEvent(new Event('change',{bubbles:true})));
+   await page.waitForFunction(n=>demo.calls.length===n,before+1);
+   const call=await page.evaluate(()=>demo.calls.at(-1));assert.equal(call.service,'media_seek');assert.equal(call.data.seek_position,position);assert.equal(call.data.entity_id,'media_player.ma_wohnzimmer');
+  }
+  await action('shuffle').click();await page.waitForFunction(()=>demo.states['media_player.ma_wohnzimmer'].attributes.shuffle===true);
+  assert.equal(await action('shuffle').getAttribute('aria-pressed'),'true');
+  const call=await page.evaluate(()=>demo.calls.at(-1));assert.equal(call.service,'shuffle_set');assert.equal(call.data.shuffle,true);assert.equal(call.data.entity_id,'media_player.ma_wohnzimmer');
+  await action('shuffle').click();await page.waitForFunction(()=>demo.states['media_player.ma_wohnzimmer'].attributes.shuffle===false);
+ });
+ await check('radio selection releases stale MA metadata, timeline, shuffle and command routing',async()=>{
+  await reset();const apple=card().locator('#music-apple-dialog');await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
+  await page.evaluate(()=>demo.cards[0]._playStation(demo.station('swr3','SWR3')));
+  await page.evaluate(()=>demo.update('media_player.ma_wohnzimmer',{attributes:{active_queue:'old-queue',media_title:'Alter Apple-Titel'}}));
+  assert.match(await card().locator('#player').innerText(),/SWR3/);assert(!((await card().locator('#player').innerText()).includes('Alter Apple-Titel')));
+  assert.equal(await card().locator('#music-seek').count(),0);assert.equal(await action('shuffle').count(),0);
+  await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
+ });
+ await check('Apple timeline and shuffle fit narrow mobile and desktop views in both themes',async()=>{
+  await reset();const apple=card().locator('#music-apple-dialog');await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Abspielen',exact:true}).click();await apple.waitFor({state:'hidden'});
+  for(const width of [320,390,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   assert(!(await card().evaluate(el=>el.scrollWidth>el.clientWidth)));
+   assert.match(await card().locator('#music-seek').getAttribute('aria-valuetext'),/\d+:\d{2} \/ 4:00/);
+   await page.screenshot({path:path.join(screens,`apple-playback-${width}-${dark?'dark':'light'}.png`),fullPage:true});
   }
  });
  await check('integration bundle and compatibility resource coexist without duplicate cards or service calls',async()=>{

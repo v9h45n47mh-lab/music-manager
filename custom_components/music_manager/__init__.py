@@ -72,7 +72,7 @@ def resolve_player(hass, connection, entry, source_id, target_id=None):
 
 @websocket_api.websocket_command({
     vol.Required("type"): "music_manager/apple_music",
-    vol.Required("action"): vol.In(["status", "library", "search", "play"]),
+    vol.Required("action"): vol.In(["status", "library", "search", "play", "next"]),
     vol.Optional("entity_id"): str,
     vol.Required("source_entity"): str,
     vol.Optional("query", default=""): vol.All(str, vol.Length(max=200)),
@@ -98,7 +98,7 @@ async def websocket_apple_music(hass, connection, msg):
             for entity in (source, target):
                 if not connection.user.permissions.check_entity(entity.entity_id, POLICY_READ):
                     raise AccessError("unauthorized", "Du hast keinen Zugriff auf diese Box.")
-                if msg["action"] == "play" and not connection.user.permissions.check_entity(entity.entity_id, POLICY_CONTROL):
+                if msg["action"] in {"play", "next"} and not connection.user.permissions.check_entity(entity.entity_id, POLICY_CONTROL):
                     raise AccessError("unauthorized", "Du darfst diese Box nicht steuern.")
             player_id = target.unique_id
             player_filter = value(user, "player_filter", []) or []
@@ -113,6 +113,26 @@ async def websocket_apple_music(hass, connection, msg):
                 if not msg["query"].strip():
                     raise AccessError("empty_query", "Bitte einen Suchbegriff eingeben.")
                 result = await search(mass, account, msg["query"].strip())
+            elif msg["action"] == "next":
+                player = mass.players.get(player_id)
+                if not player or not value(player, "available", False):
+                    raise AccessError("player_unavailable", "Die Sonos-Box ist in Music Assistant nicht erreichbar.")
+                queue = mass.player_queues.get(player_id)
+                next_item = value(queue, "next_item")
+                current_item = value(queue, "current_item")
+                next_id = value(next_item, "queue_item_id")
+                # A known next item in this player's own active queue can start
+                # directly, avoiding MA's one-second next-button debounce.
+                # Groups, repeat-one and unknown/expired queue state use MA's
+                # standard routing instead; never compute shuffle order here.
+                if (value(player, "active_source") == player_id and value(queue, "active", False)
+                    and next_id and current_item and value(next_item, "available", False)
+                    and value(next_item, "queue_id", player_id) == player_id
+                    and next_id != value(current_item, "queue_item_id")):
+                    await mass.player_queues.play_index(queue_id=player_id, index=next_id)
+                else:
+                    await mass.players.player_command_next_track(player_id)
+                result = {"skipped": True}
             else:
                 uri = validate_uri(msg["uri"], account["provider_id"])
                 player = mass.players.get(player_id)

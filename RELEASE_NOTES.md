@@ -1,15 +1,12 @@
-# Music Manager 1.3.2
+# Music Manager 1.4.0
 
-- Apple Music funktioniert mit derselben persönlichen Kontozuordnung auf allen in Music Assistant eingerichteten und für den Benutzer freigegebenen Sonos-Boxen.
-- In jeder Karte genügt die Auswahl der Sonos-Box. Der Connector findet die zugehörige MA-Entität automatisch anhand der Sonos-Gerätekennung und der ausgewählten MA-Integration. Eine zusätzliche MA-Playerauswahl pro Karte entfällt.
-- Suche, Mediathek und Wiedergabe verwenden weiterhin das Konto des angemeldeten HA-Benutzers. Die Wiedergabe und die anschließenden Wiedergabetasten richten sich nach der jeweiligen Box.
-- Fehlende, deaktivierte oder mehrfach vorhandene MA-Entitäten erhalten gezielte Hinweise. Der Connector wechselt nicht auf eine andere Box. Bestehende HA- und MA-Playerfreigaben werden weiterhin geprüft.
-- Bestehende manuelle MA-Playerzuordnungen bleiben gültig; der Karteneditor bietet standardmäßig **Automatisch – dieselbe Sonos-Box** an.
+- **Apple Music: Shuffle** lässt sich direkt in der Karte ein- und ausschalten. Die Anzeige folgt dem tatsächlichen Zustand der MA-Warteschlange.
+- **Apple Music: Zeitleiste** mit verstrichener Zeit und Gesamtdauer. Ziehen zum Vor- und Zurückspulen; erst Loslassen sendet einen Befehl. Titel- und Boxwechsel verwerfen laufende Eingaben. Bei fehlender Dauer wird keine Zeitleiste angeboten.
+- **Titelwechsel optimiert:** Ein bekannter nächster Eintrag in der eigenen aktiven MA-Warteschlange wird direkt gestartet, ohne die zusätzliche Ein-Sekunden-Verzögerung des normalen MA-Weiter-Befehls. Gruppen, Wiederholung des aktuellen Titels und unklare Warteschlangenzustände verwenden den normalen MA-Befehl. Während des Wechsels erscheint eine unmittelbare Rückmeldung; wiederholte Klicks starten keinen zweiten Wechsel.
+- **Radioanzeige korrigiert:** Nach Apple Music zeigt die Karte sofort wieder den ausgewählten Radiosender und steuert den nativen Sonos-Player. Der letzte MA-Titel kann diese Anzeige nicht mehr überschreiben. Shuffle und Zeitleiste werden ausgeblendet.
 
-## Nach dem Update
+Die Ladezeit von Apple Music hängt weiterhin von MA und Apple ab. MA dokumentiert mögliche Pausen bis etwa fünf Sekunden: https://www.music-assistant.io/music-providers/apple-music/
 
-1. Im Marketplace auf **1.3.2** aktualisieren und Home Assistant neu starten. Danach die HA-Seite neu laden.
-2. Alle gewünschten Sonos-Boxen in Music Assistant über den Sonos-Player-Anbieter einrichten und ihre MA-Entitäten in HA aktivieren. Eventuelle MA-Playerfilter müssen diese Boxen freigeben.
-3. Die bestehende HA-Benutzer → MA-Benutzer → Apple-Music-Konto-Zuordnung gilt für alle diese Boxen. In neuen Karten nur die Sonos-Box auswählen und Apple Music öffnen. Bei vorhandenen Karten ohne zusätzliche MA-Auswahl funktioniert die automatische Zuordnung ebenfalls.
+## Aktualisieren
 
-MA-Administratorkonten werden weiterhin unterstützt. Der Musikquellenfilter muss genau das persönliche Apple-Music-Konto enthalten. Radiofavoriten und Benutzerzuordnungen bleiben erhalten.
+Im Marketplace auf **1.4.0** aktualisieren, Home Assistant neu starten und danach die HA-Seite neu laden. Karte und Connector werden gemeinsam aktualisiert. Benutzerzuordnungen und Radiofavoriten bleiben erhalten.

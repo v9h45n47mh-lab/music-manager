@@ -181,8 +181,11 @@ class GatewayTests(IsolatedAsyncioTestCase):
 
     def setup_gateway(self):
         mass = mass_client()
-        mass.players = {'RINCON_AABBCCDDEEFF01400': NS(available=True)}
-        mass.player_queues = NS(play_media=AsyncMock())
+        class Players(dict):
+            pass
+        mass.players = Players({'RINCON_AABBCCDDEEFF01400': NS(available=True)})
+        mass.players.player_command_next_track = AsyncMock()
+        mass.player_queues = NS(play_media=AsyncMock(), play_index=AsyncMock(), get=lambda key: None)
         entry = NS(data={'music_assistant_entry': 'mass-entry'}, options={'accounts': [account()]})
         entities = {
             'media_player.sonos': NS(entity_id='media_player.sonos', platform='sonos', unique_id='RINCON_AABBCCDDEEFF01400', disabled_by=None),
@@ -215,6 +218,53 @@ class GatewayTests(IsolatedAsyncioTestCase):
             await self.gateway.websocket_apple_music(hass, connection, msg)
             self.assertIsNotNone(connection.error)
             hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_next_starts_the_known_next_queue_item_without_debounce_or_reloading_media(self):
+        hass, connection, msg, _, _ = self.setup_gateway()
+        queue_id = 'RINCON_AABBCCDDEEFF01400'
+        hass.mass.players[queue_id].active_source = queue_id
+        queue = NS(active=True, current_item=NS(queue_item_id='current'),
+                   next_item=NS(queue_item_id='next-shuffled-item', available=True, queue_id=queue_id))
+        hass.mass.player_queues.get = lambda key: queue if key == queue_id else None
+        await self.gateway.websocket_apple_music(hass, connection, {**msg, 'action': 'next'})
+        self.assertIsNone(connection.error)
+        self.assertEqual(connection.result, {'skipped': True})
+        hass.mass.player_queues.play_index.assert_awaited_once_with(queue_id=queue_id, index='next-shuffled-item')
+        hass.mass.players.player_command_next_track.assert_not_awaited()
+        hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_next_uses_standard_ma_routing_for_groups_repeat_one_and_unknown_queue_state(self):
+        for case in ('group', 'repeat-one', 'no-queue', 'unavailable-next', 'foreign-item', 'inactive'):
+            with self.subTest(case=case):
+                hass, connection, msg, _, _ = self.setup_gateway()
+                queue_id = 'RINCON_AABBCCDDEEFF01400'
+                hass.mass.players[queue_id].active_source = 'group' if case == 'group' else queue_id
+                queue = NS(active=case!='inactive', current_item=NS(queue_item_id='current'),
+                    next_item=NS(queue_item_id='current' if case=='repeat-one' else 'next',
+                        available=case!='unavailable-next', queue_id='foreign' if case=='foreign-item' else queue_id))
+                hass.mass.player_queues.get = lambda key: None if case=='no-queue' else queue
+                await self.gateway.websocket_apple_music(hass, connection, {**msg, 'action': 'next'})
+                self.assertIsNone(connection.error)
+                hass.mass.players.player_command_next_track.assert_awaited_once_with(queue_id)
+                hass.mass.player_queues.play_index.assert_not_awaited()
+
+    async def test_next_requires_control_permissions_and_does_not_retry_a_failed_skip(self):
+        hass, connection, msg, _, _ = self.setup_gateway()
+        connection.user.permissions.check_entity = lambda entity, policy: policy!='control'
+        await self.gateway.websocket_apple_music(hass, connection, {**msg, 'action': 'next'})
+        self.assertEqual(connection.error[0], 'unauthorized')
+        hass.mass.players.player_command_next_track.assert_not_awaited()
+        hass.mass.player_queues.play_index.assert_not_awaited()
+        hass, connection, msg, _, _ = self.setup_gateway()
+        queue_id = 'RINCON_AABBCCDDEEFF01400'
+        hass.mass.players[queue_id].active_source = queue_id
+        hass.mass.player_queues.get = lambda key: NS(active=True, current_item=NS(queue_item_id='current'),
+            next_item=NS(queue_item_id='next', available=True))
+        hass.mass.player_queues.play_index.side_effect = RuntimeError('private-cookie')
+        await self.gateway.websocket_apple_music(hass, connection, {**msg, 'action': 'next'})
+        self.assertEqual(connection.error[0], 'music_assistant_error')
+        self.assertNotIn('private-cookie', str(connection.error))
+        hass.mass.players.player_command_next_track.assert_not_awaited()
 
     async def test_automatic_selection_uses_the_same_account_on_each_sonos_box(self):
         hass, connection, msg, entities, _ = self.setup_gateway()
