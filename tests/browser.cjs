@@ -256,6 +256,17 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    await apple.getByRole('button',{name:'Schließen',exact:true}).click();
   }
  });
+ await check('integration bundle and compatibility resource coexist without duplicate cards or service calls',async()=>{
+  await reset();await page.evaluate(async()=>{
+   window.integrationCardClass=customElements.get('music-manager-card');
+   demo.seedFavorites('manuel',[demo.station('swr3','SWR3')]);
+   await import('/dist/music-manager-card.js?legacy-resource');
+  });
+  assert(await page.evaluate(()=>customElements.get('music-manager-card')===window.integrationCardClass));
+  assert.equal(await page.evaluate(()=>window.customCards.filter(c=>c.type==='music-manager-card').length),1);
+  assert.equal(await action('play-favorite').count(),1);
+  await action('next').click();assert.equal(await page.evaluate(()=>demo.calls.length),1);
+ });
  await check('native HA slider adapter uses the public event contract (test double)',async()=>{
   await reset();await page.evaluate(()=>{
    customElements.define('ha-control-slider',class extends HTMLElement {});

@@ -6,11 +6,11 @@ import probatio as vol
 
 from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
 from homeassistant.components import websocket_api
-from homeassistant.components.music_assistant.helpers import get_music_assistant_client
 from homeassistant.helpers import entity_registry as er
 
 from .access import AccessError, account_for, checked_account, library, search, sonos_uid, validate_uri, value
 from .const import CONF_ACCOUNTS, CONF_MASS_ENTRY, DOMAIN
+from .helpers import music_assistant_client
 
 
 async def async_setup(hass, config):
@@ -19,12 +19,24 @@ async def async_setup(hass, config):
 
 
 async def async_setup_entry(hass, entry):
+    from .frontend import async_register_frontend
+
+    try:
+        await async_register_frontend(hass)
+    except Exception as err:
+        from homeassistant.exceptions import ConfigEntryNotReady
+
+        raise ConfigEntryNotReady("Music-Manager-Oberfläche konnte nicht registriert werden") from err
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry
     return True
 
 
 async def async_unload_entry(hass, entry):
     hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    if not hass.data.get(DOMAIN):
+        from .frontend import async_unregister_frontend
+
+        await async_unregister_frontend(hass)
     return True
 
 
@@ -46,8 +58,10 @@ async def websocket_apple_music(hass, connection, msg):
         if len(entries) != 1:
             raise AccessError("not_configured", "Bitte Music Manager unter Einstellungen → Geräte & Dienste einrichten.")
         entry = entries[0]
+        if not entry.data.get(CONF_MASS_ENTRY):
+            raise AccessError("music_assistant_missing", "Verbinde Music Assistant unter Geräte & Dienste → Music Manager → Konfigurieren → Music-Assistant-Verbindung.")
         account = account_for(entry.options.get(CONF_ACCOUNTS, []), connection.user.id)
-        mass = get_music_assistant_client(hass, entry.data[CONF_MASS_ENTRY])
+        mass = music_assistant_client(hass, entry.data[CONF_MASS_ENTRY])
         async with asyncio.timeout(30):
             user, provider = await checked_account(mass, account)
             registry = er.async_get(hass)

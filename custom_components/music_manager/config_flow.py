@@ -3,16 +3,29 @@
 import probatio as vol
 
 from homeassistant import config_entries
-from homeassistant.components.music_assistant.helpers import get_music_assistant_client
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .access import AccessError, checked_account, enum_value, value
 from .const import CONF_ACCOUNTS, CONF_MASS_ENTRY, DOMAIN
+from .helpers import music_assistant_client
 
 
 def select(options):
     return selector.SelectSelector(selector.SelectSelectorConfig(options=options, mode=selector.SelectSelectorMode.DROPDOWN))
+
+
+def connection_options(hass):
+    return [{"value": "", "label": "Nur Radio – Apple Music später einrichten"}] + [
+        {"value": e.entry_id, "label": e.title}
+        for e in hass.config_entries.async_entries("music_assistant")
+    ]
+
+
+async def validate_connection(hass, entry_id):
+    if entry_id:
+        mass = music_assistant_client(hass, entry_id)
+        await mass.auth.list_users()
 
 
 class MusicManagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -21,20 +34,18 @@ class MusicManagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
-        options = [{"value": e.entry_id, "label": e.title}
-                   for e in self.hass.config_entries.async_entries("music_assistant")]
-        if not options:
-            return self.async_abort(reason="music_assistant_missing")
+        options = connection_options(self.hass)
         errors = {}
         if user_input is not None:
             try:
-                mass = get_music_assistant_client(self.hass, user_input[CONF_MASS_ENTRY])
-                await mass.auth.list_users()
+                if user_input.get(CONF_MASS_ENTRY, "") not in {o["value"] for o in options}:
+                    raise ValueError("Unknown Music Assistant entry")
+                await validate_connection(self.hass, user_input.get(CONF_MASS_ENTRY))
             except Exception:
                 errors["base"] = "cannot_connect"
             else:
-                return self.async_create_entry(title="Music Manager", data=user_input)
-        return self.async_show_form(step_id="user", data_schema=vol.Schema({vol.Required(CONF_MASS_ENTRY): select(options)}), errors=errors)
+                return self.async_create_entry(title="Music Manager", data={CONF_MASS_ENTRY: user_input.get(CONF_MASS_ENTRY, "")})
+        return self.async_show_form(step_id="user", data_schema=vol.Schema({vol.Required(CONF_MASS_ENTRY, default=""): select(options)}), errors=errors)
 
     @staticmethod
     @callback
@@ -44,13 +55,34 @@ class MusicManagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class MusicManagerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["add", "remove"])
+        return self.async_show_menu(step_id="init", menu_options=["connect", "add", "remove"])
+
+    async def async_step_connect(self, user_input=None):
+        options = connection_options(self.hass)
+        errors = {}
+        if user_input is not None:
+            try:
+                selected = user_input.get(CONF_MASS_ENTRY, "")
+                if selected not in {o["value"] for o in options}:
+                    raise ValueError("Unknown Music Assistant entry")
+                await validate_connection(self.hass, selected)
+            except Exception:
+                errors["base"] = "cannot_connect"
+            else:
+                saved_options = dict(self.config_entry.options)
+                if selected != self.config_entry.data.get(CONF_MASS_ENTRY, ""):
+                    saved_options[CONF_ACCOUNTS] = []
+                self.hass.config_entries.async_update_entry(self.config_entry, data={**self.config_entry.data, CONF_MASS_ENTRY: selected})
+                return self.async_create_entry(title="", data=saved_options)
+        return self.async_show_form(step_id="connect", data_schema=vol.Schema({vol.Required(CONF_MASS_ENTRY, default=self.config_entry.data.get(CONF_MASS_ENTRY, "")): select(options)}), errors=errors)
 
     async def async_step_add(self, user_input=None):
         errors = {}
         accounts = list(self.config_entry.options.get(CONF_ACCOUNTS, []))
+        if not self.config_entry.data.get(CONF_MASS_ENTRY):
+            return self.async_abort(reason="music_assistant_missing")
         try:
-            mass = get_music_assistant_client(self.hass, self.config_entry.data[CONF_MASS_ENTRY])
+            mass = music_assistant_client(self.hass, self.config_entry.data[CONF_MASS_ENTRY])
             users = await self.hass.auth.async_get_users()
             ha_options = [{"value": u.id, "label": u.name or u.id} for u in users if u.is_active and not u.system_generated]
             ma_users = await mass.auth.list_users()

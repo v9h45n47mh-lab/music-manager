@@ -1,33 +1,44 @@
-# Music Manager 1.2.0
+# Music Manager 1.3.0
 
 ![Music Manager](brand/icon.png)
 
 [![Prüfungen](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml/badge.svg)](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml)
 
-Dashboard-Karte für Home Assistant mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
+**Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.2.2**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
-Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Radio und Favoriten funktionieren weiter als eigenständige Karte. Für Apple Music gibt es zusätzlich einen optionalen HA-Connector und eine eigene Kachel mit Logo.
+Zurück, Play/Pause, Stop und Weiter erscheinen als vier gleich breite Symboltasten, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben steht ausschließlich die gewählte Box, ohne „Music Manager“-Überschrift. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und hat eine eigene Kachel mit Logo.
 
-## Installation aus dem ZIP
+## Installation über den Marketplace
 
-Voraussetzungen: Home Assistant **2026.11 oder neuer** sowie die offiziellen Integrationen **Sonos** und **Radio Browser** unter **Einstellungen → Geräte & Dienste**. Radio Browser benötigt kein Konto und keinen API-Schlüssel. Für ältere HA-Versionen bleibt das Durchsuchen von Kategorien möglich, soweit die dortige Radio-Browser-Integration sie unterstützt; die globale Suche setzt 2026.11 voraus.
+Voraussetzungen: Home Assistant **2026.11 oder neuer**. Für Radio die offiziellen Integrationen **Sonos** und **Radio Browser** einrichten. Radio Browser benötigt kein Konto und keinen API-Schlüssel. Music Assistant ist nur für Apple Music erforderlich.
 
-1. Entpacke das ZIP. Kopiere den enthaltenen Ordner `www/music-manager` in deinen Home-Assistant-Konfigurationsordner, sodass die Datei unter `/config/www/music-manager/music-manager-card.js` liegt. Falls du einen anderen Konfigurationspfad verwendest, nutze dessen `www`-Ordner.
-2. Öffne **Einstellungen → Dashboards → Ressourcen**. Aktiviere gegebenenfalls den erweiterten Modus deines Benutzerprofils, um Ressourcen zu sehen.
-3. Füge diese Ressource mit Typ **JavaScript-Modul** hinzu:
+1. Öffne **Einstellungen → Marketplace → Aus Link hinzufügen**.
+2. Gib `https://github.com/v9h45n47mh-lab/music-manager` ein. Wenn nach dem Typ gefragt wird, wähle **Integration**. Verbinde GitHub, falls der Marketplace danach fragt.
+3. Öffne **Music Manager** und wähle **Installieren**. Karte, Connector und Logo werden zusammen nach `custom_components/music_manager` installiert. Du musst keine Dateien kopieren.
+4. Wenn der Marketplace einen Neustart verlangt, starte HA neu. Öffne danach den Einrichtungsdialog bzw. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Music Manager**.
+5. Wähle deine bestehende **Music-Assistant-Verbindung** oder **Nur Radio – Apple Music später einrichten** und bestätige. Die Integration legt die Dashboard-Ressource automatisch an und stellt die Karte bereit.
+6. Lade die HA-Seite vollständig neu. Füge im Dashboard die Karte **Music Manager** hinzu und wähle deine Sonos-Box.
 
-   ```text
-   /local/music-manager/music-manager-card.js?v=1.2.0
-   ```
+Das Repository ist ein benutzerdefinierter Marketplace-Eintrag; es wird dadurch nicht in den allgemeinen Katalog aufgenommen. Unter älteren HACS-Oberflächen heißt der Weg **Benutzerdefinierte Repositories → Typ Integration**. Der gemeinsame Betrieb setzt HA 2026.11 voraus.
 
-4. Lade die Home-Assistant-Seite vollständig neu. Öffne dein Dashboard im Bearbeitungsmodus und füge die Karte **Music Manager** hinzu. Wähle im Karteneditor die **Sonos-Box** und die gewünschten Bedienelemente.
-5. Tippe auf **Sender wählen**, suche einen Sender oder öffne eine Kategorie und wähle **Abspielen**.
+### Vorhandene Dashboard-Installation einmalig umstellen
 
-Ein Neustart von Home Assistant ist für diese reine Frontend-Karte normalerweise nicht erforderlich. Die UI-Kit-Dateien sind vollständig in der JS-Datei enthalten; du musst keine zusätzliche UI-Kit-Ressource anlegen.
+Wenn Music Manager bisher im Marketplace/HACS mit Typ **Dashboard/Lovelace** installiert ist, kann derselbe Repository-Eintrag nicht zusätzlich als Integration hinzugefügt werden:
 
-## Installation über HACS
+1. Deinstalliere im Marketplace **nur das bisherige Music-Manager-Dashboard-Paket**. Deine Dashboard-Kartenkonfiguration und die persönlichen Favoriten bleiben erhalten. Eine bereits eingerichtete Music-Manager-Integration unter Geräte & Dienste nicht löschen.
+2. Entferne den alten benutzerdefinierten Repository-Eintrag unter **Aus Link hinzufügen → Aus Links hinzugefügt**, falls er dort nach der Deinstallation noch vorhanden ist.
+3. Füge dieselbe GitHub-URL erneut hinzu, wähle diesmal **Integration** und installiere **1.3.0 oder neuer** wie oben.
+4. Starte HA neu, falls angefordert, und lade anschließend den Browser neu. Falls der Connector aus 1.2.0 bereits eingerichtet war, bleiben seine Music-Assistant-Verbindung und die Benutzerzuordnungen erhalten.
 
-Füge in HACS unter **Benutzerdefinierte Repositories** die URL `https://github.com/v9h45n47mh-lab/music-manager` mit Typ **Dashboard** (bei älteren HACS-Versionen **Lovelace**) hinzu. Lade **Music Manager** herunter und lade die HA-Seite neu. Wenn HACS die Ressource nicht automatisch anlegt, registriere `/hacsfiles/music-manager/music-manager-card.js` als JavaScript-Modul. Füge anschließend die Karte **Music Manager** hinzu und wähle die Sonos-Box.
+Nach dieser einmaligen Umstellung laufen künftige Updates für Karte und Connector gemeinsam über **Einstellungen → Updates**. Nach einem Integrationsupdate HA neu starten und die Seite neu laden. Ein reines Dashboard-Update kopiert keinen Python-Connector; deshalb ist der Wechsel des Marketplace-Typs erforderlich.
+
+Die Integration übernimmt bekannte alte Ressourcen unter `/hacsfiles/music-manager/…`, `/local/community/music-manager/…` und `/local/music-manager/…` automatisch. Doppelte bekannte Ressourcen werden zusammengeführt. Fremde Ressourcen und Dashboard-Konfigurationen werden nicht verändert. Bei YAML-Ressourcen wird die alte Music-Manager-URL nur im laufenden Speicher ersetzt; deine YAML-Datei bleibt unverändert.
+
+### Manuelle Installation als Alternative
+
+Das Release-ZIP enthält ebenfalls das vollständige gemeinsame Paket. Kopiere daraus **`custom_components/music_manager`** nach **`/config/custom_components/music_manager`**, starte HA neu und füge **Music Manager** unter **Geräte & Dienste** hinzu. Die enthaltene Karte wird automatisch registriert; der `www`-Ordner muss dafür nicht zusätzlich kopiert werden.
+
+Die separate JS-Datei und `www/music-manager` im ZIP bleiben für bestehende reine Dashboard-Installationen verfügbar. Diese Betriebsform kann Radio weiter verwenden. Der gemeinsame automatische Installations- und Updateweg ist die Marketplace-Kategorie **Integration**.
 
 ## Beispiel für dein Dashboard
 
@@ -55,14 +66,22 @@ Apple Music benötigt einen aktiven Zugang und **Music Assistant mit Apple-Music
 1. Richte den Music-Assistant-Server und die offizielle **Music Assistant**-Integration in HA ein. Füge die Box über den nativen **Sonos-Player-Anbieter** in Music Assistant hinzu. Verwende für diese Karte die MA-Entität dieser Sonos-Box, keine allgemeine Weiterleitung eines HA-Players.
 2. Füge unter **Music Assistant → Einstellungen → Musikquellen** für jede Person eine eigene Apple-Music-Instanz hinzu und melde dort das jeweilige Apple-Konto an. Vergib eindeutige Namen, zum Beispiel „Apple Music Manuel“.
 3. Lege in Music Assistant für jede Person einen aktiven Benutzer mit der Rolle **Benutzer** an. Beschränke dessen **Musikquellen** auf **genau die zugehörige Apple-Music-Instanz**. Ein Administrator oder ein Benutzer mit leerem Quellenfilter ist für diese Zuordnung nicht geeignet. Optionale Playerbeschränkungen müssen die Box freigeben.
-4. Kopiere aus dem Release-ZIP **`custom_components/music_manager`** nach **`/config/custom_components/music_manager`** und starte HA neu. Diesen zusätzlichen Connector musst du auch bei einer vorhandenen HACS-Dashboard-Installation einmalig installieren; HACS lädt als Dashboard nur die Karte herunter.
-5. Füge unter **Einstellungen → Geräte & Dienste → Integration hinzufügen → Music Manager** die bestehende Music-Assistant-Verbindung hinzu. Sie benötigt administrative Rechte zum Lesen und Prüfen der MA-Benutzer. Öffne danach **Music Manager → Konfigurieren → Benutzerzuordnung hinzufügen oder ändern** und wähle **HA-Benutzer, MA-Benutzer und Apple-Music-Konto**.
+4. Installiere **Music Manager als Integration über den Marketplace**, wie oben beschrieben. Der Apple-Music-Connector ist bereits enthalten und wird gemeinsam mit der Karte aktualisiert.
+5. Wenn du bei der Einrichtung Nur Radio gewählt hast: Öffne **Geräte & Dienste → Music Manager → Konfigurieren → Music-Assistant-Verbindung** und wähle die vorhandene MA-Verbindung. Sie benötigt Rechte zum Lesen und Prüfen der MA-Benutzer. Öffne danach **Konfigurieren → Benutzerzuordnung hinzufügen oder ändern**. Dort gibt es drei Auswahlfelder:
+
+   | Feld | Beispiel |
+   |---|---|
+   | Home-Assistant-Benutzer | Manuel, dein HA-Anmeldekonto |
+   | Music-Assistant-Benutzer | Dein persönliches MA-Konto mit der Rolle Benutzer |
+   | Apple-Music-Konto in Music Assistant | Die Musikquelle „Apple Music Manuel“ |
+
+   Wähle die drei zusammengehörigen Einträge und speichere. Diese Zuordnung gehört zu Music Manager; sie wird zusätzlich zu einer eventuellen automatischen HA-Anmeldung in Music Assistant gespeichert.
 6. Wähle im visuellen Karteneditor unter **Apple Music: Music-Assistant-Entität derselben Box** den passenden Player. Native Sonos- und MA-Entität werden anhand ihrer Sonos-Hardwarekennung geprüft. Bei der Auswahl einer anderen Sonos-Box wird diese zusätzliche Entität zurückgesetzt.
 7. Öffne die **Apple-Music-Kachel**. Suche Musik oder wähle Playlists, Alben bzw. Titel und tippe auf **Abspielen**.
 
 Die Zuordnung ist **1:1 pro HA-Benutzer**, unabhängig von Box oder Dashboard. Ein MA-Benutzer und eine Apple-Music-Instanz können nicht zwei HA-Benutzern zugeordnet werden. Änderungen und Entfernungen erfolgen unter **Music Manager → Konfigurieren**. Die Karte übergibt keine Benutzer- oder Konto-ID; der Connector bestimmt den aktuellen Benutzer anhand der authentifizierten HA-Verbindung und prüft die Zuordnung bei jeder Anfrage erneut. Gelöschte oder nicht verfügbare Konten, leere Quellenfilter und fehlende Zuordnungen führen zu einem Einrichtungshinweis. Es gibt keinen Wechsel auf ein anderes Konto. Beim Benutzerwechsel werden offene Apple-Music-Ergebnisse entfernt.
 
-Fehlt die Einrichtung, zeigt die Kachel die erforderlichen Schritte. Radio und persönliche Senderfavoriten bleiben verfügbar. Für spätere Connector-Updates den Ordner aus dem jeweiligen ZIP erneut kopieren und HA neu starten; die Benutzerzuordnungen bleiben als HA-Konfigurationsoptionen erhalten.
+Fehlt die Einrichtung, zeigt die Kachel die erforderlichen Schritte. Radio und persönliche Senderfavoriten bleiben verfügbar. Weitere Updates kommen über den Marketplace für das gesamte Paket. Die Benutzerzuordnungen bleiben als HA-Konfigurationsoptionen erhalten. Bei einem ausdrücklich gewählten Wechsel zu einem anderen MA-Server oder zu Nur Radio werden nur die Apple-Music-Zuordnungen zurückgesetzt; Radiofavoriten bleiben erhalten.
 
 Beispiel mit Apple Music:
 
@@ -92,11 +111,11 @@ Favoriten gehören dem **angemeldeten Home-Assistant-Benutzer**, unabhängig von
 
 Die Karte verwendet die angemeldete HA-Sitzung für Senderauswahl und Steuerung. Service-Berechtigungen prüft Home Assistant; die Karte vergibt keine neuen Rechte. Das Ausblenden von Buttons ist eine Anzeigeeinstellung und keine Zugriffssperre.
 
-## Logo und Marketplace-Vorbereitung
+## Logo und gemeinsames Paket
 
-`brand/` enthält das neue Lautsprecher-/Musiknotenlogo im Stil der bestehenden Manager: SVG, transparente PNGs mit 256 und 512 Pixeln sowie helle und dunkle Varianten. `icon.png` und `logo.png` liegen zusätzlich im Projektstamm.
+`custom_components/music_manager/brand/` enthält die Logos für die Integration in hellen und dunklen Themes. `frontend/` in derselben Integration enthält die vollständige, lokal gebündelte Karte, die Prüfsummen und die Lizenzen. Es gibt keinen separaten Download des Connectors oder des UI Kits zur Laufzeit.
 
-Das Quellprojekt enthält `hacs.json` für die Bereitstellung als **Dashboard-/Lovelace-Karte** über [v9h45n47mh-lab/music-manager](https://github.com/v9h45n47mh-lab/music-manager). Die Installation erfolgt über ein benutzerdefiniertes HACS-Repository; eine Aufnahme in den allgemeinen HACS-Katalog ist damit nicht verbunden. Welche Grafik HACS im Katalog zeigt, richtet sich nach dessen Branding-Verfahren; die mitgelieferten Dateien allein registrieren keinen Marketplace-Eintrag. Als reine Karte legt Music Manager keinen eigenen Eintrag unter HA „Geräte & Dienste“ an.
+`hacs.json` bleibt auch mit alten Dashboard-Installationen kompatibel. Für die gemeinsame Installation deshalb beim Hinzufügen der Repository-URL ausdrücklich den Typ **Integration** wählen. Die Integration registriert die Karte und aktualisiert ihre Ressourcen-URL bei neuen Versionen automatisch.
 
 ## Vorschau und Quellcode
 
@@ -119,14 +138,15 @@ npm run test:browser
 
 `npm run build:icons` erzeugt die PNG-Logos aus der SVG-Vorlage. `python3 scripts/package.py` erstellt das Installationspaket einschließlich Vorschau.
 
-**Durchgeführt:** Build, Prüfsummenprüfung der fest eingebundenen UI-Kit-Dateien und 34 erfolgreiche Testfälle (darin 13 Python-Prüfungen zur Kontotrennung) mit simuliertem Home Assistant. Geprüft wurden insbesondere Service-Ziele, Radio-Browser-Payloads, Regler, Editor, parallele Karten, persönliche Favoriten, Synchronisierung, Benutzerwechsel, Speicherfehler, Logos, Fehler, verspätete Antworten und sichere Textausgabe.
+**Durchgeführt:** Build, Prüfsummenprüfung der fest eingebundenen UI-Kit-Dateien und 34 erfolgreiche Testfälle (darin 21 Python-Prüfungen zu Installation, Ressourcenübernahme, optionaler MA-Einrichtung und Kontotrennung) mit simuliertem Home Assistant. Geprüft wurden insbesondere Service-Ziele, Radio-Browser-Payloads, Regler, Editor, parallele Karten, persönliche Favoriten, Synchronisierung, Benutzerwechsel, Speicherfehler, Logos, Fehler, verspätete Antworten und sichere Textausgabe.
 
-**Browserprüfung:** GitHub Actions führt zusätzlich 20 Browser-Szenarien mit Chromium aus, einschließlich Desktop-/Handyansicht bei 320, 375, 390, 430 und 1100 Pixeln, hellen/dunklen Themes, Apple-Music-Kachel und -Dialog, Editor, Fokusverhalten und Schriftvergleich mit unveränderten UI-Kit-Komponenten. Der aktuelle Prüfstatus ist über das Badge oben erreichbar; die Ansichten stehen als Workflow-Artefakte bereit.
+**Browserprüfung:** GitHub Actions führt zusätzlich 21 Browser-Szenarien mit Chromium aus, einschließlich Desktop-/Handyansicht bei 320, 375, 390, 430 und 1100 Pixeln, hellen/dunklen Themes, Apple-Music-Kachel und -Dialog, Editor, Fokusverhalten und Schriftvergleich mit unveränderten UI-Kit-Komponenten. Der aktuelle Prüfstatus ist über das Badge oben erreichbar; die Ansichten stehen als Workflow-Artefakte bereit.
 
 **Noch offen:** Einrichtung in einer echten HA-Instanz, Apple-OAuth-Anmeldung und Wiedergabe auf echter Sonos-Hardware. Tests mit simulierten HA-Daten ersetzen keinen Test an deiner Box.
 
 ## Technische Referenzen
 
+- [Marketplace: Installation und Updates](https://www.home-assistant.io/integrations/marketplace/)
 - [HA-Benutzerspeicher und Live-Synchronisierung](https://github.com/home-assistant/core/blob/2026.11.1/homeassistant/components/frontend/storage.py)
 - [Home Assistant: Radio Browser](https://www.home-assistant.io/integrations/radio_browser/)
 - [Music Assistant: Apple Music](https://www.music-assistant.io/music-providers/apple-music/)

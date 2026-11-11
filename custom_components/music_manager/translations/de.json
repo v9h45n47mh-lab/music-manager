@@ -3,8 +3,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Music Assistant verbinden",
-        "description": "Apple Music wird über die bestehende Music-Assistant-Integration verwendet. Die Verbindung benötigt Rechte zum Lesen der MA-Benutzer. Apple-Zugangsdaten bleiben in Music Assistant. Nach dem Hinzufügen unter Konfigurieren die 1:1-Kontozuordnungen anlegen.",
+        "title": "Music Manager einrichten",
+        "description": "Die Karte und der Connector sind gemeinsam installiert. Die Dashboard-Ressource wird automatisch angelegt; lade danach die HA-Seite neu. Für Radio kannst du ohne Music Assistant starten. Für Apple Music wähle die bestehende Music-Assistant-Verbindung aus und ordne danach unter Konfigurieren die persönlichen Konten zu.",
         "data": {
           "music_assistant_entry": "Music-Assistant-Verbindung"
         }
@@ -23,6 +23,7 @@
       "init": {
         "title": "Apple-Music-Konten",
         "menu_options": {
+          "connect": "Music-Assistant-Verbindung",
           "add": "Benutzerzuordnung hinzufügen oder ändern",
           "remove": "Benutzerzuordnung entfernen"
         }
@@ -42,17 +43,26 @@
         "data": {
           "ha_user_id": "Home-Assistant-Benutzer"
         }
+      },
+      "connect": {
+        "title": "Music Assistant verbinden",
+        "description": "Wähle die vorhandene Music-Assistant-Verbindung. Bei einer anderen Verbindung oder beim Wechsel zu Nur Radio werden bestehende Apple-Music-Zuordnungen entfernt und müssen neu angelegt werden. Die Radiofavoriten bleiben erhalten.",
+        "data": {
+          "music_assistant_entry": "Music-Assistant-Verbindung"
+        }
       }
     },
     "error": {
       "invalid_account": "Bitte gültige Einträge aus den Listen auswählen.",
       "duplicate_account": "Dieses MA-Benutzerkonto oder Apple-Music-Konto ist bereits einem anderen HA-Benutzer zugeordnet.",
-      "account_filter": "Der MA-Benutzer muss aktiv sein, die Rolle Benutzer haben und bei Musikquellen auf genau das gewählte Apple-Music-Konto beschränkt sein."
+      "account_filter": "Der MA-Benutzer muss aktiv sein, die Rolle Benutzer haben und bei Musikquellen auf genau das gewählte Apple-Music-Konto beschränkt sein.",
+      "cannot_connect": "Music Assistant ist nicht bereit oder die Verbindung darf keine Benutzer lesen."
     },
     "abort": {
       "accounts_missing": "Richte in Music Assistant mindestens ein Apple-Music-Konto und einen aktiven normalen Benutzer ein.",
       "cannot_connect": "Die Music-Assistant-Verbindung ist nicht bereit oder darf keine Benutzer lesen.",
-      "no_accounts": "Es sind noch keine Konten zugeordnet."
+      "no_accounts": "Es sind noch keine Konten zugeordnet.",
+      "music_assistant_missing": "Verbinde zuerst Music Assistant unter Konfigurieren → Music-Assistant-Verbindung. Radio kannst du bereits verwenden."
     }
   }
 }

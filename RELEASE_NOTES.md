@@ -1,22 +1,28 @@
-# Music Manager 1.2.0
+# Music Manager 1.3.0
 
-- Apple Music als eigene Kachel mit Logo direkt unter den Bedienelementen.
-- Persönliche Playlists, Alben und Titel sowie Apple-Music-Suche; Wiedergabe auf der gewählten Sonos-Box über Music Assistant.
-- Neuer optionaler HA-Connector mit administrativer 1:1-Zuordnung HA-Benutzer → MA-Benutzer → Apple-Music-Instanz. Apple-Anmeldung und Zugangsdaten bleiben in Music Assistant.
-- Jede Anfrage prüft die Kontozuordnung, den eingeschränkten Quellenfilter und die Berechtigung für dieselbe Sonos-Box. Fehlende Zugänge wechseln nicht auf ein anderes Konto. Benutzerwechsel verwerfen alte Ergebnisse.
-- Native HA-Lautstärke mit Prozentanzeige, persönliche Radiofavoriten und Favoritenverwaltung bleiben erhalten.
+Oberfläche und Apple-Music-Connector werden jetzt **als gemeinsame Integration über den Marketplace installiert und aktualisiert**. Das manuelle Kopieren des Connectors und das Anlegen einer Dashboard-Ressource entfallen.
 
-## Apple Music aktivieren
+- Die Integration enthält die vollständige Karte, Logos, Prüfsummen und Lizenzen.
+- Automatische Registrierung der Karte und Übernahme bekannter alter Music-Manager-Ressourcen; vorhandene Karten, Radiofavoriten und Kontozuordnungen bleiben erhalten.
+- Einrichtung wahlweise mit Music Assistant oder zunächst nur für Radio. Apple Music lässt sich später unter **Konfigurieren → Music-Assistant-Verbindung** verbinden.
+- Bestehende Apple-Music-Suche, persönliche Mediathek, 1:1-Kontozuordnung, native HA-Lautstärke und Favoritenverwaltung bleiben erhalten.
 
-1. Music Assistant samt Apple-Music-Konto und nativem Sonos-Player einrichten. Pro Person einen normalen MA-Benutzer anlegen und dessen Musikquellen auf genau das eigene Apple-Music-Konto beschränken.
-2. Aus dem ZIP `custom_components/music_manager` nach `/config/custom_components/music_manager` kopieren und HA neu starten.
-3. Unter **Geräte & Dienste → Music Manager** die bestehende MA-Verbindung hinzufügen; anschließend unter **Konfigurieren** die persönlichen Konten zuordnen.
-4. Karte aktualisieren und im Karteneditor die Music-Assistant-Entität derselben Sonos-Box auswählen. Apple-Music-Kachel öffnen.
+## Neu installieren
 
-**Für vorhandene HACS-Dashboard-Installationen:** Die JS-Karte wird weiter normal aktualisiert. Für Apple Music zusätzlich den Connector aus dem ZIP installieren. Radio benötigt ihn nicht.
+1. **Einstellungen → Marketplace → Aus Link hinzufügen**: `https://github.com/v9h45n47mh-lab/music-manager` eingeben und **Typ Integration** wählen.
+2. **Installieren**, HA bei Aufforderung neu starten und die Integration einrichten. Im Einrichtungsdialog Music Assistant oder Nur Radio auswählen.
+3. Die HA-Seite neu laden. Die Karte ist automatisch verfügbar. Apple-Music-Konten anschließend unter **Geräte & Dienste → Music Manager → Konfigurieren** zuordnen.
 
-Ausführliche Einrichtung im [README](https://github.com/v9h45n47mh-lab/music-manager#apple-music).
+## Bisher als Dashboard/Lovelace installiert?
+
+Einmalig das alte Music-Manager-Dashboard-Paket im Marketplace deinstallieren und den benutzerdefinierten Eintrag entfernen. Danach dieselbe URL mit **Typ Integration** erneut hinzufügen und installieren. Dashboard-Kartenkonfiguration und persönliche Favoriten bleiben erhalten. Eine vorhandene Music-Manager-Integration unter Geräte & Dienste nicht löschen; ihre Verbindung und Kontozuordnungen werden weiterverwendet.
+
+Weitere Updates installieren Oberfläche und Connector gemeinsam. Nach einem Integrationsupdate HA neu starten und den Browser neu laden. Ein reines Dashboard-Update installiert keinen Connector.
+
+Ausführliche [Installations- und Umstellungsanleitung](https://github.com/v9h45n47mh-lab/music-manager#installation-über-den-marketplace).
 
 ## Prüfung
 
-Build und Prüfsummenprüfung, 34 Testfälle mit simuliertem HA/MA (darunter 13 Python-Prüfungen zur Kontotrennung) und 20 Chromium-Browser-Szenarien für Desktop/Mobil sowie helle/dunkle Themes sind vorgesehen. Der [Actions-Prüfstatus](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml) zeigt das Ergebnis. Eine echte Apple-Anmeldung und Sonos-Wiedergabe konnten hier nicht geprüft werden.
+Build und Versions-/Prüfsummenprüfung, 34 Node-Testfälle einschließlich 21 Python-Prüfungen für Installation, Ressourcenübernahme, Einstellungen und Kontotrennung sowie 21 Chromium-Browser-Szenarien für Desktop/Mobil und helle/dunkle Themes. Der [Actions-Prüfstatus](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml) zeigt das Ergebnis.
+
+Die Installation in einer echten HA-Instanz und die Wiedergabe mit einem echten Apple-Music-Konto und Sonos wurden hier nicht ausgeführt.

@@ -3,8 +3,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect Music Assistant",
-        "description": "Use Apple Music through the existing Music Assistant integration. The connection needs permission to read MA users. Apple credentials stay in Music Assistant. After adding this integration, configure the personal 1:1 account assignments.",
+        "title": "Set up Music Manager",
+        "description": "The card and connector are installed together. The dashboard resource is registered automatically; reload Home Assistant afterwards. Start with radio only or select the existing Music Assistant connection for Apple Music. Then open Configure to assign personal accounts.",
         "data": {
           "music_assistant_entry": "Music Assistant connection"
         }
@@ -23,6 +23,7 @@
       "init": {
         "title": "Apple Music accounts",
         "menu_options": {
+          "connect": "Music Assistant connection",
           "add": "Add or change user assignment",
           "remove": "Remove user assignment"
         }
@@ -42,17 +43,26 @@
         "data": {
           "ha_user_id": "Home Assistant user"
         }
+      },
+      "connect": {
+        "title": "Connect Music Assistant",
+        "description": "Select the existing Music Assistant connection. Switching to another connection or to radio only clears Apple Music account assignments so they can be set up again. Radio favorites are preserved.",
+        "data": {
+          "music_assistant_entry": "Music Assistant connection"
+        }
       }
     },
     "error": {
       "invalid_account": "Select valid entries from the lists.",
       "duplicate_account": "This MA user or Apple Music instance is already assigned to another HA user.",
-      "account_filter": "The MA user must be active, have the user role and be restricted to exactly the selected Apple Music source."
+      "account_filter": "The MA user must be active, have the user role and be restricted to exactly the selected Apple Music source.",
+      "cannot_connect": "Music Assistant is unavailable or this connection cannot read users."
     },
     "abort": {
       "accounts_missing": "Add an Apple Music provider instance and an active normal user in Music Assistant first.",
       "cannot_connect": "Music Assistant is unavailable or this connection cannot read users.",
-      "no_accounts": "No accounts have been assigned yet."
+      "no_accounts": "No accounts have been assigned yet.",
+      "music_assistant_missing": "First connect Music Assistant under Configure → Music Assistant connection. Radio already works."
     }
   }
 }

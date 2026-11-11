@@ -6,7 +6,7 @@ body.dark{background:#11151b;color:#f1f3f5;--primary-text-color:#f1f3f5;--second
 .demo-shell{max-width:1000px;margin:auto;padding:20px 12px}.demo-head{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:20px}.demo-head h1{font-size:20px;margin:0}.demo-head p{font-size:13px;line-height:1.5}.demo-head button{border:0;border-radius:18px;padding:10px 16px;cursor:pointer}.demo-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:20px}#editor-host{margin-top:20px}#reference{display:none}
 </style>
 <div class="demo-shell"><header class="demo-head"><div><h1>Music Manager</h1><p>Interaktive Vorschau mit Beispieldaten.<br>Die Demo steuert keine echten Lautsprecher.</p></div><button id="theme">Hell / Dunkel</button></header><div class="demo-cards" id="cards"></div><div id="editor-host"></div><div id="reference"></div></div>
-<script type="module">/* Music Manager 1.2.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
+<script type="module">/* Music Manager 1.3.0 | MIT | HA UI Kit 1.2.2 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.2.2 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.2.2";
@@ -538,7 +538,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,escapeHtml,button,programAddButton,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.2.0';
+export const MUSIC_VERSION = '1.3.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -672,7 +672,7 @@ const MUSIC_CSS = `
   .music-results{max-height:50dvh;overflow:auto;overscroll-behavior:contain}
 `;
 const APPLE_MUSIC_LOGO = `<svg class="music-apple-logo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="apple-music-gradient" x2="0" y2="1"><stop stop-color="#fa586a"/><stop offset="1" stop-color="#e82948"/></linearGradient></defs><rect width="48" height="48" rx="10" fill="url(#apple-music-gradient)"/><path fill="#fff" d="M33.7 9.1 20.2 12c-.8.2-1.2.7-1.2 1.5v19.1c-1.1-.6-2.6-.5-4 .1-2.3.8-3.7 2.7-3.2 4.3.5 1.6 2.7 2.2 5 1.4 2.1-.7 3.6-2.3 3.6-4V20.1l12.1-2.6v11.6c-1.1-.5-2.5-.4-3.9.1-2.3.8-3.8 2.7-3.2 4.3.5 1.6 2.7 2.2 5 1.4 2.2-.8 3.6-2.4 3.6-4V10.2c0-.8-.3-1.2-.9-1.1Z"/></svg>`;
-const APPLE_SETUP = 'Für Apple Music: Music Assistant mit deinem Apple-Music-Konto und der Sonos-Box einrichten. Den Music-Manager-Connector aus dem ZIP installieren, unter Geräte & Dienste hinzufügen und deinen HA-Benutzer zuordnen. Im Karteneditor anschließend die Music-Assistant-Entität derselben Box wählen.';
+const APPLE_SETUP = 'Für Apple Music: Music Assistant mit deinem Apple-Music-Konto und der Sonos-Box einrichten. Music Manager im Marketplace als Integration installieren. Der Music-Manager-Connector ist darin enthalten. Unter Geräte & Dienste → Music Manager → Konfigurieren die Verbindung und deinen HA-Benutzer zuordnen. Im Karteneditor anschließend die Music-Assistant-Entität derselben Box wählen.';
 const MUSIC_ICONS = {
   previous:'M6 5h2v14H6zM18 5v14l-9-7z',next:'M16 5h2v14h-2zM6 5l9 7-9 7z',
   play:'M8 5v14l11-7z',pause:'M6 5h4v14H6zM14 5h4v14h-4z',stop:'M6 6h12v12H6z',
@@ -1097,7 +1097,7 @@ class MusicManagerCard extends HTMLElement {
 
   _appleFailure(error) {
     return ['unknown_command','not_found'].includes(error?.code)
-      ? 'Der Music-Manager-Connector ist noch nicht installiert oder eingerichtet. '+APPLE_SETUP
+      ? 'Der Music-Manager-Connector ist noch nicht eingerichtet. Installiere Music Manager im Marketplace mit Typ Integration. '+APPLE_SETUP
       : 'Apple Music: '+errorText(error);
   }
 
@@ -1320,7 +1320,7 @@ class MusicManagerCardEditor extends HTMLElement {
       ${this._registryError?notice(this._registryError,{error:true}):''}
       ${combobox({id:'music-ma-entity',label:'Apple Music: Music-Assistant-Entität derselben Box',items:maOptions,value:maSelected?.label||'',selected:this._config.music_assistant_entity||'',action:'ma-entity-select',placeholder:'Optional für Apple Music …',emptyLabel:'Keine passende Music-Assistant-Box gefunden.'})}
       ${section({id:'music-editor-controls',title:'Bedienelemente anzeigen',content:Object.entries(names).map(([key,label])=>row({title:label,trailing:toggle({label,action:'control-toggle',checked:this._config.controls[key],iconOnly:true,data:{key}})})).join('')})}
-      ${notice('Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Apple Music benötigt Music Assistant und den Music-Manager-Connector. Die Apple-Music-Kontozuordnung erfolgt pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.')}
+      ${notice('Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Oberfläche und Music-Manager-Connector werden gemeinsam über den Marketplace installiert. Apple Music benötigt zusätzlich Music Assistant. Die Apple-Music-Kontozuordnung erfolgt pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.')}
       ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
     </div>`;
     if(!this._unbind)this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{
