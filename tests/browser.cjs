@@ -446,7 +446,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await openConfiguration();await panel().locator('[data-action="connect"]').click();await editor().locator('#config-music_assistant_entry').selectOption('');
   await editor().getByRole('button',{name:'Speichern',exact:true}).click();await editor().getByRole('button',{name:'Verbindung wechseln',exact:true}).waitFor();assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),2);
   await editor().getByRole('button',{name:'Verbindung wechseln',exact:true}).click();await editor().waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>configurationDemo.data.accounts.length),0);await panel().locator('#connection-content').getByText('Nur Radio',{exact:true}).waitFor();
-  await openConfiguration();await page.evaluate(()=>configurationDemo.delayCreate=new Promise(resolve=>window.releaseConfigFlow=resolve));await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().getByText('Einstellung wird geladen …',{exact:true}).waitFor();
+  await openConfiguration();await page.evaluate(()=>{configurationDemo.delayCreate=new Promise(resolve=>window.releaseConfigFlow=resolve);});await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().getByText('Einstellung wird geladen …',{exact:true}).waitFor();
   await page.evaluate(()=>{configurationDemo.switchUser(false);window.releaseConfigFlow();});await panel().getByRole('alert').waitFor();
   assert(!(await panel().innerText()).includes('Erster Benutzer'));assert(!await editor().isVisible());
  });
