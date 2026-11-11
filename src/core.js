@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '1.8.1';
+export const MUSIC_VERSION = '1.9.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,stop:true,next:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -98,6 +98,7 @@ export function musicAssistantOptions(hass, entries, sourceEntity) {
 // HA authenticates these commands as the current user; no entity/card/user ID
 // is included in the storage key or payload.
 export const FAVORITES_KEY = 'music_manager_favorites';
+export const ALARM_SONGS_KEY = 'music_manager_alarm_songs';
 export function stationLogo(value) {
   if (typeof value !== 'string' || value.length > 4096) return '';
   try {
@@ -124,7 +125,7 @@ export function appleFavorite(item) {
     ...(match[1]==='track'&&item.alarm_song===true?{alarm_song:true}:{})};
 }
 const favoriteQueues = new WeakMap();
-async function updateFavorites(hass, update) {
+async function serializeUserData(hass, update) {
   if (!hass.user?.id) throw new Error('Bitte mit einem Home-Assistant-Benutzer anmelden.');
   // Serialize changes across this user's cards, and read immediately before
   // each write so another card's favorites are preserved.
@@ -132,16 +133,33 @@ async function updateFavorites(hass, update) {
   let users=favoriteQueues.get(session);
   if(!users){users=new Map();favoriteQueues.set(session,users);}
   const key=hass.user.id, previous=users.get(key)||Promise.resolve();
-  const operation=previous.catch(()=>{}).then(async()=>{
-    const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
-    const favorites=normalizeFavorites(response?.value);
-    const next=update(favorites);
-    await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:next});
-    return next;
-  });
+  const operation=previous.catch(()=>{}).then(update);
   users.set(key,operation);
   try{return await operation;}finally{if(users.get(key)===operation)users.delete(key);}
 }
+async function updateFavorites(hass, update) {
+  return serializeUserData(hass,async()=>{
+    const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
+    const next=update(normalizeFavorites(response?.value));
+    await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:next});
+    return next;
+  });
+}
+export function normalizeAlarmSongs(value) {
+  return normalizeFavorites(value).filter(f=>f.kind==='apple_music'&&f.media_type==='track').map(f=>{const next={...f};delete next.alarm_song;return next;});
+}
+async function migrateLegacyAlarmSongs(hass) {
+  const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
+  const raw=Array.isArray(response?.value)?response.value:[],legacy=raw.filter(f=>f?.alarm_song===true&&appleFavorite(f)?.media_type==='track');
+  if(!legacy.length)return;
+  const existing=await hass.callWS({type:'frontend/get_user_data',key:ALARM_SONGS_KEY});
+  // Copy first. If pruning fails, the next attempt merges the same songs
+  // without losing either the old markers or an already migrated selection.
+  const songs=normalizeAlarmSongs([...(Array.isArray(existing?.value)?existing.value:[]),...legacy]);
+  await hass.callWS({type:'frontend/set_user_data',key:ALARM_SONGS_KEY,value:songs});
+  await hass.callWS({type:'frontend/set_user_data',key:FAVORITES_KEY,value:raw.filter(f=>!legacy.includes(f))});
+}
+export async function migrateAlarmSongs(hass) { return serializeUserData(hass,()=>migrateLegacyAlarmSongs(hass)); }
 export async function saveFavorite(hass, favorite, enabled) {
   const item=normalizeFavorites([favorite])[0];
   if(!item)throw new Error('Ungültiger Favorit.');
@@ -155,12 +173,13 @@ export async function saveFavorite(hass, favorite, enabled) {
 export async function saveAlarmSong(hass,favorite,enabled) {
   const item=appleFavorite(favorite);
   if(item?.media_type!=='track')throw new Error('Nur einzelne Apple-Music-Titel können Wecklieder sein.');
-  return updateFavorites(hass,favorites=>{
-    const index=favorites.findIndex(f=>f.media_content_id===item.media_content_id);
-    if(index<0&&!enabled)return favorites;
-    const next=[...favorites],record={...(index<0?item:favorites[index])};
-    if(enabled)record.alarm_song=true;else delete record.alarm_song;
-    if(index<0)next.push(record);else next[index]=record;
+  return serializeUserData(hass,async()=>{
+    await migrateLegacyAlarmSongs(hass);
+    const response=await hass.callWS({type:'frontend/get_user_data',key:ALARM_SONGS_KEY});
+    const songs=normalizeAlarmSongs(response?.value),index=songs.findIndex(f=>f.uri===item.uri);
+    const next=songs.filter(f=>f.uri!==item.uri);
+    if(enabled)next.splice(index<0?next.length:index,0,normalizeAlarmSongs([item])[0]);
+    await hass.callWS({type:'frontend/set_user_data',key:ALARM_SONGS_KEY,value:next});
     return next;
   });
 }

@@ -6,7 +6,7 @@ import {
 import {
   MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
   isAvailable, volumePercent, normalizeMedia, isRadioId, stationPayload,
-  playbackAction, errorText, sonosOptions, musicAssistantOptions, FAVORITES_KEY, normalizeFavorites, stationLogo, saveFavorite, saveAlarmSong,
+  playbackAction, errorText, sonosOptions, musicAssistantOptions, FAVORITES_KEY, ALARM_SONGS_KEY, normalizeFavorites, normalizeAlarmSongs, migrateAlarmSongs, stationLogo, saveFavorite, saveAlarmSong,
   formatTime, playbackProgress, mediaIdentity, appleFavorite, moveFavorite, sonosContentId, sonosPlaybackSource
 } from './core.js';
 
@@ -70,6 +70,7 @@ class MusicManagerCard extends HTMLElement {
     super();
     this.attachShadow({mode:'open'});
     this._favorites = [];
+    this._alarmSongs=[];this._alarmSongEpoch=0;this._alarmSongLoading=false;this._alarmSongError='';
     this._favoriteMode = false;
     this._favoriteEpoch = 0;
     this._favoriteLoading = false;
@@ -131,6 +132,7 @@ class MusicManagerCard extends HTMLElement {
     if(mediaIdentity(previous)!==mediaIdentity(this._state))this._cancelSeek();
     if(this._hass.states?.[this._musicAssistantEntity]?.attributes?.active_queue)this._applePreferred=false;
     this._connectFavorites();
+    this._connectAlarmSongs();
     this._loadNativeVolume();
     if (previous !== this._state || !this._player.firstChild) this._renderPlayer();
     this._resolveApplePlayer();
@@ -160,11 +162,12 @@ class MusicManagerCard extends HTMLElement {
   get _musicAssistantEntity() { return this._appleEntity || this._config?.music_assistant_entity; }
   get _state() { return this._hass?.states?.[this._controlEntity]; }
 
-  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
+  connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._connectAlarmSongs(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
   disconnectedCallback() {
     clearTimeout(this._progressTimer);this._cancelSeek();
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
+    this._disconnectAlarmSongs();
     this._volumeInteracting=false;
     this._nativeVolumeLoader?.remove();
     this._request++;
@@ -193,9 +196,10 @@ class MusicManagerCard extends HTMLElement {
         <div id="music-apple-account"></div>
         <form id="music-apple-search-form" class="music-browser">
           ${field({id:'music-apple-query',label:'Apple Music durchsuchen',type:'search',placeholder:'Titel, Album oder Playlist',maxLength:200,autocomplete:'off'})}
-          <div class="toolbar">${button({label:'Suchen',action:'apple-search',variant:'primary'})}${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}${button({label:'Favoriten verwalten',action:'manage-favorites'})}</div>
+          <div class="toolbar">${button({label:'Suchen',action:'apple-search',variant:'primary'})}${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}${button({label:'Wecklieder',action:'apple-songs'})}${button({label:'Favoriten verwalten',action:'manage-favorites'})}</div>
         </form>
         <div id="music-apple-status" aria-live="polite"></div>
+        <div id="music-apple-location"></div>
         <div id="music-apple-results" class="music-results music-apple-results music-browser" aria-label="Apple-Music-Einträge"></div>
         <div id="music-apple-more"></div>
       </div>`})}`;
@@ -204,7 +208,7 @@ class MusicManagerCard extends HTMLElement {
     this._searchInput = this.shadowRoot.getElementById('music-radio-query');
     this._appleDialog=this.shadowRoot.getElementById('music-apple-dialog');
     this._appleQuery=this.shadowRoot.getElementById('music-apple-query');
-    this.shadowRoot.getElementById('music-apple-search-form').addEventListener('submit',event=>{event.preventDefault();void this._loadApple('search');});
+    this.shadowRoot.getElementById('music-apple-search-form').addEventListener('submit',event=>{event.preventDefault();void this._action({action:'apple-search'});});
     this._appleDialog.addEventListener('close',()=>{
       this._appleRequest++;this._appleLoading=false;
       const active=this.shadowRoot.activeElement;
@@ -270,7 +274,8 @@ class MusicManagerCard extends HTMLElement {
     if(!user)return;
     const apply=response=>{
       if(epoch!==this._favoriteEpoch)return;
-      this._favorites=normalizeFavorites(response?.value);
+      this._favorites=normalizeFavorites(response?.value).filter(f=>!f.alarm_song);
+      this._favoriteRevision=(this._favoriteRevision||0)+1;
       this._favoriteLoading=false;this._favoriteError='';
       this._renderPlayer();if(this._dialog.open)this._renderBrowser();if(this._appleDialog.open)this._renderApple();
     };
@@ -290,30 +295,60 @@ class MusicManagerCard extends HTMLElement {
     })();
   }
 
+  _disconnectAlarmSongs() {
+    this._alarmSongEpoch++;this._alarmSongUnsubscribe?.();this._alarmSongUnsubscribe=null;
+    this._alarmSongUser=null;this._alarmSongConnection=null;this._alarmSongs=[];
+    this._alarmSongLoading=false;this._alarmSongSaving=false;this._alarmSongError='';
+  }
+
+  _connectAlarmSongs() {
+    if(!this.isConnected||!this._hass)return;
+    const hass=this._hass,user=hass.user?.id,connection=hass.connection;
+    if(this._alarmSongUser===user&&this._alarmSongConnection===connection)return;
+    this._disconnectAlarmSongs();this._alarmSongUser=user;this._alarmSongConnection=connection;
+    if(!user)return;
+    const epoch=this._alarmSongEpoch;this._alarmSongLoading=true;
+    const apply=response=>{
+      if(epoch!==this._alarmSongEpoch)return;
+      this._alarmSongs=normalizeAlarmSongs(response?.value);this._alarmSongRevision=(this._alarmSongRevision||0)+1;this._alarmSongLoading=false;this._alarmSongError='';this._renderApple();
+    };
+    void(async()=>{
+      try {
+        await migrateAlarmSongs(hass);
+        if(epoch!==this._alarmSongEpoch)return;
+        if(connection?.subscribeMessage){
+          const unsubscribe=await connection.subscribeMessage(apply,{type:'frontend/subscribe_user_data',key:ALARM_SONGS_KEY});
+          if(epoch!==this._alarmSongEpoch)unsubscribe();else this._alarmSongUnsubscribe=unsubscribe;
+        }else apply(await hass.callWS({type:'frontend/get_user_data',key:ALARM_SONGS_KEY}));
+      }catch(error){if(epoch===this._alarmSongEpoch){this._alarmSongLoading=false;this._alarmSongError='Wecklieder konnten nicht geladen werden: '+errorText(error);this._renderApple();}}
+    })();
+  }
+
   async _toggleFavorite(station,enabled,alarmSong=false) {
-    if(this._favoriteBusy || this._favoriteLoading || !station?.can_play)return;
+    if(this._favoriteBusy || (alarmSong?this._alarmSongLoading:this._favoriteLoading) || !station?.can_play)return;
     const epoch=this._favoriteEpoch, hass=this._hass;
-    const current=this._favorites.find(s=>s.media_content_id===station.media_content_id);
-    enabled??=alarmSong?!current?.alarm_song:!current;
+    const revision=alarmSong?this._alarmSongRevision||0:this._favoriteRevision||0;
+    const current=(alarmSong?this._alarmSongs:this._favorites).find(s=>s.media_content_id===station.media_content_id);
+    enabled??=!current;
     this._favoriteRemovingId=enabled||alarmSong?null:station.media_content_id;
-    this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();this._renderApple();
+    this._favoriteBusy=true;if(alarmSong){this._alarmSongSaving=true;this._alarmSongError='';}else this._favoriteError='';this._renderBrowser();this._renderApple();
     try {
       const favorites=await (alarmSong?saveAlarmSong:saveFavorite)(hass,station,enabled);
-      if(epoch===this._favoriteEpoch)this._favorites=favorites;
+      if(epoch===this._favoriteEpoch&&revision===(alarmSong?this._alarmSongRevision||0:this._favoriteRevision||0)){if(alarmSong)this._alarmSongs=favorites;else this._favorites=favorites.filter(f=>!f.alarm_song);}
     } catch(error) {
-      if(epoch===this._favoriteEpoch)this._favoriteError='Favoriten konnten nicht gespeichert werden: '+errorText(error);
+      if(epoch===this._favoriteEpoch){if(alarmSong)this._alarmSongError='Wecklieder konnten nicht gespeichert werden: '+errorText(error);else this._favoriteError='Favoriten konnten nicht gespeichert werden: '+errorText(error);}
     } finally {
-      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._favoriteRemovingId=null;this._renderPlayer();this._renderBrowser();this._renderApple();}
+      if(epoch===this._favoriteEpoch){this._favoriteBusy=false;this._alarmSongSaving=false;this._favoriteRemovingId=null;this._renderPlayer();this._renderBrowser();this._renderApple();}
     }
   }
 
   async _moveFavorite(id,direction) {
     if(this._favoriteBusy||this._favoriteLoading)return;
-    const epoch=this._favoriteEpoch;
+    const epoch=this._favoriteEpoch,revision=this._favoriteRevision||0;
     this._favoriteBusy=true;this._favoriteError='';this._renderBrowser();
     try {
       const favorites=await moveFavorite(this._hass,id,direction);
-      if(epoch===this._favoriteEpoch)this._favorites=favorites;
+      if(epoch===this._favoriteEpoch&&revision===(this._favoriteRevision||0))this._favorites=favorites.filter(f=>!f.alarm_song);
     } catch(error) {
       if(epoch===this._favoriteEpoch)this._favoriteError='Favoriten konnten nicht sortiert werden: '+errorText(error);
     } finally {
@@ -495,13 +530,18 @@ class MusicManagerCard extends HTMLElement {
       case 'seek': await this._seek(value,phase);break;
       case 'shuffle': if(this._isApplePlayback&&hasFeature(this._state,'shuffle'))await this._service('shuffle_set',{shuffle:!Boolean(this._state.attributes?.shuffle)});break;
       case 'open-apple': await this._openApple();break;
-      case 'apple-search': await this._loadApple('search');break;
-      case 'apple-library': this._appleView=data.view;await this._loadApple('library');break;
-      case 'apple-more': await this._loadApple('library',true);break;
+      case 'apple-search': this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;await this._loadApple('search');break;
+      case 'apple-library': this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;this._appleView=data.view;await this._loadApple('library');break;
+      case 'apple-more': await this._loadApple(this._appleContainer?'tracks':'library',true);break;
+      case 'apple-tracks': await this._showAppleTracks(this._appleItems[Number(data.index)]);break;
+      case 'favorite-tracks': await this._showAppleTracks(this._favorites.find(f=>f.uri===data.id));break;
+      case 'apple-back': this._restoreAppleParent();break;
+      case 'apple-retry': if(this._appleRetry)await this._loadApple(this._appleRetry.action,this._appleRetry.append);break;
+      case 'apple-songs': this._showAlarmSongs();break;
+      case 'reload-alarm-songs': this._disconnectAlarmSongs();this._connectAlarmSongs();this._renderApple();break;
       case 'apple-play': await this._playApple(this._appleItems[Number(data.index)]);break;
       case 'apple-favorite': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item)await this._toggleFavorite(item);break;}
       case 'apple-alarm-song': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item?.media_type==='track')await this._toggleFavorite(item,undefined,true);break;}
-      case 'favorite-alarm-song': {const item=this._favorites.find(f=>f.media_content_id===data.id);if(item?.media_type==='track')await this._toggleFavorite(item,undefined,true);break;}
       case 'move-favorite': await this._moveFavorite(data.program,data.direction);break;
       case 'manage-favorites':
         this._appleDialog.close();this._request++;this._browseLoading=false;this._favoriteMode=true;this._radioError='';this._error='';
@@ -588,6 +628,7 @@ class MusicManagerCard extends HTMLElement {
   _resetApple() {
     this._appleRequest++;this._appleItems=[];this._appleAccount='';this._appleError='';
     this._appleLoading=false;this._appleMore=false;this._applePreferred=false;this._appleEntity='';this._appleReady=false;
+    this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;this._appleRetry=null;
     this._appleDialog?.close();
     if(this._appleQuery)this._appleQuery.value='';
     this._renderApple();
@@ -602,7 +643,7 @@ class MusicManagerCard extends HTMLElement {
     // response instead of dereferencing it or falling back to another player.
     if(!response || typeof response!=='object' || Array.isArray(response)
       || (action==='status' && !/^media_player\.[a-z0-9_]+$/.test(response.entity_id||''))
-      || (['library','search'].includes(action) && !Array.isArray(response.items))) {
+      || (['library','search','tracks'].includes(action) && !Array.isArray(response.items))) {
       throw {code:'apple_response_unavailable',message:'Die Apple-Music-Antwort ist leer oder unvollständig. Bitte als Administrator die Zugriffsrechte für die Sonos-Entität und die zusätzliche Music-Assistant-Entität dieser Box prüfen. In Access Control müssen beide zum Anzeigen und Bedienen freigegeben sein, beispielsweise über dasselbe Label.'};
     }
     return response;
@@ -654,11 +695,12 @@ class MusicManagerCard extends HTMLElement {
     if(action==='search'&&!query){this._appleError='Bitte einen Suchbegriff eingeben.';this._renderApple();return;}
     const request=++this._appleRequest;
     this._appleLoading=true;this._appleError='';this._appleSearch=action==='search';
+    this._appleRetry=null;
     const offset=append?this._appleOffset||0:0;
     if(!append)this._appleItems=[];
     this._appleMore=false;this._renderApple();
     try {
-      const response=await this._appleCommand(action,action==='search'?{query}:{media_type:this._appleView,offset});
+      const response=await this._appleCommand(action,action==='search'?{query}:action==='tracks'?{uri:this._appleContainer.uri,offset}:{media_type:this._appleView,offset});
       if(request!==this._appleRequest)return;
       const items=response.items.filter(item=>item && typeof item.uri==='string'&&typeof item.title==='string');
       this._appleItems=append?[...this._appleItems,...items]:items;
@@ -666,9 +708,38 @@ class MusicManagerCard extends HTMLElement {
     } catch(error) {
       if(request!==this._appleRequest)return;
       this._appleError=this._appleFailure(error);
+      this._appleRetry={action,append};
     } finally {
       if(request===this._appleRequest){this._appleLoading=false;this._renderApple();}
     }
+  }
+
+  _rememberAppleParent() {
+    this._appleParent={epoch:this._epoch,items:[...this._appleItems],view:this._appleView,search:this._appleSearch,
+      query:this._appleQuery.value,more:this._appleMore,offset:this._appleOffset,container:this._appleContainer,ownSongs:this._appleOwnSongs,parent:this._appleParent,scroll:this.shadowRoot.getElementById('music-apple-results').scrollTop};
+  }
+
+  async _showAppleTracks(item) {
+    if(!item||!['album','playlist'].includes(item.media_type)||this._busy||this._appleLoading)return;
+    const epoch=this._epoch;
+    if(!this._appleDialog.open){this._dialog.close();await this._openApple();}
+    if(epoch!==this._epoch||!this._appleReady||!this._appleDialog.open)return;
+    this._rememberAppleParent();this._appleContainer={uri:item.uri,title:item.title,media_type:item.media_type};this._appleOwnSongs=false;
+    await this._loadApple('tracks');
+    if(epoch===this._epoch&&this._appleContainer?.uri===item.uri)this.shadowRoot.getElementById('music-apple-results').scrollTop=0;
+  }
+
+  _showAlarmSongs() {
+    if(this._busy||this._appleLoading||this._appleOwnSongs)return;
+    this._rememberAppleParent();this._appleRequest++;this._appleContainer=null;this._appleOwnSongs=true;
+    this._appleLoading=false;this._appleMore=false;this._appleError='';this._appleRetry=null;this._renderApple();
+  }
+
+  _restoreAppleParent() {
+    const parent=this._appleParent;if(!parent||parent.epoch!==this._epoch||this._busy)return;
+    this._appleRequest++;this._appleLoading=false;this._appleContainer=parent.container;this._appleOwnSongs=parent.ownSongs;this._appleParent=parent.parent;this._appleError='';this._appleRetry=null;
+    this._appleItems=parent.items;this._appleView=parent.view;this._appleSearch=parent.search;this._appleQuery.value=parent.query;this._appleMore=parent.more;this._appleOffset=parent.offset;
+    this._renderApple();this.shadowRoot.getElementById('music-apple-results').scrollTop=parent.scroll;
   }
 
   async _playApple(item) {
@@ -696,17 +767,20 @@ class MusicManagerCard extends HTMLElement {
     if(!this._appleDialog)return;
     const configured=Boolean(this._appleReady&&this._musicAssistantEntity), disabled=this._busy||this._appleLoading||!configured;
     for(const control of this._appleDialog.querySelectorAll('form button,form input'))control.disabled=disabled;
-    for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleSearch&&control.dataset.view===this._appleView));
+    for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleContainer&&!this._appleOwnSongs&&!this._appleSearch&&control.dataset.view===this._appleView));
     this.shadowRoot.getElementById('music-apple-account').innerHTML=this._appleAccount?row({title:this._appleAccount,description:'Dein Apple-Music-Konto'}):'';
-    this.shadowRoot.getElementById('music-apple-status').innerHTML=(this._appleError?notice(this._appleError,{error:true}):'')+(this._favoriteError?notice(this._favoriteError,{error:true}):'')+(this._appleLoading?loadingState('Apple Music wird geladen …'):this._busy?loadingState('Wiedergabe wird gestartet …'):this._favoriteBusy?loadingState('Favoriten werden gespeichert …'):'');
+    this.shadowRoot.getElementById('music-apple-status').innerHTML=(this._appleError?notice(this._appleError,{error:true})+(this._appleRetry?button({label:'Erneut laden',action:'apple-retry',disabled:this._appleLoading}):''):'')+(this._favoriteError?notice(this._favoriteError,{error:true}):'')+(this._alarmSongError?notice(this._alarmSongError,{error:true})+button({label:'Wecklieder erneut laden',action:'reload-alarm-songs'}):'')+(this._appleLoading?loadingState('Apple Music wird geladen …'):this._busy?loadingState('Wiedergabe wird gestartet …'):this._favoriteBusy?loadingState(this._alarmSongSaving?'Wecklieder werden gespeichert …':'Favoriten werden gespeichert …'):this._appleOwnSongs&&this._alarmSongLoading?loadingState('Wecklieder werden geladen …'):'');
+    this.shadowRoot.getElementById('music-apple-location').innerHTML=this._appleParent?row({title:this._appleOwnSongs?'Wecklieder':this._appleContainer?.title||'',description:this._appleOwnSongs?'Deine separate Wecklied-Liste':'Einzelne Titel zum Abspielen oder als Wecklied auswählen',trailing:button({label:'Zurück',action:'apple-back',disabled:this._busy})}):'';
     const results=this.shadowRoot.getElementById('music-apple-results');
-    results.setAttribute('aria-busy',String(this._appleLoading));
+    if(this._appleOwnSongs)this._appleItems=this._alarmSongs;
+    results.setAttribute('aria-busy',String(this._appleLoading||this._appleOwnSongs&&this._alarmSongLoading));
     results.innerHTML=this._appleItems.map((item,index)=>{
-      const favorite=appleFavorite(item),record=favorite&&this._favorites.find(f=>f.media_content_id===favorite.media_content_id),saved=Boolean(record);
+      const favorite=appleFavorite(item),record=favorite&&this._favorites.find(f=>f.media_content_id===favorite.media_content_id),saved=Boolean(record),alarmSaved=this._alarmSongs.some(s=>s.uri===item.uri);
       const star=favorite?musicButton({label:(saved?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'apple-favorite',data:{index},pressed:Boolean(saved),disabled:disabled||this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id}):'';
-      const alarm=favorite?.media_type==='track'?musicButton({label:(record?.alarm_song?'Nicht mehr als Wecklied verwenden: ':'Als Wecklied markieren: ')+item.title,icon:'alarm',action:'apple-alarm-song',data:{index},pressed:Boolean(record?.alarm_song),disabled:disabled||this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id}):'';
-      return `<div class="music-browser"><div class="music-station-row">${favorite?logoMarkup(favorite):''}${row({title:item.title,description:[item.description,record?.alarm_song?'Wecklied':''].filter(Boolean).join(' · ')})}</div><div class="toolbar">${star}${alarm}${button({label:'Abspielen',action:'apple-play',data:{index},disabled})}</div></div>`;
-    }).join('')||(!this._appleLoading&&!this._appleError?emptyState(this._appleSearch?'Keine passenden Einträge gefunden.':'Keine Einträge. Du kannst Apple Music durchsuchen oder eine andere Mediathekansicht öffnen.'):'');
+      const alarm=favorite?.media_type==='track'?musicButton({label:(alarmSaved?'Nicht mehr als Wecklied verwenden: ':'Als Wecklied markieren: ')+item.title,icon:'alarm',action:'apple-alarm-song',data:{index},pressed:alarmSaved,disabled:disabled||this._favoriteBusy||this._alarmSongLoading||!this._hass?.user?.id}):'';
+      const open=['album','playlist'].includes(item.media_type)?button({label:'Titel anzeigen',action:'apple-tracks',data:{index},disabled}):'';
+      return `<div class="music-browser"><div class="music-station-row">${favorite?logoMarkup(favorite):''}${row({title:item.title,description:[item.description,alarmSaved?'Wecklied':''].filter(Boolean).join(' · ')})}</div><div class="toolbar">${star}${alarm}${open}${button({label:'Abspielen',action:'apple-play',data:{index},disabled})}</div></div>`;
+    }).join('')||(!this._appleLoading&&!this._appleError&&!(this._appleOwnSongs&&(this._alarmSongLoading||this._alarmSongError))?emptyState(this._appleOwnSongs?'Noch keine Wecklieder. Öffne ein Album oder eine Playlist und markiere einzelne Titel über das Weckersymbol.':this._appleContainer?'Dieses Album oder diese Playlist enthält keine verfügbaren Titel.':this._appleSearch?'Keine passenden Einträge gefunden.':'Keine Einträge. Du kannst Apple Music durchsuchen oder eine andere Mediathekansicht öffnen.'):'');
     this.shadowRoot.getElementById('music-apple-more').innerHTML=this._appleMore?button({label:'Mehr laden',action:'apple-more',disabled}):'';
   }
 
@@ -789,8 +863,8 @@ class MusicManagerCard extends HTMLElement {
       path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Mit den Pfeilen sortieren. Häkchen entfernen, um einen Favoriten aus der Kurzwahl zu entfernen.'});
       results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
       results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-browser"><div class="music-station-row">${logoMarkup(item)}${row({
-        title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?(item.alarm_song?'Wecklied':'Titel'):item.media_type==='album'?'Album':'Playlist'):'Radiosender'
-      })}</div><div class="music-favorite-actions">${item.media_type==='track'?musicButton({label:(item.alarm_song?'Nicht mehr als Wecklied verwenden: ':'Als Wecklied markieren: ')+item.title,icon:'alarm',action:'favorite-alarm-song',data:{id:item.media_content_id},pressed:Boolean(item.alarm_song),disabled:this._favoriteBusy||!this._hass?.user?.id}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
+        title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?'Titel':item.media_type==='album'?'Album':'Playlist'):'Radiosender'
+      })}</div><div class="music-favorite-actions">${['album','playlist'].includes(item.media_type)?button({label:'Titel anzeigen',action:'favorite-tracks',data:{id:item.uri},disabled:this._favoriteBusy||this._busy}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
       if(this._pendingFavoriteFocus&&!this._favoriteBusy) {
         const {id,index=0,direction}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
         const moved=direction&&[...results.querySelectorAll('[data-action="move-favorite"]')].find(b=>!b.disabled&&b.dataset.program===id&&b.dataset.direction===direction);

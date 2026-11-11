@@ -24,14 +24,18 @@ function setup() {
  let states=Object.fromEntries(registry.map(e=>[e.entity_id,{entity_id:e.entity_id,state:'playing',attributes:{friendly_name:e.entity_id,volume_level:0.25,supported_features:features,media_title:'Titel'}}]));
  const cards=[];
 let currentUser='manuel',failFavorites=false;
-const favoriteData=new Map(),favoriteSubscribers=new Map(),connections=new Map();
+const favoriteData=new Map(),favoriteSubscribers=new Map(),alarmSongData=new Map(),alarmSongSubscribers=new Map(),connections=new Map();
+const dataForKey=key=>key==='music_manager_alarm_songs'?alarmSongData:favoriteData;
+const subscribersForKey=key=>key==='music_manager_alarm_songs'?alarmSongSubscribers:favoriteSubscribers;
+const notifyAlarmSongs=user=>{for(const cb of alarmSongSubscribers.get(user)||[])cb({value:alarmSongData.get(user)||[]});};
 const notifyFavorites=user=>{for(const cb of favoriteSubscribers.get(user)||[])cb({value:favoriteData.get(user)||[]});};
 const connectionFor=user=>{
  if(!connections.has(user))connections.set(user,{async subscribeMessage(cb,message){
   if(failFavorites)throw new Error('Favoriten nicht verfügbar');
-  if(!favoriteSubscribers.has(user))favoriteSubscribers.set(user,new Set());
-  favoriteSubscribers.get(user).add(cb);cb({value:favoriteData.get(user)||[]});
-  return ()=>favoriteSubscribers.get(user).delete(cb);
+  const subscribers=subscribersForKey(message.key),data=dataForKey(message.key);
+  if(!subscribers.has(user))subscribers.set(user,new Set());
+  subscribers.get(user).add(cb);cb({value:data.get(user)||[]});
+  return ()=>subscribers.get(user).delete(cb);
  }});
  return connections.get(user);
 };
@@ -41,8 +45,8 @@ const connectionFor=user=>{
   async callWS(message){wsCalls.push(message);if(wsHook){const result=await wsHook(message);if(result!==undefined)return result;}
    if(message.type==='config/entity_registry/list')return registry;
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
-   if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
-   if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,JSON.parse(JSON.stringify(message.value)));notifyFavorites(user);return null;}
+   if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
+   if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');dataForKey(message.key).set(user,JSON.parse(JSON.stringify(message.value)));(message.key==='music_manager_alarm_songs'?notifyAlarmSongs:notifyFavorites)(user);return null;}
 
    if(failBrowse)throw new Error('Radio Browser nicht verfügbar');
    if(message.type==='media_source/search_media')return {result:message.search_query==='leer'?[]:[station('swr3')]};
@@ -51,7 +55,7 @@ const connectionFor=user=>{
  const add=(entity='media_player.a',controls)=>{const card=document.createElement('music-manager-card');card.setConfig({entity,controls});document.body.append(card);cards.push(card);card.hass=makeHass();return card;};
  const update=(entity,changes)=>{const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old.attributes,...changes.attributes}}};for(const card of cards)card.hass=makeHass();};
  const click=(element,action)=>{const button=element.shadowRoot.querySelector(`[data-action="${action}"]`);assert(button,action+' exists');assert(!button.disabled,action+' enabled');button.click();};
- return {window,document,calls,wsCalls,add,update,click,makeHass,favoriteData,notifyFavorites,connections,
+ return {window,document,calls,wsCalls,add,update,click,makeHass,favoriteData,alarmSongData,notifyFavorites,notifyAlarmSongs,connections,
  switchUser(user){currentUser=user;for(const card of cards)card.hass=makeHass();},set failFavorites(v){failFavorites=v},set failService(v){failService=v},set failBrowse(v){failBrowse=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v}};
 }
 test('actual card controls call HA media services and preserve per-card targets',async()=>{
@@ -257,6 +261,48 @@ test('filtered Apple catalog and play results never become a false empty library
  assert.equal(card._appleDialog.open,true);assert.equal(card._applePreferred,false);assert.notEqual(card._playbackSource,'apple');
  assert.match(card._appleError,/Access Control/);assert.equal(card._busy,false);assert.equal(env.calls.length,0);card.remove();
 });
+test('album and playlist tracks preserve navigation, retry pagination and save wake songs separately',async()=>{
+ const env=setup(),a=env.add(),b=env.add('media_player.b');let failPage=true;
+ const containers=['album','playlist'].map(media_type=>({uri:`apple_music--a://${media_type}/collection`,media_type,title:media_type+' collection'}));
+ env.wsHook=msg=>{
+  if(msg.type!=='music_manager/apple_music')return;
+  if(msg.action==='status')return {account:'Manuel',entity_id:msg.source_entity==='media_player.a'?'media_player.ma_a':'media_player.ma_b'};
+  if(msg.action==='tracks'){
+   if(msg.offset&&failPage)throw new Error('Temporär nicht verfügbar');
+   return {items:[{uri:'apple_music--a://track/'+(msg.offset||0),media_type:'track',title:'Song '+(msg.offset||0)}],more:!msg.offset,next_offset:(msg.offset||0)+50};
+  }
+  return {items:containers,more:false};
+ };
+ env.click(a,'open-apple');await flush();a._appleQuery.value='Kollektion';env.click(a,'apple-search');await flush();
+ await a._action({action:'apple-tracks',data:{index:1}});assert.equal(env.wsCalls.at(-1).uri,containers[1].uri);
+ assert.equal(env.wsCalls.at(-1).action,'tracks');assert.equal(env.wsCalls.at(-1).user_id,undefined);
+ env.click(a,'apple-alarm-song');await flush();assert.equal(a._favorites.length,0);assert.equal(b._favorites.length,0);
+ assert.equal(a._alarmSongs.length,1);assert.equal(b._alarmSongs.length,1);assert.equal(env.alarmSongData.get('manuel').length,1);
+ assert.equal(env.wsCalls.filter(m=>m.type==='frontend/set_user_data'&&m.key==='music_manager_favorites').length,0);assert.equal(env.calls.length,0);
+ env.click(a,'apple-more');await flush();assert.equal(a._appleItems.length,1);assert.match(a._appleError,/Temporär/);
+ failPage=false;env.click(a,'apple-retry');await flush();assert.equal(env.wsCalls.at(-1).offset,50);assert.equal(a._appleItems.length,2);
+ env.click(a,'apple-songs');await flush();assert.equal(a._appleItems.length,1);assert.equal(a._appleOwnSongs,true);
+ env.click(a,'apple-back');await flush();assert.equal(a._appleContainer.uri,containers[1].uri);assert.equal(a._appleItems.length,2);
+ env.click(a,'apple-back');await flush();assert.equal(a._appleSearch,true);assert.equal(a._appleQuery.value,'Kollektion');assert.equal(a._appleItems[0].uri,containers[0].uri);
+ env.click(a,'apple-tracks');await flush();assert.equal(env.wsCalls.at(-1).uri,containers[0].uri);a.remove();b.remove();
+});
+test('late private album tracks are discarded after a user or box change',async()=>{
+ const env=setup();let finish;
+ const album={uri:'apple_music--a://album/collection',media_type:'album',title:'Privates Album'};
+ env.wsHook=msg=>msg.type==='music_manager/apple_music'?(msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:msg.action==='tracks'?new Promise(resolve=>{finish=()=>resolve({items:[{uri:'apple_music--a://track/private',title:'Privates Lied',media_type:'track'}]});}):{items:[album]}):undefined;
+ const card=env.add();env.click(card,'open-apple');await flush();const pending=card._showAppleTracks(album);await flush();
+ env.switchUser('paul');finish();await pending;await flush();
+ assert.equal(card._appleDialog.open,false);assert.equal(card._appleItems.length,0);assert.equal(card._appleContainer,null);assert(!card._appleDialog.textContent.includes('Privates Lied'));card.remove();
+});
+test('legacy wake-song markers migrate out of shortcuts and remain private to each HA user',async()=>{
+ const env=setup(),song={kind:'apple_music',uri:'apple_music--a://track/old',media_type:'track',title:'Old wake song',alarm_song:true};
+ env.favoriteData.set('manuel',[station('radio'),song]);env.alarmSongData.set('paul',[{...song,uri:'apple_music--b://track/paul',title:'Pauls Lied'}]);
+ const a=env.add(),b=env.add('media_player.b');await flush();
+ assert.deepEqual(env.favoriteData.get('manuel').map(f=>f.title),['SWR3']);assert.equal(env.alarmSongData.get('manuel').length,1);
+ assert.equal(a.shadowRoot.querySelectorAll('[data-action="play-favorite"]').length,1);assert.equal(a._alarmSongs[0].title,'Old wake song');
+ env.switchUser('paul');assert.equal(a._alarmSongs.length,0);await flush();assert.equal(a._favorites.length,0);assert.equal(a._alarmSongs[0].title,'Pauls Lied');assert.equal(b._alarmSongs[0].title,'Pauls Lied');
+ env.switchUser('manuel');await flush();assert.equal(a._alarmSongs[0].title,'Old wake song');a.remove();b.remove();
+});
 test('automatic MA queue controls are restored without opening the Apple Music picker',async()=>{
  const env=setup();
  env.wsHook=msg=>msg.type==='music_manager/apple_music'?(msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{skipped:true}):undefined;
@@ -431,7 +477,7 @@ test('Apple tracks can be marked as alarm songs while failed writes preserve fav
  const env=setup(),card=env.add();await flush();
  env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:{items:[{uri:'apple_music--a://'+msg.media_type+'/42',media_type:msg.media_type,title:'Titel'}]}:undefined;
  env.click(card,'open-apple');await flush();env.failFavorites=true;env.click(card,'apple-favorite');await flush();assert.match(card._appleDialog.textContent,/nicht gespeichert/);assert.equal(card._favorites.length,0);
- env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();env.click(card,'apple-alarm-song');await flush();assert.equal(card._favorites[0].alarm_song,true);assert.equal(card._favorites[0].media_type,'track');assert.equal(card._appleDialog.querySelector('[data-action="apple-alarm-song"]').getAttribute('aria-pressed'),'true');env.click(card,'apple-alarm-song');await flush();assert.equal(card._favorites[0].alarm_song,undefined);assert.equal(card._favorites.length,1);card.remove();
+ env.failFavorites=false;await card._action({action:'apple-library',data:{view:'track'}});await flush();env.click(card,'apple-alarm-song');await flush();assert.equal(card._favorites.length,0);assert.equal(card._alarmSongs[0].media_type,'track');assert.equal(env.alarmSongData.get('manuel').length,1);assert.equal(card._appleDialog.querySelector('[data-action="apple-alarm-song"]').getAttribute('aria-pressed'),'true');env.click(card,'apple-alarm-song');await flush();assert.equal(card._alarmSongs.length,0);assert.equal(card._favorites.length,0);card.remove();
 });
 
 

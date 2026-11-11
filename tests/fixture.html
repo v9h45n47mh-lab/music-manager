@@ -24,14 +24,18 @@ const calls=[],wsCalls=[];
 let failService=false,failBrowse=false,canSearch=true,wsHook=null,serviceHook=null;
 const cards=[],alarmRows=[],alarmSelections=new Map();let failAlarmSave=false;
 let currentUser='manuel',failFavorites=false;
-const favoriteData=new Map(),favoriteSubscribers=new Map(),connections=new Map();
+const favoriteData=new Map(),favoriteSubscribers=new Map(),alarmSongData=new Map(),alarmSongSubscribers=new Map(),connections=new Map();
+const dataForKey=key=>key==='music_manager_alarm_songs'?alarmSongData:favoriteData;
+const subscribersForKey=key=>key==='music_manager_alarm_songs'?alarmSongSubscribers:favoriteSubscribers;
+const notifyAlarmSongs=user=>{for(const cb of alarmSongSubscribers.get(user)||[])cb({value:alarmSongData.get(user)||[]});};
 const notifyFavorites=user=>{for(const cb of favoriteSubscribers.get(user)||[])cb({value:favoriteData.get(user)||[]});};
 const connectionFor=user=>{
  if(!connections.has(user))connections.set(user,{async subscribeMessage(cb,message){
   if(failFavorites)throw new Error('Favoriten nicht verfügbar');
-  if(!favoriteSubscribers.has(user))favoriteSubscribers.set(user,new Set());
-  favoriteSubscribers.get(user).add(cb);cb({value:favoriteData.get(user)||[]});
-  return ()=>favoriteSubscribers.get(user).delete(cb);
+  const subscribers=subscribersForKey(message.key),data=dataForKey(message.key);
+  if(!subscribers.has(user))subscribers.set(user,new Set());
+  subscribers.get(user).add(cb);cb({value:data.get(user)||[]});
+  return ()=>subscribers.get(user).delete(cb);
  }});
  return connections.get(user);
 };
@@ -50,13 +54,13 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
   wsCalls.push({...msg});
   if(wsHook){const result=await wsHook(msg);if(result!==undefined)return result;}
   if(msg.type==='config/entity_registry/list')return registry;
-   if(msg.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:favoriteData.get(user)||[]};}
-   if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');favoriteData.set(user,msg.value);notifyFavorites(user);return null;}
+   if(msg.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(msg.key).get(user)||[]};}
+   if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');dataForKey(msg.key).set(user,msg.value);(msg.key==='music_manager_alarm_songs'?notifyAlarmSongs:notifyFavorites)(user);return null;}
 
   if(msg.type==='music_manager/alarm'){
    if(msg.alarm_id!=='school_alarm')throw new Error('Wecker unter Konfigurieren zuordnen.');
    if(!['manuel','maximilian'].includes(user))throw new Error('Dieser Wecker gehört einem anderen Benutzer.');
-   const favorites=(favoriteData.get('maximilian')||[]).filter(f=>f.kind==='apple_music'&&f.media_type==='track'&&f.alarm_song===true).map(({uri,title,media_type})=>({uri,title,media_type}));
+   const favorites=(alarmSongData.get('maximilian')||[]).filter(f=>f.kind==='apple_music'&&f.media_type==='track').map(({uri,title,media_type})=>({uri,title,media_type}));
    if(msg.action==='select'){
     if(failAlarmSave)throw new Error('Speichern fehlgeschlagen');
     const selected=favorites.find(f=>f.uri===msg.uri);if(msg.uri&&!selected)throw new Error('Ungültiger Favorit');
@@ -69,6 +73,7 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
    const target=msg.entity_id||(msg.source_entity==='media_player.wohnzimmer'?'media_player.ma_wohnzimmer':'media_player.ma_maximilian');
    if(msg.action==='status')return {account:user==='manuel'?'Manuel (Beispielkonto)':'Maximilian (Beispielkonto)',provider:'Apple Music',entity_id:target};
    if(msg.action==='play'){update(msg.source_entity,{state:'playing',attributes:{media_content_id:'http://music-assistant.example:8095/flow/session/example-queue/item/player.aac',media_channel:'Music Assistant',media_title:'Music Assistant',media_duration:null}});update(target,{state:'playing',attributes:{active_queue:'example-queue',media_content_id:msg.uri,media_title:'Apple Music – Beispieltitel',media_artist:'Beispielinterpret',media_duration:240,media_position:35,media_position_updated_at:new Date().toISOString(),shuffle:false}});return {started:true};}
+   if(msg.action==='tracks')return {items:[{uri:'apple_music--demo://track/from-'+msg.uri.split('://')[1].split('/')[0]+'-'+(msg.offset||0),title:'Lied aus '+(msg.uri.includes('/album/')?'dem Album':'der Playlist'),media_type:'track',description:'Beispielinterpret · Titel'}],more:false};
    if(msg.action==='next'){update(target,{attributes:{media_content_id:'apple_music--demo://track/next',media_title:'Nächster Beispieltitel',media_position:0,media_position_updated_at:new Date().toISOString()}});return {skipped:true};}
    const type=msg.action==='search'?'track':msg.media_type;
    return {items:[{uri:'apple_music--demo://'+type+'/123',title:msg.action==='search'?'Beispieltitel: '+msg.query:type==='playlist'?'Meine Lieblingsmusik':type==='album'?'Mein Lieblingsalbum':'Mein Lieblingstitel',description:{track:'Titel',album:'Album',playlist:'Playlist'}[type],media_type:type}],more:false};
@@ -85,8 +90,8 @@ function push(){for(const row of alarmRows)row.hass=makeHass();for(const card of
 function addCard(entity,name,controls){const card=document.createElement('music-manager-card');card.setConfig({type:'custom:music-manager-card',entity,name,controls});document.querySelector('#cards').append(card);cards.push(card);card.hass=makeHass();return card;}
 function update(entity,changes){const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old?.attributes,...changes.attributes}}};push();}
 function addAlarmRow(){const row=document.createElement('music-manager-alarm-row');row.setConfig({alarm_id:'school_alarm',name:'Weckmusik'});const host=document.querySelector('#alarm-host');host.style.cssText='margin-top:20px;max-width:500px;padding:16px;border:1px solid var(--divider-color,#ddd);border-radius:12px;background:var(--card-background-color,#fff)';host.append(row);alarmRows.push(row);row.hass=makeHass();return row;}
-window.demo={cards,calls,wsCalls,registry,makeHass,addCard,addAlarmRow,alarmRows,alarmSelections,set failAlarmSave(v){failAlarmSave=v},push,update,station,directory,
- switchUser(user){currentUser=user;push();},seedFavorites(user,items){favoriteData.set(user,items);notifyFavorites(user);},get favoriteData(){return favoriteData},set failFavorites(v){failFavorites=v},
+window.demo={cards,calls,wsCalls,registry,makeHass,alarmSongData,addCard,addAlarmRow,alarmRows,alarmSelections,set failAlarmSave(v){failAlarmSave=v},push,update,station,directory,
+ switchUser(user){currentUser=user;push();},seedAlarmSongs(user,items){alarmSongData.set(user,structuredClone(items));notifyAlarmSongs(user);},seedFavorites(user,items){favoriteData.set(user,items);notifyFavorites(user);},get favoriteData(){return favoriteData},set failFavorites(v){failFavorites=v},
  set failService(v){failService=v},set failBrowse(v){failBrowse=v},set canSearch(v){canSearch=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v},get states(){return states}};
 addCard('media_player.wohnzimmer','Music Manager');
 addCard('media_player.maximilian_sonos','Musik Maximilian');

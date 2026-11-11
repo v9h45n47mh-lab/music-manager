@@ -387,6 +387,60 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Eins','Zwei']);
   assert.equal(await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='media_source/browse_media').length),0);
  });
+ await check('album and playlist tracks offer separate wake songs, pagination retry and back navigation',async()=>{
+  await reset();await page.waitForFunction(()=>demo.cards.every(c=>!c._alarmSongLoading));
+  await page.evaluate(()=>{let failed=false;demo.wsHook=msg=>{
+   if(msg.type!=='music_manager/apple_music'||msg.action!=='tracks')return;
+   if(msg.offset===50&&!failed){failed=true;throw new Error('Titel vorübergehend nicht verfügbar');}
+   const kind=msg.uri.includes('://album/')?'Album':'Playlist';
+   return {items:[{uri:'apple_music--demo://track/'+kind+'-'+(msg.offset||0),title:kind+' Lied '+(msg.offset||0),description:'Interpret · Ein einzelner Titel',media_type:'track'}],more:!msg.offset,next_offset:(msg.offset||0)+50};
+  };});
+  const apple=card().locator('#music-apple-dialog');await action('open-apple').click();
+  await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Titel anzeigen',exact:true}).click();await apple.getByText('Playlist Lied 0',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Als Wecklied markieren: Playlist Lied 0',exact:true}).click();
+  await page.waitForFunction(()=>demo.cards.every(c=>c._alarmSongs.length===1));
+  assert.equal(await card().locator('#player .music-favorite').count(),0);
+  assert.equal(await page.evaluate(()=>demo.favoriteData.get('manuel')?.length||0),0);
+  assert.equal(await page.evaluate(()=>demo.calls.length),0);
+  await apple.getByRole('button',{name:'Mehr laden',exact:true}).click();await apple.getByRole('alert').filter({hasText:'vorübergehend'}).waitFor();
+  await apple.getByText('Playlist Lied 0',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Erneut laden',exact:true}).click();await apple.getByText('Playlist Lied 50',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>demo.wsCalls.filter(m=>m.action==='tracks').map(m=>m.offset)),[0,50,50]);
+  for(const width of [320,390,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
+   assert(await apple.locator('#music-apple-results .row-text').first().evaluate(el=>el.getBoundingClientRect().width>=120));
+   await page.screenshot({path:path.join(screens,`album-playlist-tracks-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+  }
+  await apple.getByRole('button',{name:'Wecklieder',exact:true}).click();assert.equal(await apple.locator('[data-action="apple-play"]').count(),1);
+  await apple.getByRole('button',{name:'Zurück',exact:true}).click();await apple.getByText('Playlist Lied 50',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Zurück',exact:true}).click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Alben',exact:true}).click();await apple.getByText('Mein Lieblingsalbum',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Titel anzeigen',exact:true}).click();await apple.getByText('Album Lied 0',{exact:true}).waitFor();
+  await apple.getByRole('button',{name:'Als Wecklied markieren: Album Lied 0',exact:true}).click();
+  await page.waitForFunction(()=>demo.cards.every(c=>c._alarmSongs.length===2));
+  await apple.getByRole('button',{name:'Schließen',exact:true}).click();
+  const second=page.locator('music-manager-card').nth(1),otherApple=second.locator('#music-apple-dialog');
+  await second.locator('[data-action="open-apple"]').click();await otherApple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();await otherApple.getByRole('button',{name:'Wecklieder',exact:true}).click();
+  await otherApple.getByText('Album Lied 0',{exact:true}).waitFor();await otherApple.getByText('Playlist Lied 0',{exact:true}).waitFor();
+  await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.every(c=>c._alarmSongs.length===0));
+  assert.equal(await page.evaluate(()=>demo.calls.length),0);
+ });
+ await check('old wake markers migrate out of favorites and wake-song lists remain personal',async()=>{
+  await reset();await page.waitForFunction(()=>demo.cards.every(c=>!c._alarmSongLoading));
+  await page.evaluate(()=>{
+   demo.switchUser('paul');demo.seedAlarmSongs('paul',[{kind:'apple_music',uri:'apple_music--demo://track/paul',media_type:'track',title:'Pauls Wecklied'}]);
+   demo.seedFavorites('manuel',[demo.station('radio','Mein Radio'),{kind:'apple_music',uri:'apple_music--demo://track/legacy',media_type:'track',title:'Bisheriges Wecklied',alarm_song:true}]);demo.switchUser('manuel');
+  });
+  await page.waitForFunction(()=>demo.cards.every(c=>!c._alarmSongLoading&&c._alarmSongs.length===1&&c._favorites.length===1));
+  assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Mein Radio']);
+  await action('open-apple').click();const apple=card().locator('#music-apple-dialog');await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();await apple.getByRole('button',{name:'Wecklieder',exact:true}).click();
+  await apple.getByText('Bisheriges Wecklied',{exact:true}).waitFor();assert.equal(await apple.getByText('Pauls Wecklied',{exact:true}).count(),0);
+  await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.every(c=>!c._alarmSongLoading&&c._alarmSongs[0]?.title==='Pauls Wecklied'));
+  await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();await apple.getByRole('button',{name:'Wecklieder',exact:true}).click();await apple.getByText('Pauls Wecklied',{exact:true}).waitFor();
+  assert.equal(await apple.getByText('Bisheriges Wecklied',{exact:true}).count(),0);
+ });
  await check('single songs are explicitly marked as alarm songs and only these appear in the alarm picker',async()=>{
   await reset();await page.evaluate(()=>{demo.switchUser('maximilian');demo.seedFavorites('maximilian',[
    {kind:'apple_music',uri:'apple_music--demo://album/old',media_type:'album',title:'Normales Album'},
@@ -397,7 +451,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await apple.locator('[data-action="apple-favorite"]').click();await page.waitForFunction(()=>demo.favoriteData.get('maximilian').length===4);
   assert(!await page.evaluate(()=>demo.favoriteData.get('maximilian').some(f=>f.alarm_song)));
   await apple.getByRole('button',{name:'Als Wecklied markieren: Mein Lieblingstitel',exact:true}).click();
-  await page.waitForFunction(()=>demo.cards.every(c=>c._favorites.some(f=>f.alarm_song===true)));
+  await page.waitForFunction(()=>demo.cards.every(c=>c._alarmSongs.length===1));
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    assert(!await apple.evaluate(el=>el.scrollWidth>el.clientWidth));
@@ -409,16 +463,16 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();await picker.getByRole('button',{name:'Weckmusik aufklappen',exact:true}).click();
   assert.equal(await picker.getByRole('option').count(),1);assert.equal(await picker.getByText('Normales Album',{exact:true}).count(),0);assert.equal(await picker.getByText('Normaler Titel',{exact:true}).count(),0);
   await picker.getByRole('option').filter({hasText:'Mein Lieblingstitel'}).click();await picker.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>demo.calls.length),0);
-  await card().locator('#player [data-action="manage-favorites"]').click();const manager=dialog();
-  await manager.getByRole('button',{name:'Nicht mehr als Wecklied verwenden: Mein Lieblingstitel',exact:true}).click();
-  await page.waitForFunction(()=>!demo.favoriteData.get('maximilian').some(f=>f.alarm_song));
-  assert.equal(await page.evaluate(()=>demo.favoriteData.get('maximilian').length),4);await manager.getByRole('button',{name:'Schließen',exact:true}).click();
+  await action('open-apple').click();await apple.getByText('Meine Lieblingsmusik',{exact:true}).waitFor();await apple.getByRole('button',{name:'Wecklieder',exact:true}).click();
+  await apple.getByRole('button',{name:'Nicht mehr als Wecklied verwenden: Mein Lieblingstitel',exact:true}).click();
+  await page.waitForFunction(()=>demo.alarmSongData.get('maximilian').length===0);
+  assert.equal(await page.evaluate(()=>demo.favoriteData.get('maximilian').length),4);await apple.getByRole('button',{name:'Schließen',exact:true}).click();
   await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();await picker.getByText('Die bisherige Weckmusik bleibt gespeichert.',{exact:false}).waitFor();
   assert.equal(await picker.getByRole('option').count(),0);await picker.getByRole('button',{name:'Auswahl zurücksetzen',exact:true}).click();await picker.waitFor({state:'hidden'});
   assert.equal(await page.evaluate(()=>demo.alarmSelections.get('school_alarm')),null);
  });
  await check('alarm row selects and persists the configured owners Apple Music favorite without playback',async()=>{
-  await reset();await page.evaluate(()=>{demo.seedFavorites('maximilian',[{kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',alarm_song:true,title:'Meine Weckmusik'},{kind:'apple_music',uri:'apple_music--demo://track/morning',media_type:'track',alarm_song:true,title:'Guten Morgen'}]);demo.addAlarmRow();});
+  await reset();await page.evaluate(()=>{demo.seedAlarmSongs('maximilian',[{kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',alarm_song:true,title:'Meine Weckmusik'},{kind:'apple_music',uri:'apple_music--demo://track/morning',media_type:'track',alarm_song:true,title:'Guten Morgen'}]);demo.addAlarmRow();});
   let alarm=page.locator('music-manager-alarm-row').first();await alarm.locator('#alarm-row').getByText('Letzte Sonos-Wiedergabe',{exact:true}).waitFor();
   await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();let picker=alarm.locator('#alarm-dialog');await picker.getByText('Maximilian',{exact:true}).waitFor();
   await picker.getByRole('button',{name:'Weckmusik aufklappen',exact:true}).click();await picker.getByRole('option').filter({hasText:'Meine Weckmusik'}).click();await picker.waitFor({state:'hidden'});
@@ -430,7 +484,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.keyboard.press('Escape');await page.evaluate(()=>demo.switchUser('paul'));await alarm.locator('#alarm-row').getByText('Dieser Wecker gehört einem anderen Benutzer.',{exact:true}).waitFor();assert(!(await alarm.locator('#alarm-row').innerText()).includes('Meine Weckmusik'));
  });
  await check('alarm picker fits mobile desktop and both themes with long favorite names',async()=>{
-  await reset();await page.evaluate(()=>{demo.seedFavorites('maximilian',[{kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',alarm_song:true,title:'Mein Lieblingslied zum sanften Aufwachen am Morgen'}]);demo.addAlarmRow();});
+  await reset();await page.evaluate(()=>{demo.seedAlarmSongs('maximilian',[{kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',alarm_song:true,title:'Mein Lieblingslied zum sanften Aufwachen am Morgen'}]);demo.addAlarmRow();});
   const alarm=page.locator('music-manager-alarm-row').first(),picker=alarm.locator('#alarm-dialog');
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);

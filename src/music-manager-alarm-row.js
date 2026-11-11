@@ -44,7 +44,7 @@ class MusicManagerAlarmRow extends HTMLElement {
     if(action==='alarm-clear')value='';
     if(!['alarm-select','alarm-clear'].includes(action)||this._saving||this._loading)return;
     const current=this._data;
-    if(value!==''&&!current?.favorites?.some(f=>f.media_type==='track'&&f.uri===value))return;
+    if(value!==''&&!(current?.songs||current?.favorites)?.some(f=>f.media_type==='track'&&f.uri===value))return;
     const epoch=++this._epoch;this._saving=true;this._error='';this._render();
     try {
       const data=await this._request('select',{uri:value});if(epoch!==this._epoch)return;
@@ -56,7 +56,7 @@ class MusicManagerAlarmRow extends HTMLElement {
     if(!this._dialog)return;
     const busy=this._loading||this._saving,selected=this._data?.selection;
     this.shadowRoot.getElementById('alarm-row').innerHTML=row({title:this._config.name||'Weckmusik',description:this._error||selected?.title||(this._loading?'Wird geladen …':'Letzte Sonos-Wiedergabe'),trailing:button({label:'Auswählen',action:'alarm-open',disabled:busy||!this._hass?.user?.id})});
-    const items=(this._data?.favorites||[]).filter(f=>f.media_type==='track').map(f=>({value:f.uri,label:f.title,description:'Wecklied'}));
+    const items=(this._data?.songs||this._data?.favorites||[]).filter(f=>f.media_type==='track').map(f=>({value:f.uri,label:f.title,description:'Wecklied'}));
     // The list contains marked songs only. Keep an older saved selection in
     // the status text, without adding albums or removed songs to the list.
     this.shadowRoot.getElementById('alarm-content').innerHTML=
@@ -64,7 +64,7 @@ class MusicManagerAlarmRow extends HTMLElement {
       (this._error?notice(this._error,{error:true})+button({label:'Erneut laden',action:'alarm-retry',disabled:busy}):'')+
       (busy?loadingState(this._saving?'Weckmusik wird gespeichert …':'Weckmusik wird geladen …'):'')+
       (this._data?combobox({id:'alarm-music',label:'Weckmusik',items,selected:items.some(i=>i.value===selected?.uri)?selected.uri:'',value:'',placeholder:'Markiertes Wecklied suchen …',action:'alarm-select',disabled:busy,emptyLabel:'Keine passenden Wecklieder.'})+
-        (selected&&this._data.selection_compatible===false?notice('Die gespeicherte Weckmusik gehört nicht mehr zum zugeordneten Apple-Music-Konto. Bitte neu auswählen.',{error:true}):selected&&!this._data.in_favorites?notice('Die bisherige Weckmusik bleibt gespeichert. Für eine neue Auswahl markiere einen einzelnen Titel als Wecklied.'):!items.length?notice('Markiere zuerst einen einzelnen Titel in Music Manager über das Weckersymbol als Wecklied.'):'')+
+        (selected&&this._data.selection_compatible===false?notice('Die gespeicherte Weckmusik gehört nicht mehr zum zugeordneten Apple-Music-Konto. Bitte neu auswählen.',{error:true}):selected&&!(this._data.in_songs??this._data.in_favorites)?notice('Die bisherige Weckmusik bleibt gespeichert. Für eine neue Auswahl füge einen einzelnen Titel zur Wecklied-Liste hinzu.'):!items.length?notice('Markiere zuerst einen einzelnen Titel in Music Manager über das Weckersymbol als Wecklied.'):'')+
         (selected?row({title:selected.title,description:'Gespeicherte Weckmusik',trailing:button({label:'Auswahl zurücksetzen',action:'alarm-clear',disabled:busy})}):notice('Ohne ausgewähltes Wecklied wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt.')):'');
   }
 }

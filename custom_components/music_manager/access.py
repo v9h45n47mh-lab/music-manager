@@ -132,3 +132,21 @@ async def search(mass, account, query):
     items = [item for key in ("tracks", "albums", "playlists") for item in value(results, key, [])]
     return {"items": [result for item in items if (result := catalog_item(item, account["provider_id"]))],
             "more": False}
+
+
+async def container_tracks(mass, account, uri, offset=0):
+    """Read an album/playlist from the caller's exact Apple Music instance."""
+    validate_uri(uri, account["provider_id"])
+    kind, item_id = uri.partition("://")[2].split("/", 1)
+    if kind not in {"album", "playlist"}:
+        raise AccessError("invalid_media", "Öffne ein Album oder eine Playlist, um die einzelnen Titel anzuzeigen.")
+    kwargs = {"item_id": item_id, "provider_instance_id_or_domain": account["provider_id"],
+              "user": account["ma_user_id"], "limit": 50, "offset": offset}
+    if kind == "playlist":
+        items = await mass.music.get_playlist_tracks(**kwargs, strict_provider_instance=True)
+    else:
+        items = await mass.music.get_album_tracks(**kwargs)
+    return {"items": [result for item in items
+                      if enum_value(value(item, "media_type")) == "track"
+                      and (result := catalog_item(item, account["provider_id"]))],
+            "more": len(items) == 50, "next_offset": offset + len(items)}

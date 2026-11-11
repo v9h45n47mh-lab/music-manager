@@ -134,6 +134,19 @@ class AlarmTests(IsolatedAsyncioTestCase):
                 await self.alarms.alarm_data(hass, owner, 'school_alarm', item['uri'])
         store.async_set_item.assert_not_awaited()
 
+    async def test_separate_wake_song_store_needs_no_favorite_and_does_not_expose_normal_favorites(self):
+        hass, owner, _, _, store, favorite, call, _, _ = self.setup_alarm()
+        song = {k: v for k, v in favorite.items() if k != 'alarm_song'}
+        store.data[self.alarms.ALARM_SONGS_KEY] = [song, dict(song, uri='apple_music--b://track/foreign')]
+        store.data[self.alarms.FAVORITES_KEY] = [dict(song, uri='apple_music--a://track/ordinary')]
+        result = await self.alarms.alarm_data(hass, owner, 'school_alarm', song['uri'])
+        self.assertEqual([s['uri'] for s in result['songs']], [song['uri']])
+        self.assertTrue(result['in_songs'])
+        with self.assertRaises(self.alarms.AccessError):
+            await self.alarms.alarm_data(hass, owner, 'school_alarm', 'apple_music--a://track/ordinary')
+        await self.alarms.play_alarm(hass, call)
+        hass.mass.player_queues.play_media.assert_awaited_once_with(queue_id='RINCON_AABBCCDDEEFF01400', media=song['uri'], option='replace', user='ma-a')
+
     async def test_legacy_saved_music_continues_but_can_no_longer_be_selected_from_the_list(self):
         hass, owner, _, _, store, favorite, call, _, _ = self.setup_alarm()
         for media_type in ('album', 'playlist'):

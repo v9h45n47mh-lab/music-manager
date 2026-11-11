@@ -21,7 +21,7 @@ def mass_client():
               providers=[NS(instance_id='apple_music--a', domain='apple_music', available=True),
                          NS(instance_id='apple_music--b', domain='apple_music', available=True)],
               music=NS(search=AsyncMock(), get_library_tracks=AsyncMock(),
-                       get_library_albums=AsyncMock(), get_library_playlists=AsyncMock()))
+                       get_library_albums=AsyncMock(), get_library_playlists=AsyncMock(), get_album_tracks=AsyncMock(), get_playlist_tracks=AsyncMock()))
 
 
 def item(provider='apple_music--a', item_id='42', kind='track', **changes):
@@ -83,6 +83,29 @@ class AssignmentTests(TestCase):
 
 
 class AccountTests(IsolatedAsyncioTestCase):
+    async def test_album_and_playlist_tracks_use_exact_account_impersonation_and_native_paging(self):
+        mass = mass_client()
+        for kind in ('album', 'playlist'):
+            method = getattr(mass.music, f'get_{kind}_tracks')
+            method.return_value = [item(item_id='song'), item('apple_music--b'), item(kind='album')]
+            result = await access.container_tracks(mass, account(), f'apple_music--a://{kind}/collection', 50)
+            self.assertEqual([i['uri'] for i in result['items']], ['apple_music--a://track/song'])
+            expected = {'item_id': 'collection', 'provider_instance_id_or_domain': 'apple_music--a', 'user': 'ma-a', 'limit': 50, 'offset': 50}
+            if kind == 'playlist': expected['strict_provider_instance'] = True
+            method.assert_awaited_once_with(**expected)
+            method.return_value = [item() for _ in range(50)]
+            result = await access.container_tracks(mass, account(), f'apple_music--a://{kind}/collection', 100)
+            self.assertTrue(result['more'])
+            self.assertEqual(result['next_offset'], 150)
+
+    async def test_track_listing_rejects_foreign_providers_tracks_and_malformed_containers_before_calling_ma(self):
+        mass = mass_client()
+        for uri in ('apple_music--b://album/42', 'apple_music--a://track/42', 'library://playlist/42', 'apple_music--a://playlist/../../42'):
+            with self.assertRaises(access.AccessError):
+                await access.container_tracks(mass, account(), uri)
+        mass.music.get_album_tracks.assert_not_awaited()
+        mass.music.get_playlist_tracks.assert_not_awaited()
+
     async def test_provider_removal_never_falls_back_to_second_apple_account(self):
         mass = mass_client()
         await access.checked_account(mass, account())
@@ -210,6 +233,21 @@ class GatewayTests(IsolatedAsyncioTestCase):
         msg = dict(id=7, action='play', entity_id='media_player.mass', source_entity='media_player.sonos',
                    uri='apple_music--a://track/42', query='', media_type='playlist', offset=0)
         return hass, connection, msg, entities, permission
+
+    async def test_container_listing_is_read_only_and_rechecks_the_callers_mapping_and_permissions(self):
+        hass, connection, msg, _, _ = self.setup_gateway()
+        hass.mass.music.get_album_tracks.return_value = [item()]
+        request = {**msg, 'action': 'tracks', 'uri': 'apple_music--a://album/collection', 'offset': 0}
+        connection.user.permissions.check_entity = lambda entity, policy: policy=='read'
+        await self.gateway.websocket_apple_music(hass, connection, request)
+        self.assertIsNone(connection.error)
+        self.assertEqual(connection.result['items'][0]['media_type'], 'track')
+        hass.mass.player_queues.play_media.assert_not_awaited()
+        hass.mass.music.get_album_tracks.reset_mock()
+        hass.mass.auth.get_user.return_value.provider_filter = ['apple_music--b']
+        await self.gateway.websocket_apple_music(hass, connection, request)
+        self.assertEqual(connection.error[0], 'account_filter')
+        hass.mass.music.get_album_tracks.assert_not_awaited()
 
     async def test_play_uses_server_resolved_user_and_selected_sonos_queue(self):
         hass, connection, msg, _, _ = self.setup_gateway()

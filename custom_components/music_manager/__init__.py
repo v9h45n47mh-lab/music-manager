@@ -8,7 +8,7 @@ from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
 from homeassistant.components import websocket_api
 from homeassistant.helpers import entity_registry as er
 
-from .access import AccessError, account_for, checked_account, library, search, sonos_uid, validate_uri, value
+from .access import AccessError, account_for, checked_account, container_tracks, library, search, sonos_uid, validate_uri, value
 from .const import CONF_ACCOUNTS, CONF_MASS_ENTRY, DOMAIN
 from .helpers import music_assistant_client
 
@@ -77,7 +77,7 @@ def resolve_player(hass, connection, entry, source_id, target_id=None):
 
 @websocket_api.websocket_command({
     vol.Required("type"): "music_manager/apple_music",
-    vol.Required("action"): vol.In(["status", "library", "search", "play", "next"]),
+    vol.Required("action"): vol.In(["status", "library", "search", "tracks", "play", "next"]),
     vol.Optional("entity_id"): str,
     vol.Required("source_entity"): str,
     vol.Optional("query", default=""): vol.All(str, vol.Length(max=200)),
@@ -118,6 +118,8 @@ async def websocket_apple_music(hass, connection, msg):
                 if not msg["query"].strip():
                     raise AccessError("empty_query", "Bitte einen Suchbegriff eingeben.")
                 result = await search(mass, account, msg["query"].strip())
+            elif msg["action"] == "tracks":
+                result = await container_tracks(mass, account, msg["uri"], msg["offset"])
             elif msg["action"] == "next":
                 player = mass.players.get(player_id)
                 if not player or not value(player, "available", False):

@@ -18,6 +18,7 @@ from .helpers import music_assistant_client
 
 SELECTION_KEY = "music_manager_alarm_music"
 FAVORITES_KEY = "music_manager_favorites"
+ALARM_SONGS_KEY = "music_manager_alarm_songs"
 ALARM_ID = re.compile(r"[a-z0-9][a-z0-9_]{0,63}\Z")
 
 
@@ -78,11 +79,17 @@ def favorite_item(item, provider_id):
     return music_item(item, provider_id)
 
 
-def favorites_from(store, provider_id):
+def songs_from(store, provider_id):
+    """Read the separate wake-song list, plus old markers until migrated."""
     result, seen = [], set()
-    raw = store.data.get(FAVORITES_KEY, [])
-    for raw_item in raw if isinstance(raw, list) else []:
-        if (item := favorite_item(raw_item, provider_id)) and item["uri"] not in seen:
+    raw = store.data.get(ALARM_SONGS_KEY, [])
+    legacy = store.data.get(FAVORITES_KEY, [])
+    candidates = list(raw) if isinstance(raw, list) else []
+    candidates += [item for item in legacy if isinstance(item, dict) and item.get("alarm_song") is True] if isinstance(legacy, list) else []
+    for raw_item in candidates:
+        if not isinstance(raw_item, dict) or raw_item.get("media_type") != "track":
+            continue
+        if (item := music_item(raw_item, provider_id)) and item["uri"] not in seen:
             result.append(item)
             seen.add(item["uri"])
     return result
@@ -93,8 +100,8 @@ def selection_from(store, alarm_id):
     item = data.get(alarm_id) if isinstance(data, dict) else None
     if not isinstance(item, dict):
         return None
-    # Keep the saved choice after it is unstarred. The account is rechecked
-    # at playback; removing a favorite alone must not silently cancel a wake-up.
+    # Keep the saved choice after removing it from the wake-song list. The
+    # account is rechecked at playback; removal must not cancel a wake-up.
     return {k: item[k] for k in ("uri", "media_type", "title") if isinstance(item.get(k), str)}
 
 
@@ -126,9 +133,9 @@ async def alarm_data(hass, caller, alarm_id, uri=None):
     if uri is not None:
         locks = hass.data.setdefault(f"{DOMAIN}_alarm_locks", {})
         async with locks.setdefault(owner.id, asyncio.Lock()):
-            item = next((f for f in favorites_from(store, account["provider_id"]) if f["uri"] == uri), None)
+            item = next((f for f in songs_from(store, account["provider_id"]) if f["uri"] == uri), None)
             if uri and not item:
-                raise AccessError("invalid_favorite", "Wähle einen einzelnen Titel, der in deinen persönlichen Favoriten als Wecklied markiert ist.")
+                raise AccessError("invalid_favorite", "Wähle einen einzelnen Titel aus deiner persönlichen Wecklied-Liste.")
             if item:
                 await apple_target(hass, entry, alarm, owner)
             saved = store.data.get(SELECTION_KEY, {})
@@ -139,12 +146,13 @@ async def alarm_data(hass, caller, alarm_id, uri=None):
                 saved.pop(alarm_id, None)
             await store.async_set_item(SELECTION_KEY, saved)
     selection = selection_from(store, alarm_id)
-    favorites = favorites_from(store, account["provider_id"])
+    favorites = songs_from(store, account["provider_id"])
     return {"alarm_id": alarm_id, "owner": owner.name or owner.id,
             "source": hass.states.get(source.entity_id).attributes.get("friendly_name", source.entity_id)
             if hass.states.get(source.entity_id) else source.entity_id,
-            "selection": selection, "favorites": favorites,
+            "selection": selection, "songs": favorites, "favorites": favorites,
             "selection_compatible": not selection or music_item({"kind": "apple_music", **selection}, account["provider_id"]) is not None,
+            "in_songs": not selection or any(f["uri"] == selection.get("uri") for f in favorites),
             "in_favorites": not selection or any(f["uri"] == selection.get("uri") for f in favorites)}
 
 
