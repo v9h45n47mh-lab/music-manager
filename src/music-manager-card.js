@@ -666,6 +666,8 @@ export class MusicManagerCard extends HTMLElement {
     }
   }
 
+  _playbackStarted(item,source) {}
+
   async _playStation(station) {
     if(!hasFeature(this._hass?.states?.[this._config.entity],'playMedia'))return;
     let payload;
@@ -674,7 +676,7 @@ export class MusicManagerCard extends HTMLElement {
     await this._service('play_media',payload,()=>{
       this._playbackSource='radio';this._radioPreviousTitle=previousTitle;this._radioContentId=null;this._playbackIntent={source:'radio',previousId};this._cancelSeek();
       this._selectedStation={...station};
-      this._applePreferred=false;this._syncRadioStation();
+      this._applePreferred=false;this._syncRadioStation();this._playbackStarted(station,'radio');
       this._dialog.close();
     },this._config.entity);
   }
@@ -815,7 +817,7 @@ export class MusicManagerCard extends HTMLElement {
       await this._appleCommand('play',{uri:item.uri});
       if(epoch!==this._epoch)return;
       this._playbackSource='apple';this._radioContentId=null;this._playbackIntent={source:'apple',previousId,until:Date.now()+15000};this._cancelSeek();
-      this._applePreferred=true;this._selectedStation=null;this._appleDialog.close();
+      this._applePreferred=true;this._selectedStation=null;this._playbackStarted(item,'apple');this._appleDialog.close();
     } catch(error) {
       if(epoch===this._epoch){this._appleError=this._appleFailure(error);if(!this._appleDialog.open)this._error=this._appleError;}
     } finally {

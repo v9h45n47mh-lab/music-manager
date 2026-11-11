@@ -51,7 +51,7 @@ const navigationData=new Map();
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
-    return {can_select,players,version:'1.12.1',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+    return {can_select,players,version:'1.12.2',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
    }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
@@ -621,7 +621,7 @@ test('beta children manage separate favorites and wake songs in one dialog and d
  const env=setup(),song={kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',title:'Mein Wecklied',can_play:true,media_content_id:'apple_music--demo://track/wake'};
  env.favoriteData.set('maximilian',[song]);env.alarmSongData.set('maximilian',[song]);env.switchUser('maximilian');const card=env.addBeta();await flush();
  env.click(card,'beta-settings');assert.match(card._settingsDialog.textContent,/Favoriten & Wecklieder/);env.click(card,'manage-favorites');await flush();
- assert.equal(card._settingsDialog.open,false);assert.equal(card._dialog.open,true);assert.equal(card.shadowRoot.getElementById('music-radio-dialog-title').textContent,'Favoriten & Wecklieder');assert.match(card.shadowRoot.getElementById('beta-wake-list').textContent,/Mein Wecklied/);
+ assert.equal(card._settingsDialog.open,true);assert.equal(card._dialog.open,true);assert.equal(card.shadowRoot.getElementById('music-radio-dialog-title').textContent,'Favoriten & Wecklieder');assert.match(card.shadowRoot.getElementById('beta-wake-list').textContent,/Mein Wecklied/);
  await card._action({action:'remove-alarm-song',data:{uri:song.uri}});await flush();assert.equal(card._alarmSongs.length,0);assert.equal(card._favorites.length,1);assert.equal(env.favoriteData.get('maximilian').length,1);
  env.alarmSongData.set('maximilian',[song]);env.notifyAlarmSongs('maximilian');await flush();await card._toggleFavorite(card._favorites[0],false);await flush();assert.equal(card._favorites.length,0);assert.equal(card._alarmSongs.length,1);
  env.switchUser('manuel');await flush();assert.equal(card._showWakeSongs,false);assert.equal(card._alarmSongs.length,0);assert.equal(card._dialog.open,false);assert.equal(card._settingsDialog.textContent.includes('Weck'),false);
@@ -651,23 +651,38 @@ test('beta uses exactly the pinned kit styles and accessible icon-only favorite 
  assert.equal(card.shadowRoot.querySelectorAll('style').length,1);assert.equal(card.shadowRoot.querySelector('style').textContent,kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS);const tile=card.shadowRoot.querySelector('[data-action="play-favorite"]');assert.equal(tile.textContent,'');assert.equal(tile.getAttribute('title'),'Mein Sender');assert.equal(tile.getAttribute('aria-label'),'Mein Sender abspielen');
 });
 
-test('beta playing favorite remains selectable when HA updates while a tile is being clicked',async()=>{
- const env=setup();env.favoriteData.set('manuel',[station('one','Eins'),station('two','Zwei')]);const card=env.addBeta();await flush();
- env.click(card,'play-favorite');await flush();const before=env.calls.length;
- const target=card.shadowRoot.querySelectorAll('#music-favorites button')[1];
- env.update('media_player.a',{attributes:{media_title:'Neuer Titel während Wiedergabe'}});
- target.click();await flush();assert.equal(env.calls.length,before+1);assert.equal(env.calls.at(-1).data.media_content_id,ROOT+'/two');assert.equal(card._favorites.length,2);
+test('beta hides the playing radio favorite while other keyed tiles survive metadata updates and filtering preserves their target',async()=>{
+ const env=setup();env.favoriteData.set('manuel',[station('one','Eins'),station('two','Zwei'),station('three','Drei')]);const card=env.addBeta();await flush();
+ const tile=id=>card.shadowRoot.querySelector(`#music-favorites [data-favorite="${ROOT}/${id}"]`),second=tile('two');
+ tile('one').click();await flush();assert.equal(tile('one'),null);assert.equal(tile('two'),second);assert.equal(card._favorites.length,3);
+ env.update('media_player.a',{attributes:{media_title:'Metadaten zum laufenden Sender'}});second.click();await flush();assert.equal(env.calls.at(-1).data.media_content_id,ROOT+'/two');assert(tile('one'));assert.equal(tile('two'),null);
+ env.favoriteData.set('manuel',[station('three','Neuer Name'),station('two','Zwei'),station('one','Eins')]);env.notifyFavorites('manuel');await flush();assert.equal(tile('three').getAttribute('title'),'Neuer Name');tile('three').click();await flush();assert.equal(env.calls.at(-1).data.media_content_id,ROOT+'/three');assert.equal(tile('three'),null);
+ env.failService=true;tile('one').click();await flush();assert(tile('one'));assert.equal(tile('three'),null);env.failService=false;
+ env.update('media_player.a',{state:'idle'});assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,3);
+ env.switchUser('vera');await flush();assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,0);assert.equal(second.isConnected,false);card.remove();
 });
-
-test('beta current favorite can be replayed and keyed tiles follow reorder title changes and user changes',async()=>{
- const env=setup();env.favoriteData.set('manuel',[station('one','Eins'),station('two','Zwei')]);const card=env.addBeta();await flush();const first=card.shadowRoot.querySelectorAll('#music-favorites button')[0],second=card.shadowRoot.querySelectorAll('#music-favorites button')[1];
- first.click();await flush();const count=env.calls.length;env.update('media_player.a',{attributes:{media_title:'Metadaten zum laufenden Favoriten'}});first.click();await flush();assert.equal(env.calls.length,count+1);assert.equal(card._favorites.length,2);assert.equal(first.disabled,false);
- env.favoriteData.set('manuel',[station('two','Neuer Name'),station('one','Eins')]);env.notifyFavorites('manuel');await flush();assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button')[0],second);assert.equal(second.getAttribute('title'),'Neuer Name');second.click();await flush();assert.equal(env.calls.at(-1).data.media_content_id,ROOT+'/two');
- env.switchUser('vera');await flush();assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,0);assert.equal(first.isConnected,false);assert.equal(second.isConnected,false);
+test('beta recognizes a radio favorite after reload from exact source or station channel and follows box changes',async()=>{
+ const env=setup();env.favoriteData.set('manuel',[station('swr3','SWR3'),station('bigfm','bigFM')]);env.update('media_player.a',{attributes:{media_content_id:'x-rincon-mp3radio://https://radio.example/live',media_channel:'SWR3',media_title:'Aktueller Musiktitel'}});const card=env.addBeta();await flush();
+ assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,1);assert.equal(card.shadowRoot.querySelector('#music-favorites button').title,'bigFM');
+ env.update('media_player.a',{attributes:{media_content_id:ROOT+'/bigfm',media_channel:'bigFM'}});assert.equal(card.shadowRoot.querySelector('#music-favorites button').title,'SWR3');
+ await card._selectBox('media_player.b');await flush();assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,2);card.remove();
+});
+test('beta keeps a playing Apple playlist hidden across its tracks and restores it after another source or queue',async()=>{
+ const env=setup(),playlist={kind:'apple_music',uri:'apple_music--demo://playlist/list',media_type:'playlist',title:'Meine Playlist'};env.favoriteData.set('manuel',[playlist,station('swr3')]);
+ env.wsHook=msg=>{if(msg.type==='music_manager/apple_music'){if(msg.action==='status')return {entity_id:'media_player.ma_a'};if(msg.action==='play'){env.update('media_player.a',{attributes:{media_content_id:'http://ma.example/flow/session/queue/item/player.aac'}});env.update('media_player.ma_a',{attributes:{active_queue:'queue',media_content_id:'apple_music--demo://track/one'}});return {started:true};}}};
+ const card=env.addBeta();await flush();env.click(card,'play-favorite');await flush();assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,1);assert.equal(card.shadowRoot.querySelector('#music-favorites button').title,'SWR3');assert.equal(card._favorites.length,2);
+ env.update('media_player.ma_a',{attributes:{media_content_id:'apple_music--demo://track/two',media_title:'Zweiter Titel'}});assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,1);
+ env.update('media_player.ma_a',{attributes:{active_queue:'different'}});assert.equal(card.shadowRoot.querySelectorAll('#music-favorites button').length,2);
+ env.click(card,'play-favorite');await flush();await card._playStation(station('swr3'));assert.equal(card.shadowRoot.querySelector('#music-favorites button').title,'Meine Playlist');card.remove();
+});
+test('beta Apple Music favorites and combined wake-song dialogs retain their parent settings',async()=>{
+ const env=setup(),card=env.addBeta();await flush();env.click(card,'beta-settings');
+ for(const action of ['open-apple','manage-favorites']){env.click(card,action);await flush();const child=action==='open-apple'?card._appleDialog:card._dialog;assert(child.open);assert(card._settingsDialog.open);child.close();await flush();assert(card._settingsDialog.open);}
+ env.switchUser('paul');await flush();env.click(card,'beta-settings');env.click(card,'manage-favorites');await flush();assert(card._settingsDialog.open);assert(card._dialog.open);card._dialog.close();assert(card._settingsDialog.open);card.remove();
 });
 test('beta radio browser returns to the settings dialog and shows actual component versions',async()=>{
  const env=setup(),card=env.addBeta();await flush();env.click(card,'beta-settings');const sender=card._settingsDialog.querySelector('[data-action="open-radio"]');sender.click();await flush();assert(card._dialog.open);assert(card._settingsDialog.open);
- card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 1\.12\.1 · Integration 1\.12\.1 · UI 1\.4\.1/);
+ card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 1\.12\.2 · Integration 1\.12\.2 · UI 1\.4\.1/);
 });
 test('beta children show their fixed speaker only inside settings and adults use a compact room dropdown',async()=>{
  const env=setup(),card=env.addBeta();await flush();assert(card.shadowRoot.querySelector('.fui-player-speaker-compact'));assert.equal(card.shadowRoot.querySelector('#music-beta-box option').textContent.includes('Sonos '),false);
