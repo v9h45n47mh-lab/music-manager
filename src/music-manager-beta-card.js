@@ -1,5 +1,5 @@
-import {UI_CSS, MUSIC_PLAYER_CSS, musicPlayerHeader, musicTransport, musicFavoriteTile, musicActionButton, musicArtwork, notice, button, iconButton, field, section, row, dialog, loadingState, emptyState} from './family-ui/1.4.0/family-ui.js';
-import {normalizeConfig, stationLogo, errorText, isAvailable, hasFeature} from './core.js';
+import {UI_CSS, MUSIC_PLAYER_CSS, musicPlayerHeader, musicTransport, musicFavoriteTile, musicActionButton, musicArtwork, notice, button, iconButton, field, section, row, dialog, loadingState, emptyState, versionInfo, UI_VERSION} from './family-ui/1.4.1/family-ui.js';
+import {normalizeConfig, stationLogo, errorText, isAvailable, hasFeature, MUSIC_VERSION} from './core.js';
 import {MusicManagerCard, MusicManagerCardEditor} from './music-manager-card.js';
 
 class MusicManagerBetaCard extends MusicManagerCard {
@@ -16,7 +16,7 @@ class MusicManagerBetaCard extends MusicManagerCard {
   _resetNavigation(){
     this._navigationRequest=(this._navigationRequest||0)+1;this._navigationReady=false;
     this._navigationLoading=false;this._navigationSaving=false;this._navigationError='';this._canSelectBox=false;this._boxes=[];
-    this._showWakeSongs=false;this._betaSongQuery='';this._settingsRenderKey='';this._settingsDialog?.close();this._dialog?.close();if(this._alarmSongUser)this._disconnectAlarmSongs();
+    this._showWakeSongs=false;this._backendVersion='';this._betaSongQuery='';this._settingsRenderKey='';this._settingsDialog?.close();this._dialog?.close();if(this._alarmSongUser)this._disconnectAlarmSongs();
   }
   set hass(hass){
     const changed=this._navigationUser!==hass.user?.id||this._navigationConnection!==hass.connection;
@@ -37,7 +37,7 @@ class MusicManagerBetaCard extends MusicManagerCard {
   _navigationMessage(action,entity){return {type:'music_manager/player_navigation',action,source_entity:this._initialConfig.entity,...(this._initialConfig.navigation_id?{navigation_id:this._initialConfig.navigation_id}:{}),...(entity?{entity_id:entity}:{})};}
   _acceptNavigation(result){
     if(!result||typeof result.can_select!=='boolean'||!Array.isArray(result.players))throw new Error('Die Box-Auswahl ist nicht verfügbar. Bitte die Integration aktualisieren.');
-    this._canSelectBox=result.can_select;this._showWakeSongs=result.show_alarm_songs===true;
+    this._canSelectBox=result.can_select;this._showWakeSongs=result.show_alarm_songs===true;this._backendVersion=typeof result.version==='string'?result.version:'';
     this._boxes=result.players.filter(p=>/^media_player\.[a-z0-9_]+$/.test(p.entity_id||'')&&typeof p.name==='string');
     const selected=this._canSelectBox&&this._boxes.some(p=>p.entity_id===result.entity_id)?result.entity_id:this._initialConfig.entity;
     this._applyBox(selected);this._connectAlarmSongs();
@@ -59,10 +59,37 @@ class MusicManagerBetaCard extends MusicManagerCard {
     finally{if(request===this._navigationRequest){this._navigationSaving=false;this._renderPlayer();}}
   }
 
+  _setPlayerMarkup(markup){
+    const strip=this._player.querySelector('#music-favorites');
+    if(!strip){super._setPlayerMarkup(markup);return;}
+    const next=document.createElement('div');next.innerHTML=markup;
+    const nextStrip=next.querySelector('#music-favorites');
+    if(!nextStrip){super._setPlayerMarkup(markup);return;}
+    const previous=new Map([...strip.children].map(button=>[button.dataset.favorite,button]));
+    const wanted=[...nextStrip.children];
+    for(let index=0;index<wanted.length;index++){
+      const fresh=wanted[index],existing=previous.get(fresh.dataset.favorite);
+      const control=existing||fresh;
+      if(existing){
+        if(existing.dataset.signature!==fresh.dataset.signature)existing.replaceChildren(...fresh.childNodes);
+        for(const attr of [...existing.attributes])if(!fresh.hasAttribute(attr.name))existing.removeAttribute(attr.name);
+        for(const attr of [...fresh.attributes])if(existing.getAttribute(attr.name)!==attr.value)existing.setAttribute(attr.name,attr.value);
+        existing.disabled=fresh.disabled;
+      }
+      if(strip.children[index]!==control)strip.insertBefore(control,strip.children[index]||null);
+      previous.delete(fresh.dataset.favorite);
+    }
+    for(const removed of previous.values())removed.remove();
+    const before=[],after=[];let found=false;
+    for(const node of [...next.childNodes]){if(node===nextStrip){found=true;continue;}(found?after:before).push(node);}
+    for(const node of [...this._player.childNodes])if(node!==strip)node.remove();
+    for(const node of before)this._player.insertBefore(node,strip);
+    this._player.append(...after);
+  }
   _musicButton(options){return musicActionButton(options);}
   _transportMarkup(controls,{radio}){return musicTransport({controls:radio?controls.filter(c=>!['previous','next'].includes(c.action)):controls});}
   _sourceActionMarkup(){return '';}
-  _favoriteShortcutMarkup(){return this._favorites.map((item,index)=>musicFavoriteTile({label:item.title,data:{index},artwork:stationLogo(item.thumbnail),kind:item.kind==='apple_music'?'music':'radio',disabled:this._busy||(item.kind!=='apple_music'&&(!isAvailable(this._hass?.states?.[this._config.entity])||!hasFeature(this._hass?.states?.[this._config.entity],'playMedia')))})).join('');}
+  _favoriteShortcutMarkup(){return this._favorites.map((item,index)=>musicFavoriteTile({label:item.title,data:{index,favorite:item.media_content_id,signature:JSON.stringify([item.title,stationLogo(item.thumbnail),item.kind||'radio'])},artwork:stationLogo(item.thumbnail),kind:item.kind==='apple_music'?'music':'radio',disabled:this._busy||(item.kind!=='apple_music'&&(!isAvailable(this._hass?.states?.[this._config.entity])||!hasFeature(this._hass?.states?.[this._config.entity],'playMedia')))})).join('');}
   get _volumeMax(){return 50;}
   _volumeMarkup(value,disabled){return super._volumeMarkup(Math.min(50,value),disabled);}
   _bindNativeVolume(value,disabled){super._bindNativeVolume(Math.min(50,value),disabled);}
@@ -70,18 +97,21 @@ class MusicManagerBetaCard extends MusicManagerCard {
     if(service==='volume_set'){if(!Number.isFinite(payload.volume_level))return false;payload={...payload,volume_level:Math.max(0,Math.min(.5,payload.volume_level))};}
     return super._service(service,payload,onSuccess,entityOverride);
   }
+  _shortBoxName(name){return String(name||'').replace(/^Sonos\s+/i,'');}
+  _boxName(entity=this._config?.entity){return this._shortBoxName(this._hass?.states?.[entity]?.attributes?.friendly_name||entity);}
   _playerHeader({title,detail,attrs,radio}){
-    const current=this._config.entity,name=this._hass?.states?.[current]?.attributes?.friendly_name||current;
-    const choices=(this._boxes||[]).map(p=>({value:p.entity_id,label:p.name+(p.available===false?' · Nicht erreichbar':'')}));
+    const current=this._config.entity,name=this._boxName(current);
+    const choices=(this._boxes||[]).map(p=>({value:p.entity_id,label:this._shortBoxName(p.name)+(p.available===false?' · Nicht erreichbar':'')}));
     if(!choices.some(p=>p.value===current))choices.unshift({value:current,label:name});
-    return musicPlayerHeader({title,description:detail,speaker:name,speakerSelect:this._canSelectBox?{id:'music-beta-box',value:current,options:choices,disabled:this._busy||this._navigationLoading||this._navigationSaving}:null,artwork:stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail),radio,settingsAction:'beta-settings',disabled:this._busy||this._navigationLoading||this._navigationSaving})+
+    return musicPlayerHeader({title,description:detail,speaker:name,hideSpeaker:this._showWakeSongs||!this._navigationReady,speakerSelect:this._canSelectBox?{id:'music-beta-box',value:current,options:choices,compact:true,disabled:this._busy||this._navigationLoading||this._navigationSaving}:null,artwork:stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail),radio,settingsAction:'beta-settings',disabled:this._busy||this._navigationLoading||this._navigationSaving})+
       `<div class="fui-player-navigation-status" aria-live="polite">${this._navigationError?notice(this._navigationError,{error:true})+button({label:'Erneut laden',action:'beta-reload'}):this._navigationLoading?loadingState('Persönliche Box wird geladen …'):this._navigationSaving?loadingState('Box wird gespeichert …'):''}</div>`;
   }
   _renderPlayer(){
     if(this.shadowRoot?.activeElement?.id==='music-beta-box'&&!this._navigationTransition&&!this._navigationSaving){this._betaDeferred=true;return;}
     if(this._editingVolume()){super._renderPlayer();return;}
     super._renderPlayer();
-    for(const cover of this._player?.querySelectorAll('.fui-music-artwork img')||[])cover.addEventListener('error',()=>cover.remove(),{once:true});
+    this._boundCovers ||= new WeakSet();
+    for(const cover of this._player?.querySelectorAll('.fui-music-artwork img')||[])if(!this._boundCovers.has(cover)){this._boundCovers.add(cover);cover.addEventListener('error',()=>cover.remove(),{once:true});}
     const select=this.shadowRoot?.getElementById('music-beta-box');
     select?.addEventListener('change',()=>{void this._selectBox(select.value);});
     select?.addEventListener('blur',()=>{if(this._betaDeferred){this._betaDeferred=false;queueMicrotask(()=>this._renderPlayer());}});
@@ -90,10 +120,15 @@ class MusicManagerBetaCard extends MusicManagerCard {
   }
   _renderSettings(){
     if(!this._settingsDialog)return;
-    const key=[this._hass?.user?.id,this._showWakeSongs,this._busy,this._navigationLoading,this._navigationSaving].join(':');if(key===this._settingsRenderKey)return;this._settingsRenderKey=key;
+    const host=this.shadowRoot.getElementById('beta-settings-list'),speaker=this._boxName();
+    const key=[this._hass?.user?.id,this._showWakeSongs,this._backendVersion,this._config?.entity,speaker].join(':');
     const busy=this._busy||this._navigationLoading||this._navigationSaving;
-    const items=[['Sender','open-radio','Sender wählen'],['Apple Music','open-apple','Apple Music öffnen'],[this._showWakeSongs?'Favoriten & Wecklieder':'Favoriten','manage-favorites',this._showWakeSongs?'Favoriten und Wecklieder verwalten':'Favoriten verwalten']];
-    this.shadowRoot.getElementById('beta-settings-list').innerHTML=items.map(([title,action,label])=>row({title,trailing:iconButton({icon:'right',label,action,disabled:busy})})).join('');
+    if(key!==this._settingsRenderKey){
+      this._settingsRenderKey=key;
+      const items=[['Sender','open-radio','Sender wählen'],['Apple Music','open-apple','Apple Music öffnen'],[this._showWakeSongs?'Favoriten & Wecklieder':'Favoriten','manage-favorites',this._showWakeSongs?'Favoriten und Wecklieder verwalten':'Favoriten verwalten']];
+      host.innerHTML=(this._showWakeSongs?row({title:'Box',description:speaker}):'')+items.map(([title,action,label])=>row({title,trailing:iconButton({icon:'right',label,action,disabled:busy})})).join('')+versionInfo({frontend:MUSIC_VERSION,backend:this._backendVersion,ui:UI_VERSION});
+    }
+    for(const button of host.querySelectorAll('button[data-action]'))button.disabled=busy;
   }
   _connectAlarmSongs(){
     if(this._showWakeSongs)super._connectAlarmSongs();else if(this._alarmSongUser)this._disconnectAlarmSongs();
@@ -133,12 +168,13 @@ class MusicManagerBetaCard extends MusicManagerCard {
     if(event.action==='beta-reload'){this._navigationReady=false;await this._loadNavigation();return;}
     if(this._navigationLoading||this._navigationSaving)return;
     if(event.action==='beta-settings'){this._renderSettings();if(!this._settingsDialog.open)this._settingsDialog.showModal();return;}
-    if(['open-radio','open-apple','manage-favorites'].includes(event.action))this._settingsDialog?.close();
+    if(['open-apple','manage-favorites'].includes(event.action))this._settingsDialog?.close();
     const wakeActions=['open-alarm-songs','apple-songs','apple-alarm-song','remove-alarm-song','reload-alarm-songs','alarm-songs-add','beta-add-songs','beta-play-wake'];
     if(wakeActions.includes(event.action)&&!this._showWakeSongs)return;
     if(['open-alarm-songs','apple-songs'].includes(event.action)){this._settingsDialog?.close();await super._action({action:'manage-favorites'});return;}
     if(['beta-add-songs','alarm-songs-add'].includes(event.action)){this._dialog.close();await this._openApple();return;}
     if(event.action==='beta-play-wake'){const song=this._alarmSongs.find(item=>item.uri===event.data.uri);if(song)await this._playApple(song);return;}
+    if(event.action==='play-favorite'&&event.data?.favorite){const index=this._favorites.findIndex(item=>item.media_content_id===event.data.favorite);if(index<0)return;event={...event,data:{...event.data,index:String(index)}};}
     await super._action(event);
   }
 }

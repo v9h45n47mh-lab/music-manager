@@ -11,7 +11,7 @@ from homeassistant.components.frontend.storage import async_user_store
 from homeassistant.helpers import entity_registry as er
 
 from .access import AccessError, sonos_uid
-from .const import CONF_SPEAKER_USERS, DOMAIN
+from .const import CONF_SPEAKER_USERS, DOMAIN, VERSION
 
 NAVIGATION_KEY = "music_manager_beta_navigation"
 
@@ -67,7 +67,7 @@ async def navigation_data(hass, user, source, navigation_id="", selected=None):
     if not allowed:
         if selected is not None:
             raise AccessError("unauthorized", "Diese Karte verwendet für dich die konfigurierte Box.")
-        return {"can_select": False, "entity_id": source, "players": [], "show_alarm_songs": show_alarm_songs}
+        return {"can_select": False, "entity_id": source, "players": [], "show_alarm_songs": show_alarm_songs, "version": VERSION}
     players = available_players(hass, user)
     ids = {p["entity_id"] for p in players}
     key = navigation_id or source
@@ -84,7 +84,7 @@ async def navigation_data(hass, user, source, navigation_id="", selected=None):
         entity = saved.get(key)
         # A removed speaker/permission must never leave a hidden stale target.
         entity = entity if entity in ids else source
-    return {"can_select": True, "entity_id": entity, "players": players, "show_alarm_songs": show_alarm_songs}
+    return {"can_select": True, "entity_id": entity, "players": players, "show_alarm_songs": show_alarm_songs, "version": VERSION}
 
 
 @websocket_api.websocket_command({

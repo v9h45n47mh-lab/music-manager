@@ -54,7 +54,7 @@ class NavigationTests(IsolatedAsyncioTestCase):
     async def test_children_always_use_initial_speaker_and_cannot_save_other_speaker(self):
         for child in ['maximilian', 'paul']:
             result = await self.data(child)
-            self.assertEqual(result, {'can_select': False, 'entity_id': 'media_player.living', 'players': [], 'show_alarm_songs': True})
+            self.assertEqual(result, {'can_select': False, 'entity_id': 'media_player.living', 'players': [], 'show_alarm_songs': True, 'version': self.nav.VERSION})
             with self.assertRaises(self.nav.AccessError):
                 await self.data(child, 'media_player.office')
         self.nav.async_user_store.assert_not_awaited()

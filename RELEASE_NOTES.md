@@ -1,11 +1,10 @@
-## Music Manager 1.12.0 – Player Beta
+## Music Manager 1.12.1 – Player Beta
 
-- Gemeinsame Player-Bausteine aus **HA UI Kit 1.4.0**, ohne lokale CSS-Überschreibungen in der Beta.
-- Schmales Box-Dropdown oben links, ohne sichtbares „Box“-Label. Das Zahnrad oben rechts öffnet Sender, Apple Music und Favoriten; die Auswahlleiste unten entfällt.
-- Keine sichtbare Beta-Beschriftung. Favoritenkacheln zeigen nur Logos oder Symbole; zugängliche Namen und Tooltips bleiben erhalten.
-- Wecklieder samt Datenladen und Apple-Music-Markierung nur für die aktiven, eindeutig benannten HA-Benutzer **Maximilian und Paul**. Beide verwalten **Favoriten & Wecklieder** in einem gemeinsamen Dialog mit Suche, Sortierung und Entfernen. Die Listen bleiben getrennt gespeichert. Vera und Manuel erhalten nur die Favoritenverwaltung.
-- Bei Radio nur Play/Pause; Apple Music behält Vor/Zurück und Shuffle. Die Player-Tasten bleiben auch beim Hover kreisrund.
-- Lautstärke der Beta auf **0–50 %** begrenzt, einschließlich gesendeter Befehle und nativer HA-Slider-Ereignisse. Die Skala nutzt die ganze Breite: **0 links, 25 Mitte, 50 rechts**. Andere HA-Karten, direkte Serviceaufrufe und die Sonos-App sind unabhängig.
-- Persönliche Box-Auswahl für Vera und Manuel, feste Ausgangsbox für die Kinder und persönliche Konten bleiben erhalten. Die bisherige Karte wird nicht ersetzt.
+- Kompakteres Box-Dropdown: **150 px**, Raumnamen ohne „Sonos“-Vorsatz; **Schlafzimmer** passt vollständig hinein.
+- Bei **Maximilian und Paul** steht der feste Boxname ausschließlich in den Einstellungen. Der Player-Kopf zeigt ihn nicht mehr.
+- Favoriten bleiben während der Wiedergabe und bei Statusmeldungen zuverlässig auswählbar. Auch der aktuelle Favorit kann erneut gestartet werden.
+- Nach dem Schließen des **Radio Browsers** über X oder Escape und nach einer Senderauswahl geht es zurück zu den Einstellungen.
+- Versionsanzeige in den Einstellungen: **Oberfläche**, tatsächlich verbundene **Integration** und **UI Kit**.
+- Gemeinsame Player-Bausteine aus **HA UI Kit 1.4.1**; keine eigenen CSS-Regeln in der Beta. Persönliche Box-Auswahl, Konten, Favoriten und Berechtigungen bleiben erhalten.
 
-Im Marketplace aktualisieren, HA neu starten und die Seite vollständig neu laden. Bestehende Beta-Karten verwenden weiter **`custom:music-manager-beta-card`**; ihre YAML-Konfiguration bleibt gültig.
+Im Marketplace aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Bestehende Karten mit `custom:music-manager-beta-card` benötigen keine YAML-Änderung.

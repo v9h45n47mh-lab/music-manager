@@ -2,7 +2,7 @@ import {
   UI_CSS, UI_VERSION, row, button, iconButton, field, combobox,
   section, toggle, rangeControl, dialog, notice, versionInfo, emptyState,
   loadingState, bindUI, escapeHtml, programOrderButtons
-} from './family-ui/1.4.0/family-ui.js';
+} from './family-ui/1.4.1/family-ui.js';
 import {
   MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
   isAvailable, volumePercent, normalizeMedia, isRadioId, stationPayload,
@@ -515,6 +515,7 @@ export class MusicManagerCard extends HTMLElement {
     return `<div class="music-header"><div class="music-now-playing"><h2 class="music-title">${escapeHtml(title)}</h2><div class="music-detail">${escapeHtml(detail)}</div></div><div class="music-box" aria-label="Box">${escapeHtml(this._hass?.states?.[this._config.entity]?.attributes?.friendly_name || this._config.entity)}</div></div>`;
   }
 
+  _setPlayerMarkup(markup){this._player.innerHTML=markup;}
   _musicButton(options){return musicButton(options);}
   _transportMarkup(controls){return controls.length?`<div class="music-transport" aria-label="Wiedergabe">${controls.map(control=>this._musicButton(control)).join('')}</div>`:'';}
   _sourceActionMarkup(){return `<div class="toolbar music-source-actions">${button({label:'Sender wählen',action:'open-radio',disabled:this._busy})}${button({label:'Apple Music',action:'open-apple',disabled:this._busy})}${button({label:'Favoriten',action:'manage-favorites',disabled:this._busy})}${button({label:'Wecklieder',action:'open-alarm-songs',disabled:this._busy})}</div>`;}
@@ -548,7 +549,7 @@ export class MusicManagerCard extends HTMLElement {
     if (controls.next) transport.push({label:'Weiter',icon:'next',action:'next',disabled:disabled||!hasFeature(state,'next')});
     if (apple&&controls.shuffle&&hasFeature(state,'shuffle'))transport.push({label:attrs.shuffle?'Shuffle ausschalten':'Shuffle einschalten',icon:'shuffle',action:'shuffle',disabled,pressed:Boolean(attrs.shuffle)});
     const vol=attrs.is_volume_muted?0:volumePercent(attrs.volume_level);
-    this._player.innerHTML = `
+    this._setPlayerMarkup(`
       ${this._playerHeader({title,detail,attrs,apple,radio})}
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
       <div class="music-controls">
@@ -561,13 +562,13 @@ export class MusicManagerCard extends HTMLElement {
       <div id="music-favorites" class="music-favorites" aria-label="Persönliche Favoriten">${this._favoriteShortcutMarkup()}</div>
       ${this._sourceActionMarkup()}
       <div id="music-favorite-status" aria-live="polite">${this._favoriteError?notice(this._favoriteError,{error:true})+button({label:'Favoriten neu laden',action:'reload-favorites'}):this._favoriteLoading?loadingState('Favoriten werden geladen …'):!this._favorites.length?notice('Sender, Titel, Alben und Playlists über den Stern zu deinen Favoriten hinzufügen.'):''}</div>
-      <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState(this._pendingService==='media_next_track'?'Nächster Titel wird geladen …':'Befehl wird gesendet …') : ''}</div>`;
+      <div id="music-player-status" aria-live="polite">${this._error ? notice(this._error,{error:true}) : this._busy ? loadingState(this._pendingService==='media_next_track'?'Nächster Titel wird geladen …':'Befehl wird gesendet …') : ''}</div>`);
     this._bindNativeVolume(vol??0,disabled||vol===null||!hasFeature(state,'volume'));
     this._updateProgress();this._scheduleProgress();
     // The shared range initializes after DOM replacement; then restore the
     // timeline's clock formatting without changing the shared component.
     queueMicrotask(()=>this._updateProgress(this._seekInteracting?Number(this.shadowRoot.getElementById('music-seek')?.value):undefined));
-    if (focusedAction) this._player.querySelector(`[data-action="${focusedAction}"]`)?.focus();
+    if (focusedAction && !active?.isConnected) this._player.querySelector(`[data-action="${focusedAction}"]`)?.focus();
   }
 
   async _action({action,data,value,phase,checked}) {

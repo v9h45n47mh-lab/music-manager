@@ -180,7 +180,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();await page.keyboard.press('Escape');
   // A separate untouched UI Kit reference ensures local styles do not alter shared components.
   await page.evaluate(async()=>{
-   const kit=await import('/src/family-ui/1.4.0/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
+   const kit=await import('/src/family-ui/1.4.1/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Beschreibung',trailing:kit.button({label:'Abspielen',action:'ref'})})}`;
   });
   for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
@@ -547,7 +547,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await reset();await page.evaluate(async()=>{
    const song={kind:'apple_music',uri:'apple_music--demo://track/long',media_type:'track',title:'Skifahrt (Chicken Fajita) und ein sehr langer zusammenhängender Liedname'};demo.seedAlarmSongs('maximilian',[song]);demo.alarmSelections.set('school_alarm',song);demo.addAlarmRow();
    const host=document.querySelector('#alarm-host');host.style.display='grid';host.style.gridTemplateColumns='40px minmax(0,1fr)';host.style.gap='16px';host.style.overflow='hidden';host.prepend(document.createElement('span'));
-   const kit=await import('/src/family-ui/1.4.0/family-ui.js');const holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';const ref=holder.attachShadow({mode:'open'});
+   const kit=await import('/src/family-ui/1.4.1/family-ui.js');const holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';const ref=holder.attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Weckmusik',description:'Lied',trailing:kit.button({label:'Auswählen',action:'reference'})})}`;
   });
   const alarm=page.locator('music-manager-alarm-row').first();await alarm.getByRole('button',{name:'Auswählen',exact:true}).waitFor();
@@ -629,7 +629,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
   for(const user of ['maximilian','paul']){
    await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);
-   assert.equal(await beta().locator('#music-beta-box').count(),0);assert.equal(await beta().locator('.fui-player-name').innerText(),'Sonos Wohnzimmer');
+   assert.equal(await beta().locator('#music-beta-box').count(),0);assert.equal(await beta().locator('#player .fui-player-name').count(),0);
    await beta().locator('#player [data-action="play-pause"]').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
   }
  });
@@ -640,7 +640,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  });
  await check('beta selector keeps native UI Kit styling and the player fits phone desktop light and dark',async()=>{
   await setupBeta();await page.evaluate(async()=>{
-   const kit=await import('/src/family-ui/1.4.0/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
+   const kit=await import('/src/family-ui/1.4.1/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
    demo.update('media_player.wohnzimmer',{attributes:{media_title:'Ein sehr langer Titel für einen responsiven Musicplayer',entity_picture:'/missing-cover.png'}});
   });
   await page.waitForFunction(()=>!document.querySelector('music-manager-beta-card').shadowRoot.querySelector('.fui-player-heading img'));
@@ -676,8 +676,8 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await manager.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();assert(!await beta().locator('#music-beta-settings').innerText().then(t=>t.includes('Weck')));
  });
  await check('beta radio has play pause only and Apple restores track navigation and shuffle',async()=>{
-  await setupBeta();await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();await beta().getByRole('button',{name:'Sender wählen',exact:true}).click();const radio=beta().locator('#music-radio-dialog');await radio.getByRole('button',{name:'Beliebt',exact:true}).click();await radio.locator('[data-action="play-station"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._playbackSource==='radio');assert.equal(await beta().locator('#player [data-action="previous"],#player [data-action="next"]').count(),0);assert(await beta().getByRole('button',{name:'Pause',exact:true}).isVisible());
-  await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();await beta().getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await beta().locator('#music-apple-dialog [data-action="apple-play"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._isApplePlayback);assert(await beta().getByRole('button',{name:'Weiter',exact:true}).isVisible());assert(await beta().getByRole('button',{name:'Zurück',exact:true}).isVisible());assert.equal(await beta().locator('#player [data-action="shuffle"]').count(),1);
+  await setupBeta();await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();await beta().getByRole('button',{name:'Sender wählen',exact:true}).click();const radio=beta().locator('#music-radio-dialog');await radio.getByRole('button',{name:'Beliebt',exact:true}).click();await radio.locator('[data-action="play-station"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._playbackSource==='radio');assert.equal(await beta().locator('#player [data-action="previous"],#player [data-action="next"]').count(),0);assert.equal(await beta().locator('#player [data-action="play-pause"]').count(),1);
+  await beta().locator('#music-beta-settings').waitFor();await beta().getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await beta().locator('#music-apple-dialog [data-action="apple-play"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._isApplePlayback);assert(await beta().getByRole('button',{name:'Weiter',exact:true}).isVisible());assert(await beta().getByRole('button',{name:'Zurück',exact:true}).isVisible());assert.equal(await beta().locator('#player [data-action="shuffle"]').count(),1);
  });
  await check('beta round hover and zero through fifty use the full slider width and exact shared player styles',async()=>{
   await setupBeta();
@@ -686,11 +686,30 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    for(const button of await beta().locator('.fui-music-transport button').all()){await button.hover();const box=await button.boundingBox();assert.equal(box.width,box.height);assert.equal(await button.evaluate(e=>getComputedStyle(e).borderRadius),'50%');}
    const slider=beta().locator('#music-volume');assert.equal(await slider.getAttribute('max'),'50');await slider.evaluate(e=>{e.value='50';e.dispatchEvent(new Event('input',{bubbles:true}));});assert.equal(await slider.evaluate(e=>e.style.getPropertyValue('--range-percent')),'100%');await slider.dispatchEvent('change');await page.waitForFunction(()=>demo.calls.at(-1).data.volume_level===.5);assert.equal(await beta().locator('output').innerText(),'50 %');await page.mouse.move(0,0);await beta().screenshot({path:path.join(screens,`beta-fifty-${width}-${dark?'dark':'light'}.png`)});
   }
-  assert(await beta().evaluate(async el=>{const kit=await import('/src/family-ui/1.4.0/family-ui.js');return el.shadowRoot.querySelectorAll('style').length===1&&el.shadowRoot.querySelector('style').textContent===kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS;}));
+  assert(await beta().evaluate(async el=>{const kit=await import('/src/family-ui/1.4.1/family-ui.js');return el.shadowRoot.querySelectorAll('style').length===1&&el.shadowRoot.querySelector('style').textContent===kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS;}));
   await page.evaluate(()=>demo.cards.at(-1)._action({action:'volume',phase:'change',value:99}));assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.volume_level),.5);
  });
  await check('beta native slider caps a public committed volume event at fifty',async()=>{
   await reset();await page.evaluate(()=>{customElements.define('ha-control-slider',class extends HTMLElement{});demo.addBeta();});await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);const slider=beta().locator('ha-control-slider');assert.equal(await slider.evaluate(e=>e.max),50);await slider.evaluate(e=>e.dispatchEvent(new CustomEvent('value-changed',{detail:{value:95},bubbles:true})));await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.5);
+ });
+
+ await check('beta favorite clicks survive metadata updates between pointer down and pointer up and the playing favorite stays reusable',async()=>{
+  await setupBeta();await page.evaluate(()=>demo.seedFavorites('manuel',[demo.station('one','Eins'),demo.station('two','Zwei')]));
+  const tiles=()=>beta().locator('#music-favorites button');await tiles().nth(0).click();await page.waitForFunction(()=>!demo.cards.at(-1)._busy);assert.equal(await tiles().count(),2);assert(await tiles().nth(0).isEnabled());
+  const box=await tiles().nth(1).boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{media_title:'Aktuelle Radiometadaten'}}));await page.mouse.up();await page.waitForFunction(()=>demo.calls.filter(c=>c.service==='play_media').length===2);assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.media_content_id),'media-source://radio_browser/two');
+  await page.waitForFunction(()=>!demo.cards.at(-1)._busy);const playing=await tiles().nth(1).boundingBox();await page.mouse.move(playing.x+playing.width/2,playing.y+playing.height/2);await page.mouse.down();await page.evaluate(()=>demo.update('media_player.wohnzimmer',{attributes:{volume_level:.3}}));await page.mouse.up();await page.waitForFunction(()=>demo.calls.filter(c=>c.service==='play_media').length===3);assert.equal(await tiles().count(),2);assert(await tiles().nth(1).isEnabled());
+  await page.evaluate(()=>{demo.seedFavorites('manuel',[{kind:'apple_music',uri:'apple_music--demo://playlist/123',media_type:'playlist',title:'Meine Playlist'},demo.station('one','Eins')]);});await tiles().nth(0).click();await page.waitForFunction(()=>demo.cards.at(-1)._isApplePlayback&&!demo.cards.at(-1)._busy);assert.equal(await tiles().count(),2);assert(await tiles().nth(0).isEnabled());
+  const apple=await tiles().nth(0).boundingBox();await page.mouse.move(apple.x+apple.width/2,apple.y+apple.height/2);await page.mouse.down();await page.evaluate(()=>demo.update('media_player.ma_wohnzimmer',{attributes:{media_title:'Neuer Titel im Album'}}));await page.mouse.up();await page.waitForFunction(()=>demo.wsCalls.filter(c=>c.type==='music_manager/apple_music'&&c.action==='play').length===2);assert.equal(await tiles().count(),2);
+ });
+ await check('beta closing radio returns to settings with frontend backend and UI versions',async()=>{
+  await setupBeta();await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=beta().locator('#music-beta-settings');
+  for(const close of ['button','escape']){await settings.getByRole('button',{name:'Sender wählen',exact:true}).click();const radio=beta().locator('#music-radio-dialog');await radio.waitFor();if(close==='button')await radio.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await radio.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 1.12.1 · Integration 1.12.1 · UI 1.4.1');}
+  await settings.getByRole('button',{name:'Schließen',exact:true}).click();await settings.waitFor({state:'hidden'});
+ });
+ await check('beta child speaker names appear only in settings while compact room names remain readable for adults',async()=>{
+  await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.bedroom');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.bedroom');assert.equal(await beta().locator('#music-beta-box option:checked').innerText(),'Schlafzimmer');
+  for(const width of [320,390,1100]){await page.setViewportSize({width,height:850});const box=await beta().locator('#music-beta-box').boundingBox();assert.equal(box.width,150);}
+  for(const user of ['maximilian','paul']){await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);assert.equal(await beta().locator('#player .fui-player-name,#music-beta-box').count(),0);assert(!await beta().locator('.fui-player-toolbar').innerText().then(t=>t.includes('Wohnzimmer')));await beta().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=beta().locator('#music-beta-settings');assert(await settings.getByText('Wohnzimmer',{exact:true}).isVisible());for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await settings.evaluate(e=>e.scrollWidth>e.clientWidth));await page.screenshot({path:path.join(screens,`beta-settings-${user}-${width}-${dark?'dark':'light'}.png`),fullPage:false});}await settings.getByRole('button',{name:'Schließen',exact:true}).click();}
  });
  const configURL=url.replace('fixture.html','configuration-fixture.html');
  const openConfiguration=async()=>{await page.goto(configURL);await page.waitForFunction(()=>window.configurationDemo?.panel._data);};
@@ -754,7 +773,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.deepEqual(await page.evaluate(()=>configurationDemo.data.speaker_users),[{id:'manuel',name:'Manuel'}]);
  });
  await check('configuration follows UI Kit typography and fits desktop mobile and both themes',async()=>{
-  await openConfiguration();await page.evaluate(async()=>{const kit=await import('/src/family-ui/1.4.0/family-ui.js');const root=document.querySelector('#reference').attachShadow({mode:'open'});root.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Text'})}`;});
+  await openConfiguration();await page.evaluate(async()=>{const kit=await import('/src/family-ui/1.4.1/family-ui.js');const root=document.querySelector('#reference').attachShadow({mode:'open'});root.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Text'})}`;});
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    const report=await panel().evaluate(el=>{const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;const styles=e=>{const s=getComputedStyle(e);return [s.fontFamily,s.fontSize,s.fontWeight,s.color];};return {over:[...root.querySelectorAll('#configuration *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<0||r.right>innerWidth+1)}).map(e=>e.outerHTML.slice(0,100)),actual:styles(root.querySelector('.row-text strong')),reference:styles(ref.querySelector('.row-text strong'))};});
