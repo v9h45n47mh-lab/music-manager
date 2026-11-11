@@ -601,6 +601,59 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await native.evaluate(el=>el.dispatchEvent(new CustomEvent('value-changed',{detail:{value:61},bubbles:true})));
   await page.waitForFunction(()=>demo.calls.length===1);assert.equal(await page.evaluate(()=>demo.calls[0].data.volume_level),.61);
  });
+
+ const beta=()=>page.locator('music-manager-beta-card').first();
+ const setupBeta=async()=>{await reset();await page.evaluate(()=>{
+  for(const [id,name,uid] of [['office','Büro Manuel','RINCON_ABC001'],['bedroom','Schlafzimmer','RINCON_ABC002']]){
+   demo.registry.push({entity_id:'media_player.'+id,platform:'sonos',unique_id:uid});
+   demo.update('media_player.'+id,{state:'playing',attributes:{friendly_name:name,media_title:'Musik in '+name,volume_level:0.2,supported_features:1|2|4|8|16|32|512|4096|16384|32768}});
+  }
+  demo.seedFavorites('manuel',[demo.station('manuel','Manuels Radio')]);demo.seedFavorites('vera',[demo.station('vera','Veras Radio')]);demo.addBeta();
+ });await beta().locator('#music-beta-box').waitFor();};
+ await check('beta remembers Manuel office and Vera bedroom independently while favorites stay personal',async()=>{
+  await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');
+  await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
+  await beta().getByRole('button',{name:'Weiter',exact:true}).click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.office');
+  assert.equal(await beta().locator('[data-action="play-favorite"]').innerText(),'Manuels Radio');
+  await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);
+  assert.equal(await beta().getByLabel('Box',{exact:true}).inputValue(),'media_player.wohnzimmer');
+  await beta().getByLabel('Box',{exact:true}).selectOption('media_player.bedroom');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.bedroom');
+  assert.equal(await beta().locator('[data-action="play-favorite"]').innerText(),'Veras Radio');
+  await page.evaluate(()=>demo.switchUser('manuel'));await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
+  assert.equal(await beta().getByLabel('Box',{exact:true}).inputValue(),'media_player.office');
+  await page.evaluate(()=>{const old=demo.cards.at(-1);old.remove();demo.addBeta();});
+  await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
+  assert.equal(await card().locator('.music-box').innerText(),'Sonos Wohnzimmer');
+ });
+ await check('beta children have no dropdown and use the configured speaker after an adult session',async()=>{
+  await setupBeta();await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');await page.waitForFunction(()=>demo.cards.at(-1)._config.entity==='media_player.office');
+  for(const user of ['maximilian','paul']){
+   await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);
+   assert.equal(await beta().locator('#music-beta-box').count(),0);assert.equal(await beta().locator('.beta-fixed-box').innerText(),'Sonos Wohnzimmer');
+   await beta().getByRole('button',{name:'Weiter',exact:true}).click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
+  }
+ });
+ await check('beta keeps the current speaker on failed save and never edits Lovelace configuration',async()=>{
+  await setupBeta();await page.evaluate(()=>{demo.wsHook=msg=>{if(msg.type==='music_manager/player_navigation'&&msg.action==='select')throw new Error('Speichern fehlgeschlagen');};window.betaConfigEvents=[];document.querySelector('music-manager-beta-card').addEventListener('config-changed',e=>betaConfigEvents.push(e.detail));});
+  await beta().getByLabel('Box',{exact:true}).selectOption('media_player.office');await beta().getByRole('alert').waitFor();
+  assert.equal(await beta().getByLabel('Box',{exact:true}).inputValue(),'media_player.wohnzimmer');assert.deepEqual(await page.evaluate(()=>betaConfigEvents),[]);
+ });
+ await check('beta selector keeps native UI Kit styling and the player fits phone desktop light and dark',async()=>{
+  await setupBeta();await page.evaluate(async()=>{
+   const kit=await import('/src/family-ui/1.3.1/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
+   demo.update('media_player.wohnzimmer',{attributes:{media_title:'Ein sehr langer Titel für einen responsiven Musicplayer',entity_picture:'/brand/icon.svg'}});
+  });
+  for(const width of [320,390,430,768,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);await page.mouse.move(0,0);
+   const report=await beta().evaluate(el=>{
+    const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;
+    const properties=['fontFamily','fontSize','fontWeight','color','backgroundColor','paddingTop','paddingRight','paddingBottom','paddingLeft','borderRadius'];
+    const style=el=>Object.fromEntries(properties.map(p=>[p,getComputedStyle(el)[p]]));
+    return {over:[...root.querySelectorAll('#player *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<0||r.right>innerWidth+1)}).map(e=>e.outerHTML.slice(0,80)),select:style(root.querySelector('select')),reference:style(ref.querySelector('select'))};
+   });
+   assert.deepEqual(report.over,[],`${width} beta overflow`);assert.deepEqual(report.select,report.reference);await beta().scrollIntoViewIfNeeded();await beta().screenshot({path:path.join(screens,`beta-player-${width}-${dark?'dark':'light'}.png`)});
+  }
+ });
  const configURL=url.replace('fixture.html','configuration-fixture.html');
  const openConfiguration=async()=>{await page.goto(configURL);await page.waitForFunction(()=>window.configurationDemo?.panel._data);};
  const panel=()=>page.locator('music-manager-panel');
@@ -652,6 +705,15 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await openConfiguration();await page.evaluate(()=>{configurationDemo.delayCreate=new Promise(resolve=>window.releaseConfigFlow=resolve);});await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().getByText('Einstellung wird geladen …',{exact:true}).waitFor();
   await page.evaluate(()=>{configurationDemo.switchUser(false);window.releaseConfigFlow();});await panel().getByRole('alert').waitFor();
   assert(!(await panel().innerText()).includes('Erster Benutzer'));assert(!await editor().isVisible());
+ });
+ await check('beta speaker users are visible and editable with the shared multi selection',async()=>{
+  await openConfiguration();await panel().getByText('Manuel, Vera',{exact:true}).waitFor();
+  await panel().getByRole('button',{name:'Box-Auswahl bearbeiten',exact:true}).click();
+  await editor().locator('#config-speaker_selection_users').waitFor();
+  await editor().getByLabel('Vera',{exact:true}).uncheck();
+  await editor().getByRole('button',{name:'Speichern',exact:true}).click();
+  await page.waitForFunction(()=>configurationDemo.data.speaker_users.length===1);
+  assert.deepEqual(await page.evaluate(()=>configurationDemo.data.speaker_users),[{id:'manuel',name:'Manuel'}]);
  });
  await check('configuration follows UI Kit typography and fits desktop mobile and both themes',async()=>{
   await openConfiguration();await page.evaluate(async()=>{const kit=await import('/src/family-ui/1.3.1/family-ui.js');const root=document.querySelector('#reference').attachShadow({mode:'open'});root.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Text'})}`;});

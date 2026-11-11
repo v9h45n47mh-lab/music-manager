@@ -100,7 +100,7 @@ function logoMarkup(station) {
   return `<span class="music-station-logo" aria-hidden="true">${station.kind==='apple_music'?APPLE_MUSIC_LOGO:musicIcon('radio')}${src?`<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>`;
 }
 
-class MusicManagerCard extends HTMLElement {
+export class MusicManagerCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({mode:'open'});
@@ -511,6 +511,10 @@ class MusicManagerCard extends HTMLElement {
     if(status)status.innerHTML=this._error?notice(this._error,{error:true}):'';
   }
 
+  _playerHeader({title,detail}) {
+    return `<div class="music-header"><div class="music-now-playing"><h2 class="music-title">${escapeHtml(title)}</h2><div class="music-detail">${escapeHtml(detail)}</div></div><div class="music-box" aria-label="Box">${escapeHtml(this._hass?.states?.[this._config.entity]?.attributes?.friendly_name || this._config.entity)}</div></div>`;
+  }
+
   _renderPlayer() {
     if (!this._player || !this._config) return;
     // HA state updates must not replace an input while the user drags it.
@@ -539,10 +543,7 @@ class MusicManagerCard extends HTMLElement {
     if (apple&&controls.shuffle&&hasFeature(state,'shuffle'))transport.push(musicButton({label:attrs.shuffle?'Shuffle ausschalten':'Shuffle einschalten',icon:'shuffle',action:'shuffle',disabled,pressed:Boolean(attrs.shuffle)}));
     const vol=attrs.is_volume_muted?0:volumePercent(attrs.volume_level);
     this._player.innerHTML = `
-      <div class="music-header">
-        <div class="music-now-playing"><h2 class="music-title">${escapeHtml(title)}</h2><div class="music-detail">${escapeHtml(detail)}</div></div>
-        <div class="music-box" aria-label="Box">${escapeHtml(this._hass?.states?.[this._config.entity]?.attributes?.friendly_name || this._config.entity)}</div>
-      </div>
+      ${this._playerHeader({title,detail,attrs,apple,radio})}
       ${!state ? notice('Die konfigurierte Sonos-Box wurde nicht gefunden. Bitte prüfe die Entität im Karteneditor.',{error:true}) : !available ? notice('Die Sonos-Box ist momentan nicht erreichbar.') : ''}
       <div class="music-controls">
         ${transport.length ? `<div class="music-transport" aria-label="Wiedergabe">${transport.join('')}</div>` : ''}
@@ -942,7 +943,8 @@ class MusicManagerCard extends HTMLElement {
   }
 }
 
-class MusicManagerCardEditor extends HTMLElement {
+export class MusicManagerCardEditor extends HTMLElement {
+  _editorDescription(){return 'Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Oberfläche und Music-Manager-Connector werden gemeinsam über den Marketplace installiert. Apple Music findet den Music-Assistant-Player derselben Box automatisch. Die Apple-Music-Kontozuordnung erfolgt einmal pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.';}
   constructor() {
     super();this.attachShadow({mode:'open'});this._options=[];
     this._registryRequested=false;this._registryError='';
@@ -993,7 +995,7 @@ class MusicManagerCardEditor extends HTMLElement {
       ${this._registryError?notice(this._registryError,{error:true}):''}
       ${combobox({id:'music-ma-entity',label:'Apple Music: Music-Assistant-Player',items:maOptions,value:maSelected?.label||'',selected:this._config.music_assistant_entity||'',action:'ma-entity-select',placeholder:'Automatisch – dieselbe Sonos-Box',emptyLabel:'Keine passende Music-Assistant-Box gefunden.'})}
       ${section({id:'music-editor-controls',title:'Bedienelemente anzeigen',content:Object.entries(names).map(([key,label])=>row({title:label,trailing:toggle({label,action:'control-toggle',checked:this._config.controls[key],iconOnly:true,data:{key}})})).join('')})}
-      ${notice('Die Box wird pro Karte festgelegt. Favoriten gehören deinem angemeldeten HA-Benutzer und erscheinen bei allen Boxen. Oberfläche und Music-Manager-Connector werden gemeinsam über den Marketplace installiert. Apple Music findet den Music-Assistant-Player derselben Box automatisch. Die Apple-Music-Kontozuordnung erfolgt einmal pro HA-Benutzer unter Geräte & Dienste → Music Manager → Konfigurieren.')}
+      ${notice(this._editorDescription())}
       ${versionInfo({frontend:MUSIC_VERSION,ui:UI_VERSION})}
     </div>`;
     if(!this._unbind)this._unbind=bindUI(this.shadowRoot,({action,data,value,checked})=>{

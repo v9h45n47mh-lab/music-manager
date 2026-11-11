@@ -1,4 +1,4 @@
-# Music Manager 1.10.1
+# Music Manager 1.11.0
 
 ![Music Manager](brand/icon.png)
 
@@ -7,6 +7,27 @@
 **Gemeinsame Home-Assistant-Integration mit Dashboard-Karte und Apple-Music-Connector**, mit **HA UI Kit 1.3.1**. Pro Karte wählst du eine Sonos-Box. Direkt in der Karte kannst du Radiosender suchen, nach Land, Sprache und Genre auswählen und auf dieser Box abspielen.
 
 Zurück, Play/Pause und Weiter erscheinen als gleich breite Symboltasten. Bei Apple Music steht Shuffle als Symbol ohne Text in derselben Reihe, darunter der originale Home-Assistant-Lautstärkeregler mit Prozentanzeige während der Bedienung. Alle Bedienelemente lassen sich im visuellen Karteneditor einzeln ein- oder ausblenden. Oben links steht der aktuelle Sender oder Musiktitel deutlich größer; rechts oben erscheint der Boxname. Status und Interpret stehen kleiner unter der Musikauswahl. Lange Namen umbrechen auch auf dem Handy. Eine zusätzliche „Music Manager“-Überschrift gibt es nicht. Eine separate Stumm-Taste entfällt; Lautstärke 0 schaltet die Box lautlos. Direkt unter den Bedienelementen stehen persönliche Favoritensender mit Logo als Kurzwahl. Mehrere Karten steuern unabhängig voneinander ihre konfigurierte Box. Der Marketplace installiert und aktualisiert Oberfläche und Connector gemeinsam. Die Karte wird automatisch registriert. Radio funktioniert auch ohne Music Assistant; Apple Music lässt sich später einrichten und wird über **Apple Music** neben **Sender wählen** geöffnet.
+
+## Zusätzliche Player-Karte · Beta (ab 1.11.0)
+
+Die bisherige Karte bleibt erhalten. Zum Ausprobieren eine vorhandene Music-Manager-Karte duplizieren und nur `type` auf `custom:music-manager-beta-card` ändern. Alternativ im Kartenpicker **Music Manager – Player Beta** auswählen. Die neue Darstellung hat einen Coverbereich, eine zentrale Play/Pause-Taste und die persönliche Box-Auswahl oben rechts.
+
+```yaml
+type: custom:music-manager-beta-card
+entity: media_player.sonos_wohnzimmer
+# Optional: eigene dauerhafte Kennung für unabhängige Karten.
+navigation_id: hauptplayer
+```
+
+`entity` ist weiterhin deine tatsächliche native Sonos-Entität und die Ausgangsbox. Die Beta ersetzt die bestehende Karte erst nach Abschluss der Optimierung; bestehende Dashboard-Konfigurationen werden nicht geändert.
+
+- **Manuel und Vera:** Box per Dropdown wechseln. Die zuletzt gewählte Box wird serverseitig beim jeweiligen HA-Benutzer gespeichert und beim nächsten Öffnen auf anderen Geräten wiederhergestellt. Beispiel: Ausgangsbox Wohnzimmer, Manuel wählt Büro, Vera wählt Schlafzimmer.
+- **Maximilian und Paul:** kein Dropdown; die Karte verwendet immer die konfigurierte Ausgangsbox, im Beispiel Wohnzimmer.
+- **Favoriten, Wecklieder und Apple Music:** bleiben beim angemeldeten HA-Benutzer, unabhängig von der Box. Die passende MA-Entität wird nach einem Boxwechsel neu ermittelt. HA- und MA-Freigaben gelten weiterhin.
+- **Konfiguration → Box-Auswahl (Beta):** zeigt und verwaltet die Benutzer. Ohne explizite Auswahl werden eindeutig benannte aktive HA-Benutzer **Manuel** und **Vera** erkannt. Bei abweichenden Kontonamen diese einmal in der Konfiguration auswählen. Danach werden die Benutzer-IDs verwendet. Eine leere Auswahl sperrt den Wechsel für alle.
+- **Mehrere Karten:** `navigation_id` trennt deren gespeicherte Auswahl. Ohne Kennung teilen Beta-Karten mit derselben Ausgangsbox den gespeicherten Stand. Die aktuelle Auswahl wird beim Laden wiederhergestellt; gleichzeitig bereits geöffnete Karten werden durch einen Wechsel nicht ferngesteuert.
+
+Die Beta verwendet dieselbe lokal gebündelte, unveränderte UI-Kit-Version wie die bisherige Karte. Dropdown, Status und Dialoge stammen aus dem Kit; das Player-Layout ist separat gestaltet. Das Dropdown verändert nur die persönliche Navigation und sendet keinen Wiedergabebefehl. Eine laufende Wiedergabe wird nicht auf eine andere Box verschoben. Bei fehlgeschlagenem Speichern bleibt die bisherige Box aktiv.
 
 ## Installation über den Marketplace
 

@@ -40,10 +40,19 @@ const connectionFor=user=>{
  return connections.get(user);
 };
 
+const navigationData=new Map();
  const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(user),states,entities:Object.fromEntries(registry.map(e=>[e.entity_id,e])),
   async callService(domain,service,data){calls.push({domain,service,data});if(serviceHook)await serviceHook();if(failService)throw new Error('Keine Berechtigung');},
   async callWS(message){wsCalls.push(message);if(wsHook){const result=await wsHook(message);if(result!==undefined)return result;}
    if(message.type==='config/entity_registry/list')return registry;
+   if(message.type==='music_manager/player_navigation'){
+    const can_select=['manuel','vera'].includes(user),key=message.navigation_id||message.source_entity;
+    if(!can_select&&message.action==='select')throw new Error('Box festgelegt');
+    const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
+    if(!navigationData.has(user))navigationData.set(user,{});
+    if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
+    return {can_select,players,entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+   }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
    if(message.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');dataForKey(message.key).set(user,JSON.parse(JSON.stringify(message.value)));(message.key==='music_manager_alarm_songs'?notifyAlarmSongs:notifyFavorites)(user);return null;}
@@ -55,7 +64,8 @@ const connectionFor=user=>{
  const add=(entity='media_player.a',controls)=>{const card=document.createElement('music-manager-card');card.setConfig({entity,controls});document.body.append(card);cards.push(card);card.hass=makeHass();return card;};
  const update=(entity,changes)=>{const old=states[entity];states={...states,[entity]:{...old,...changes,attributes:{...old.attributes,...changes.attributes}}};for(const card of cards)card.hass=makeHass();};
  const click=(element,action)=>{const button=element.shadowRoot.querySelector(`[data-action="${action}"]`);assert(button,action+' exists');assert(!button.disabled,action+' enabled');button.click();};
- return {window,document,calls,wsCalls,add,update,click,makeHass,favoriteData,alarmSongData,notifyFavorites,notifyAlarmSongs,connections,
+ const addBeta=(entity='media_player.a',config={})=>{const card=document.createElement('music-manager-beta-card');card.setConfig({entity,...config});document.body.append(card);cards.push(card);card.hass=makeHass();return card;};
+ return {navigationData,addBeta,window,document,calls,wsCalls,add,update,click,makeHass,favoriteData,alarmSongData,notifyFavorites,notifyAlarmSongs,connections,
  switchUser(user){currentUser=user;for(const card of cards)card.hass=makeHass();},set failFavorites(v){failFavorites=v},set failService(v){failService=v},set failBrowse(v){failBrowse=v},set wsHook(v){wsHook=v},set serviceHook(v){serviceHook=v}};
 }
 test('actual card controls call HA media services and preserve per-card targets',async()=>{
@@ -552,4 +562,45 @@ test('alarm row retains an unstarred saved favorite and handles missing assignme
  assert.match(row._dialog.textContent,/Weckmusik bleibt gespeichert/);assert.equal(row._dialog.querySelectorAll('[data-ui-option]').length,0);assert.match(row._dialog.textContent,/Gespeichertes Album/);row._dialog.close();
  env.wsHook=()=>{throw new Error('Wecker unter Konfigurieren zuordnen.');};await row._load(true);assert.match(row.shadowRoot.querySelector('#alarm-row').textContent,/zuordnen/);
  assert(env.wsCalls.every(m=>m.type==='music_manager/alarm'&&m.action==='get'));row.remove();
+});
+
+test('beta player saves one box per authenticated user without changing configured entity or favorites',async()=>{
+ const env=setup();env.favoriteData.set('manuel',[station('m','Manuels Sender')]);env.favoriteData.set('vera',[station('v','Veras Sender')]);
+ const card=env.addBeta();await flush();assert(card.shadowRoot.querySelector('#music-beta-box'));
+ await card._selectBox('media_player.b');assert.equal(card._config.entity,'media_player.b');assert.equal(card._initialConfig.entity,'media_player.a');
+ env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.b');assert.equal(card._favorites[0].title,'Manuels Sender');
+ env.switchUser('vera');await flush();assert.equal(card._config.entity,'media_player.a');assert.equal(card._favorites[0].title,'Veras Sender');
+ await card._selectBox('media_player.b');env.switchUser('manuel');await flush();assert.equal(card._config.entity,'media_player.b');assert.equal(card._favorites[0].title,'Manuels Sender');
+ const second=env.addBeta();await flush();assert.equal(second._config.entity,'media_player.b');
+ assert(env.wsCalls.filter(m=>m.type==='music_manager/player_navigation').every(m=>!('user_id' in m)));
+});
+test('beta children cannot change the initial box even if a previous user selected a different one',async()=>{
+ const env=setup(),card=env.addBeta();await flush();await card._selectBox('media_player.b');
+ for(const user of ['maximilian','paul']){env.switchUser(user);await flush();assert.equal(card._config.entity,'media_player.a');assert.equal(card.shadowRoot.querySelector('#music-beta-box'),null);await card._selectBox('media_player.b');assert.equal(card._config.entity,'media_player.a');env.click(card,'next');await flush();assert.equal(env.calls.at(-1).data.entity_id,'media_player.a');}
+});
+test('beta navigation rejects stale user responses, invalid choices and failed saves',async()=>{
+ const env=setup(),card=env.addBeta();await flush();let finish;
+ env.wsHook=msg=>msg.type==='music_manager/player_navigation'&&msg.action==='select'?new Promise(resolve=>{finish=resolve}):undefined;
+ const changing=card._selectBox('media_player.b');env.switchUser('paul');await flush();finish({can_select:true,entity_id:'media_player.b',players:[{entity_id:'media_player.b',name:'B'}]});await changing;
+ assert.equal(card._config.entity,'media_player.a');assert.equal(card._canSelectBox,false);
+ env.wsHook=null;env.switchUser('manuel');await flush();const count=env.wsCalls.length;await card._selectBox('media_player.tv');assert.equal(env.wsCalls.length,count);
+ env.wsHook=msg=>{if(msg.type==='music_manager/player_navigation'&&msg.action==='select')throw new Error('Offline');};
+ await card._selectBox('media_player.b');assert.equal(card._config.entity,'media_player.a');assert.match(card.shadowRoot.querySelector('.beta-navigation-status').textContent,/nicht gespeichert/);
+});
+test('beta switching clears old radio and MA state and resolves Apple against the new box',async()=>{
+ const env=setup();env.wsHook=msg=>msg.type==='music_manager/apple_music'&&msg.action==='status'?{entity_id:msg.source_entity==='media_player.a'?'media_player.ma_a':'media_player.ma_b',account:'Personal'}:undefined;
+ const card=env.addBeta('media_player.a',{music_assistant_entity:'media_player.ma_a'});await flush();card._selectedStation=station('swr3');card._playbackSource='radio';card._radioContentId='old';
+ await card._selectBox('media_player.b');await flush();assert.equal(card._selectedStation,null);assert.equal(card._radioContentId,null);assert.equal(card._musicAssistantEntity,'media_player.ma_b');assert.equal(card._config.music_assistant_entity,'');
+ assert(env.wsCalls.some(m=>m.type==='music_manager/apple_music'&&m.source_entity==='media_player.b'&&!m.entity_id));
+});
+test('beta navigation is isolated by card id and regular card keeps its configured target',async()=>{
+ const env=setup(),regular=env.add(),first=env.addBeta('media_player.a',{navigation_id:'one'}),second=env.addBeta('media_player.a',{navigation_id:'two'});await flush();
+ await first._selectBox('media_player.b');assert.equal(second._config.entity,'media_player.a');assert.equal(regular._config.entity,'media_player.a');
+ first.remove();env.document.body.append(first);await flush();assert.equal(first._config.entity,'media_player.b');assert.equal(second._config.entity,'media_player.a');
+ assert.throws(()=>env.addBeta('media_player.a',{navigation_id:'../invalid'}));
+});
+test('beta visual editor emits beta card type and its own explanation',async()=>{
+ const env=setup(),editor=env.document.createElement('music-manager-beta-card-editor');editor.setConfig({type:'custom:music-manager-beta-card',entity:'media_player.a'});editor.hass=env.makeHass();env.document.body.append(editor);await flush();
+ let changed;editor.addEventListener('config-changed',e=>{changed=e.detail.config});editor.shadowRoot.querySelector('[data-key="next"]').click();assert.equal(changed.type,'custom:music-manager-beta-card');assert.match(editor.shadowRoot.querySelector(".music-editor").textContent,/Ausgangsbox/);
+ assert(env.window.customCards.some(c=>c.type==='music-manager-beta-card'));
 });

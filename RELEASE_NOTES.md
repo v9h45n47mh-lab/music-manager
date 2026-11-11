@@ -1,9 +1,13 @@
-# Music Manager 1.7.0
+## Music Manager 1.11.0
 
-- **Neue Konfigurationsseite mit HA UI Kit 1.3.1:** Gemeinsamer Kopfbereich, einklappbare Bereiche, übersichtliche Listen und die standardisierten Bearbeiten-/Entfernen-Symbole ersetzen die bisherige reine Textübersicht.
-- **Direkt erreichbar:** Unter Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren sowie für Administratoren über Music Manager in der HA-Seitenleiste.
-- **Drei klare Bereiche:** Music-Assistant-Verbindung, persönliche Benutzerzuordnungen und Wecker mit Benutzer, Box und gespeicherter Weckmusik.
-- **Bearbeiten im Dialog:** Aktuelle Werte sind vorausgefüllt. Entfernen und ein Verbindungswechsel mit bestehenden Zuordnungen werden ausdrücklich bestätigt.
-- **Bestehende Prüfungen bleiben aktiv:** Änderungen laufen durch die vorhandenen Home-Assistant-Options-Flows. Die neue Übersicht ist nur für Administratoren lesbar und enthält keine Zugangsdaten oder Tokens.
+Neue zusätzliche Karte **Music Manager – Player Beta** (`custom:music-manager-beta-card`). Die bisherige Karte bleibt verfügbar und wird nicht automatisch ersetzt.
 
-Im Marketplace auf **1.7.0** aktualisieren, Home Assistant neu starten und die HA-Seite neu laden. Danach **Music Manager → Konfigurieren** öffnen.
+- Player-Darstellung mit Cover, Titel, zentraler Play/Pause-Taste und persönlichem Box-Dropdown oben rechts.
+- Vera und Manuel können ihre Box unabhängig wechseln. Die Auswahl wird je authentifiziertem HA-Benutzer gespeichert und beim nächsten Öffnen wiederhergestellt. Ausgangsbox Wohnzimmer: Manuel kann Büro, Vera Schlafzimmer wählen.
+- Maximilian und Paul behalten die in der Karte konfigurierte Ausgangsbox und bekommen kein Dropdown.
+- Favoriten, Wecklieder und Apple-Music-Konten bleiben persönlich. Wiedergabe und Lautstärke steuern nach einem Wechsel die gewählte Box; die MA-Zuordnung wird neu ermittelt.
+- Konfiguration → **Box-Auswahl (Beta)** zeigt und verwaltet die freigeschalteten Benutzer. Eindeutig benannte aktive HA-Benutzer Vera und Manuel sind die Vorgabe; bei abweichenden Namen einmal die passenden Benutzer auswählen. HA-/MA-Berechtigungen bleiben erhalten.
+- Optionales `navigation_id` trennt den gespeicherten Zustand mehrerer Beta-Karten.
+- Standard-Dropdown, Status, Verwaltung und Dialoge verwenden das unveränderte HA UI Kit 1.3.1.
+
+Nach dem Update HA neu starten und die Seite vollständig neu laden. Zum Testen eine vorhandene Karte duplizieren und ausschließlich ihren Typ auf **`custom:music-manager-beta-card`** ändern. Die konfigurierte `entity` bleibt die Ausgangsbox für Benutzer ohne Box-Auswahl. Ein Boxwechsel verschiebt keine laufende Wiedergabe.

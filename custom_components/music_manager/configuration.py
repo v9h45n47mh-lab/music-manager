@@ -56,7 +56,9 @@ async def configuration_snapshot(hass, entry):
                        "source_name": state.attributes.get("friendly_name", source) if state else source,
                        "music_title": selected.get("title") if selected else None,
                        "music_readable": readable})
-    return {"entry_id": entry.entry_id, "version": VERSION,
+    from .navigation import speaker_users
+    navigation_users = [{"id": u.id, "name": u.name or u.id} for u in await speaker_users(hass, entry)]
+    return {"entry_id": entry.entry_id, "version": VERSION, "speaker_users": navigation_users,
             "connection": {"id": entry_id, "name": connection, "reachable": reachable},
             "accounts": accounts, "alarms": alarms}
 

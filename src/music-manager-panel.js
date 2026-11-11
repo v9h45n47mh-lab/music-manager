@@ -1,4 +1,4 @@
-import {UI_CSS, UI_VERSION, panelHeader, section, row, button, iconButton, field, selectField, dialog, notice, feedback, formError, emptyState, loadingState, busyButton, versionInfo, bindUI} from './family-ui/1.3.1/family-ui.js';
+import {UI_CSS, UI_VERSION, panelHeader, section, row, button, iconButton, field, selectField, multiSelect, dialog, notice, feedback, formError, emptyState, loadingState, busyButton, versionInfo, bindUI} from './family-ui/1.3.1/family-ui.js';
 
 /** Configuration panel: all writes go through HA's existing validated options flows. */
 class MusicManagerPanel extends HTMLElement {
@@ -27,6 +27,7 @@ class MusicManagerPanel extends HTMLElement {
       const remove=(action,id,label)=>iconButton({icon:'trash',label,action,data:{id},disabled:busy,danger:true});
       content+=`<ha-card class="configuration-card"><main>`+
         section({id:'connection',title:'Music Assistant',content:row({title:connection.name||'Nur Radio',description:!connection.id?'Apple Music kann später verbunden werden.':connection.reachable?'Verbindung verfügbar':'Verbindung derzeit nicht erreichbar',trailing:edit('connect','','Verbindung bearbeiten')})})+
+        section({id:'speaker-users',title:'Box-Auswahl · Beta',content:row({title:(this._data.speaker_users||[]).map(u=>u.name).join(', ')||'Keine Benutzer',description:'Diese Benutzer können die Box in der Beta-Karte persönlich wechseln. Alle anderen verwenden die konfigurierte Box.',trailing:edit('speaker_users','','Box-Auswahl bearbeiten')})})+
         section({id:'accounts',title:`Benutzer (${accounts.length})`,trailing:button({label:'Zuordnung',icon:'add',action:'add',disabled:busy}),content:accounts.length?accounts.map(a=>row({title:a.ha_name,description:`Music Assistant: ${a.ma_name} · ${a.provider_name}`,trailing:edit('edit',a.ha_user_id,`Zuordnung bearbeiten: ${a.ha_name}`)+remove('remove',a.ha_user_id,`Zuordnung entfernen: ${a.ha_name}`)})).join(''):emptyState('Noch keine Benutzer zugeordnet. Verbinde persönliche HA- und Apple-Music-Konten.')})+
         section({id:'alarms',title:`Wecker (${alarms.length})`,trailing:button({label:'Wecker hinzufügen',icon:'add',action:'alarm',disabled:busy||!accounts.length}),content:notice('Lege für jede Person eigene Wecker mit eigener Sonos-Box und persönlicher Weckmusik an. Auch mehrere Wecker pro Person sind möglich.')+(alarms.length?alarms.map(a=>row({title:`${a.owner_name} · ${a.alarm_id}`,description:`${a.source_name} · ${a.music_readable?(a.music_title||'Letzte Sonos-Wiedergabe'):'Weckmusik derzeit nicht lesbar'}`,trailing:edit('alarm_edit',a.alarm_id,`Wecker bearbeiten: ${a.alarm_id}`)+remove('alarm_remove',a.alarm_id,`Wecker entfernen: ${a.alarm_id}`)})).join(''):emptyState(accounts.length?'Noch keine Wecker zugeordnet.':'Ordne zuerst ein persönliches Apple-Music-Konto zu.'))})+
         `</main></ha-card>`+versionInfo({frontend:MUSIC_VERSION,backend:this._data.version,ui:UI_VERSION});
@@ -81,7 +82,7 @@ class MusicManagerPanel extends HTMLElement {
     if(step.type!=='form')throw new Error('Unsupported options flow step');
     this._flow.step=step;this._draft={...submitted};
     const removing=['remove','alarm_remove'].includes(this._flow.action);
-    const labels={ha_user_id:'Home-Assistant-Benutzer',ma_user_id:'Music-Assistant-Benutzer',provider_id:'Apple-Music-Konto',alarm_id:'Weckerkennung',source_entity:'Sonos-Box',music_assistant_entry:'Music-Assistant-Verbindung'};
+    const labels={speaker_selection_users:'Benutzer mit Box-Auswahl',ha_user_id:'Home-Assistant-Benutzer',ma_user_id:'Music-Assistant-Benutzer',provider_id:'Apple-Music-Konto',alarm_id:'Weckerkennung',source_entity:'Sonos-Box',music_assistant_entry:'Music-Assistant-Verbindung'};
     const fields=step.data_schema.map(item=>{
       const name=item.name,options=item.selector?.select?.options;
       const normalized=options?.map(o=>typeof o==='string'?{value:o,label:o}:o);
@@ -89,10 +90,11 @@ class MusicManagerPanel extends HTMLElement {
       this._draft[name]=value;
       const label=this._text('step',`${step.step_id}.data.${name}`,labels[name]||name),id='config-'+name;
       if(removing)return '';
+      if(item.selector?.select?.multiple)return multiSelect({id,label,items:normalized,values:Array.isArray(value)?value:[],action:'config-multiple',all:false});
       return normalized?selectField({id,name,label,value,options:normalized,disabled:this._saving||(normalized.length===1&&['ha_user_id','alarm_id'].includes(name))}):field({id,name,label,value,required:!!item.required,maxLength:64,disabled:this._saving});
     }).join('');
     if(removing){const key=this._flow.action==='remove'?'ha_user_id':'alarm_id';this._draft[key]=this._flow.target;}
-    const descriptions={connect:'Wähle die Music-Assistant-Verbindung. Bei einer anderen Verbindung oder Nur Radio werden die Apple-Music-Benutzerzuordnungen entfernt.',add:'Ordne einen HA-Benutzer seinem MA-Benutzer und persönlichen Apple-Music-Konto zu. In MA muss genau diese Musikquelle für den Benutzer freigegeben sein.',edit:'Die gespeicherten Konten sind vorausgefüllt. Der HA-Benutzer bleibt fest zugeordnet.',remove:'Der Benutzer verliert den Apple-Music-Zugang über Music Manager. Seine Radiofavoriten bleiben erhalten.',alarm:'Füge einen weiteren Wecker hinzu: Die vorgeschlagene Kennung ist noch frei. Du kannst eine eigene eindeutige Kennung eingeben. Wähle die Person und ihre Sonos-Box; persönliche Weckmusik wird getrennt gespeichert. Dieselbe Kennung gehört in die Weckerkarte und die Automation. Bestehende Wecker bleiben erhalten.',alarm_edit:'Benutzer und Sonos-Box sind vorausgefüllt. Die Weckerkennung bleibt erhalten.',alarm_remove:'Die Weckerzuordnung wird entfernt. Zugehörige Automationen können diese Kennung danach nicht mehr starten.'};
+    const descriptions={speaker_users:'Wähle die Benutzer, die in der Beta-Karte die Box wechseln dürfen. Die Auswahl wird je Benutzer gespeichert. Alle anderen bleiben auf der konfigurierten Box. HA-Berechtigungen bleiben maßgeblich.',connect:'Wähle die Music-Assistant-Verbindung. Bei einer anderen Verbindung oder Nur Radio werden die Apple-Music-Benutzerzuordnungen entfernt.',add:'Ordne einen HA-Benutzer seinem MA-Benutzer und persönlichen Apple-Music-Konto zu. In MA muss genau diese Musikquelle für den Benutzer freigegeben sein.',edit:'Die gespeicherten Konten sind vorausgefüllt. Der HA-Benutzer bleibt fest zugeordnet.',remove:'Der Benutzer verliert den Apple-Music-Zugang über Music Manager. Seine Radiofavoriten bleiben erhalten.',alarm:'Füge einen weiteren Wecker hinzu: Die vorgeschlagene Kennung ist noch frei. Du kannst eine eigene eindeutige Kennung eingeben. Wähle die Person und ihre Sonos-Box; persönliche Weckmusik wird getrennt gespeichert. Dieselbe Kennung gehört in die Weckerkarte und die Automation. Bestehende Wecker bleiben erhalten.',alarm_edit:'Benutzer und Sonos-Box sind vorausgefüllt. Die Weckerkennung bleibt erhalten.',alarm_remove:'Die Weckerzuordnung wird entfernt. Zugehörige Automationen können diese Kennung danach nicht mehr starten.'};
     const description=this._text('step',`${step.step_id}.description`,descriptions[this._flow.action]);
     const selected=removing?(this._flow.action==='remove'?this._data.accounts.find(a=>a.ha_user_id===this._flow.target)?.ha_name:this._flow.target):'';
     this._dialog.querySelector('.modal-body').innerHTML=(step.errors?.base?formError(this._flowError(step)):'')+notice(description)+(removing?row({title:selected||'Zuordnung entfernen'}):`<div class="configuration-fields">${fields}</div>`);
@@ -102,7 +104,7 @@ class MusicManagerPanel extends HTMLElement {
   async _submit(confirmed=false) {
     if(!this._flow||this._saving)return;
     const flow=this._flow,step=flow.step,removing=['remove','alarm_remove'].includes(flow.action);
-    if(!removing&&!confirmed)for(const item of step.data_schema){const input=this.shadowRoot.getElementById('config-'+item.name);if(!input?.reportValidity())return;this._draft[item.name]=input.value;}
+    if(!removing&&!confirmed)for(const item of step.data_schema){const input=this.shadowRoot.getElementById('config-'+item.name);if(item.selector?.select?.multiple){this._draft[item.name]=[...input.querySelectorAll('input[type=checkbox]:checked')].map(el=>el.value);continue;}if(!input?.reportValidity())return;this._draft[item.name]=input.value;}
     const submitted={...this._draft};
     if(flow.action==='connect'&&submitted.music_assistant_entry!==this._data.connection.id&&this._data.accounts.length&&!confirmed){
       this._dialog.querySelector('.modal-body').innerHTML=notice('Beim Wechsel der Music-Assistant-Verbindung werden alle Apple-Music-Benutzerzuordnungen entfernt. Sie müssen für die neue Verbindung erneut eingerichtet werden.');
@@ -124,7 +126,7 @@ class MusicManagerPanel extends HTMLElement {
     if(action==='editor-save'){await this._submit();return;}
     if(action==='editor-confirm'){await this._submit(true);return;}
     if(action==='editor-back'){this._acceptStep(this._flow.step,this._draft);return;}
-    if(['connect','add','edit','remove','alarm','alarm_edit','alarm_remove'].includes(action)){this._targetId=data.id||'';await this._open(action,this._targetId);}
+    if(['connect','speaker_users','add','edit','remove','alarm','alarm_edit','alarm_remove'].includes(action)){this._targetId=data.id||'';await this._open(action,this._targetId);}
   }
 }
 if(!customElements.get('music-manager-panel'))customElements.define('music-manager-panel',MusicManagerPanel);

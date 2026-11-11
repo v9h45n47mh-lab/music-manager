@@ -349,7 +349,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
         with patch.object(storage, 'async_user_store', new=AsyncMock(side_effect=lambda hass, owner: stores[owner])):
             overview = await flow.async_step_init()
             self.assertEqual(overview['type'], 'menu')
-            self.assertEqual(overview['menu_options'], ['connect', 'add', 'edit', 'remove', 'alarm', 'alarm_edit', 'alarm_remove'])
+            self.assertEqual(overview['menu_options'], ['connect', 'speaker_users', 'add', 'edit', 'remove', 'alarm', 'alarm_edit', 'alarm_remove'])
             text = overview['description_placeholders']
             self.assertEqual(text['connection'], 'MA Home')
             self.assertEqual(text['account_count'], '2')

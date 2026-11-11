@@ -16,9 +16,11 @@ from .helpers import music_assistant_client
 async def async_setup(hass, config):
     from .alarms import async_register_alarms
     from .configuration import websocket_configuration
+    from .navigation import websocket_player_navigation
 
     websocket_api.async_register_command(hass, websocket_apple_music)
     websocket_api.async_register_command(hass, websocket_configuration)
+    websocket_api.async_register_command(hass, websocket_player_navigation)
     async_register_alarms(hass)
     return True
 
