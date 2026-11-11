@@ -234,7 +234,7 @@ class MusicManagerCard extends HTMLElement {
           <div class="music-library-nav" aria-label="Mediathek">${button({label:'Playlists',action:'apple-library',data:{view:'playlist'}})}${button({label:'Alben',action:'apple-library',data:{view:'album'}})}${button({label:'Titel',action:'apple-library',data:{view:'track'}})}</div>
           <div class="music-manage-nav">${button({label:'Wecklieder',action:'apple-songs'})}${button({label:'Favoriten verwalten',action:'manage-favorites'})}</div>
         </form>
-        <div id="music-alarm-song-tools" hidden>${field({id:'music-alarm-song-query',label:'Wecklieder durchsuchen',type:'search',placeholder:'Lied suchen',maxLength:200,autocomplete:'off'})}${button({label:'Lieder in Apple Music hinzufügen',action:'open-apple'})}</div>
+        <div id="music-alarm-song-tools" hidden>${field({id:'music-alarm-song-query',label:'Wecklieder durchsuchen',type:'search',placeholder:'Lied suchen',maxLength:200,autocomplete:'off'})}${button({label:'Lieder in Apple Music hinzufügen',action:'alarm-songs-add'})}</div>
         <div id="music-apple-status" aria-live="polite"></div>
         <div id="music-apple-location"></div>
         <div id="music-apple-results" class="music-results music-apple-results music-browser" aria-label="Apple-Music-Einträge"></div>
@@ -567,6 +567,7 @@ class MusicManagerCard extends HTMLElement {
     switch(action) {
       case 'seek': await this._seek(value,phase);break;
       case 'shuffle': if(this._isApplePlayback&&hasFeature(this._state,'shuffle'))await this._service('shuffle_set',{shuffle:!Boolean(this._state.attributes?.shuffle)});break;
+      case 'alarm-songs-add':
       case 'open-apple': await this._openApple();break;
       case 'open-alarm-songs': this._openAlarmSongs();break;
       case 'apple-search': this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;await this._loadApple('search');break;
