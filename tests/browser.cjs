@@ -630,7 +630,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   for(const user of ['maximilian','paul']){
    await page.evaluate(user=>demo.switchUser(user),user);await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);
    assert.equal(await beta().locator('#music-beta-box').count(),0);assert.equal(await beta().locator('.fui-player-name').innerText(),'Sonos Wohnzimmer');
-   await beta().getByRole('button',{name:'Weiter',exact:true}).click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
+   await beta().locator('#player [data-action="play-pause"]').click();assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.entity_id),'media_player.wohnzimmer');
   }
  });
  await check('beta keeps the current speaker on failed save and never edits Lovelace configuration',async()=>{
