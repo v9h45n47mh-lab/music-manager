@@ -408,7 +408,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();await picker.getByRole('button',{name:'Weckmusik aufklappen',exact:true}).click();
   assert.equal(await picker.getByRole('option').count(),1);assert.equal(await picker.getByText('Normales Album',{exact:true}).count(),0);assert.equal(await picker.getByText('Normaler Titel',{exact:true}).count(),0);
   await picker.getByRole('option').filter({hasText:'Mein Lieblingstitel'}).click();await picker.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>demo.calls.length),0);
-  await action('manage-favorites').click();const manager=dialog();
+  await card().locator('#player [data-action="manage-favorites"]').click();const manager=dialog();
   await manager.getByRole('button',{name:'Nicht mehr als Wecklied verwenden: Mein Lieblingstitel',exact:true}).click();
   await page.waitForFunction(()=>!demo.favoriteData.get('maximilian').some(f=>f.alarm_song));
   assert.equal(await page.evaluate(()=>demo.favoriteData.get('maximilian').length),4);await manager.getByRole('button',{name:'Schließen',exact:true}).click();
