@@ -426,7 +426,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  const panel=()=>page.locator('music-manager-panel');
  const editor=()=>panel().locator('#configuration-dialog');
  await check('UI Kit configuration edits and removes selected rows through the native HA options flow',async()=>{
-  await openConfiguration();await panel().getByText('Benutzerzuordnungen (2)',{exact:true}).waitFor();
+  await openConfiguration();await panel().getByText('Benutzer (2)',{exact:true}).waitFor();
   await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().locator('#config-provider_id').waitFor();
   assert.equal(await editor().locator('#config-ha_user_id').inputValue(),'ha-one');assert.equal(await editor().locator('#config-provider_id').inputValue(),'apple--one');
   await editor().locator('#config-provider_id').selectOption('apple--two');await page.evaluate(()=>{configurationDemo.failSave=true;configurationDemo.push();});
