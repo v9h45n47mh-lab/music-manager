@@ -84,7 +84,12 @@ def load_installation():
     exceptions.ConfigEntryNotReady = type('ConfigEntryNotReady', (Exception,), {})
     exceptions.HomeAssistantError = type('HomeAssistantError', (Exception,), {})
     vol = module('probatio')
-    vol.Required = vol.Optional = lambda key, **kwargs: key
+    class Marker(str):
+        def __new__(cls, key, **kwargs):
+            result = str.__new__(cls, key)
+            result.default = lambda: kwargs.get('default')
+            return result
+    vol.Required = vol.Optional = Marker
     vol.Schema = lambda value: value
     vol.In = vol.Length = vol.Range = lambda *args, **kwargs: None
     vol.All = lambda *args: None
@@ -206,6 +211,8 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertEqual(result['data'], {'music_assistant_entry': ''})
         options = self.flow.MusicManagerOptionsFlow()
         options.config_entry = NS(data=result['data'], options={})
+        options.hass = NS(auth=NS(async_get_users=AsyncMock(return_value=[])),
+                          config_entries=flow.hass.config_entries)
         self.assertIn('connect', (await options.async_step_init())['menu_options'])
         self.assertEqual((await options.async_step_add())['reason'], 'music_assistant_missing')
 
@@ -294,6 +301,121 @@ class InstallationTests(IsolatedAsyncioTestCase):
         self.assertTrue(removed['data']['unrelated'])
         deleted_account = await flow.async_step_remove({'ha_user_id': owner.id})
         self.assertEqual(deleted_account['data']['alarms'], result['data']['alarms'])
+
+    def configured_options_flow(self):
+        users = [NS(id='ha-' + n, name=n.title(), is_active=True, system_generated=False,
+                    permissions=NS(check_entity=lambda entity, policy: True)) for n in ('one', 'two')]
+        sources = [NS(entity_id='media_player.box_' + n, platform='sonos', disabled_by=None,
+                      unique_id='RINCON_AABBCCDDEEFF01400') for n in ('one', 'two')]
+        ma_users = [NS(user_id='ma-' + n, username=n, display_name='MA ' + n.title(),
+                       enabled=True, role='user', provider_filter=['apple_music--' + n]) for n in ('one', 'two')]
+        mass = NS(auth=NS(list_users=AsyncMock(return_value=ma_users), get_user=AsyncMock(return_value=ma_users[0])),
+                  providers=[NS(instance_id='apple_music--' + n, name='Apple ' + n.title(),
+                                domain='apple_music', available=True) for n in ('one', 'two')])
+        self.flow.music_assistant_client = lambda hass, entry_id: mass
+        flow = self.flow.MusicManagerOptionsFlow()
+        flow.config_entry = NS(data={'music_assistant_entry': 'mass'}, options={
+            'accounts': [{'ha_user_id': 'ha-' + n, 'ma_user_id': 'ma-' + n, 'provider_id': 'apple_music--' + n}
+                         for n in ('one', 'two')],
+            'alarms': [{'alarm_id': 'wake_' + n, 'ha_user_id': 'ha-' + n, 'source_entity': 'media_player.box_' + n}
+                       for n in ('one', 'two')], 'unrelated': {'keep': True}})
+        registry = {s.entity_id: s for s in sources}
+        flow.hass = NS(auth=NS(async_get_users=AsyncMock(return_value=users)),
+                       config_entries=NS(async_entries=lambda domain: [NS(entry_id='mass', title='MA Home')]),
+                       states=NS(get=lambda entity: NS(attributes={'friendly_name': entity.replace('media_player.', '')})),
+                       registry=NS(entities=registry, async_get=registry.get))
+        sys.modules['homeassistant.helpers.entity_registry'].async_get = lambda target: target.registry
+        stores = {u.id: NS(data={'music_manager_alarm_music': {'wake_' + u.id[3:]:
+                    {'uri': 'apple_music--' + u.id[3:] + '://playlist/morning', 'media_type': 'playlist',
+                     'title': 'Morning ' + u.name}}}) for u in users}
+        return flow, mass, stores, sources
+
+    async def test_overview_shows_every_saved_mapping_alarm_and_music_without_writing(self):
+        import copy
+        from unittest.mock import patch
+        flow, mass, stores, _ = self.configured_options_flow()
+        before = copy.deepcopy(flow.config_entry.options)
+        storage = sys.modules['homeassistant.components.frontend.storage']
+        with patch.object(storage, 'async_user_store', new=AsyncMock(side_effect=lambda hass, owner: stores[owner])):
+            overview = await flow.async_step_init()
+            self.assertEqual(overview['type'], 'menu')
+            self.assertEqual(overview['menu_options'], ['connect', 'add', 'edit', 'remove', 'alarm', 'alarm_edit', 'alarm_remove'])
+            text = overview['description_placeholders']
+            self.assertEqual(text['connection'], 'MA Home')
+            self.assertEqual(text['account_count'], '2')
+            self.assertEqual(text['alarm_count'], '2')
+            for name in ('One', 'Two'):
+                self.assertIn(name + ' → MA ' + name + ' → Apple ' + name, text['accounts'])
+                self.assertIn('Morning ' + name, text['alarms'])
+            self.assertIn('wake\\_one', text['alarms'])
+            self.assertIn('box\\_two', text['alarms'])
+            mass.auth.list_users.side_effect = ConnectionError('internal details must not appear')
+            offline = (await flow.async_step_init())['description_placeholders']
+            self.assertIn('ma\\-one', offline['accounts'])
+            self.assertIn('Apple Two', offline['accounts'])
+            def disconnected(hass, entry_id):
+                raise ConnectionError('private connection error')
+            self.flow.music_assistant_client = disconnected
+            offline = (await flow.async_step_init())['description_placeholders']
+            self.assertIn('apple\\_music\\-\\-two', offline['accounts'])
+            self.assertIn('Morning Two', offline['alarms'])
+            self.assertNotIn('internal details', str(offline))
+        self.assertEqual(flow.config_entry.options, before)
+
+    async def test_overview_treats_names_as_text_and_keeps_alarm_when_music_cannot_be_read(self):
+        from unittest.mock import patch
+        flow, mass, stores, _ = self.configured_options_flow()
+        mass.providers[0].name = '[open](https://example.org) <script>bad</script>\n# title'
+        storage = sys.modules['homeassistant.components.frontend.storage']
+        with patch.object(storage, 'async_user_store', new=AsyncMock(side_effect=OSError('private storage error'))):
+            overview = (await flow.async_step_init())['description_placeholders']
+        self.assertIn('\\[open\\]\\(', overview['accounts'])
+        self.assertIn('&lt;script&gt;', overview['accounts'])
+        self.assertNotIn('<script>', overview['accounts'])
+        self.assertIn('⚠', overview['alarms'])
+        self.assertIn('wake\\_two', overview['alarms'])
+        self.assertNotIn('private storage error', str(overview))
+
+    async def test_editing_account_prefills_saved_choices_and_cannot_change_owner(self):
+        flow, mass, _, _ = self.configured_options_flow()
+        original = [dict(a) for a in flow.config_entry.options['accounts']]
+        form = await flow.async_step_edit({'ha_user_id': 'ha-one'})
+        defaults = {str(k): k.default() for k in form['data_schema']}
+        self.assertEqual(defaults, original[0])
+        self.assertEqual(form['data_schema']['ha_user_id']['options'], [{'value': 'ha-one', 'label': 'One'}])
+        refused = await flow.async_step_account_edit(original[1])
+        self.assertEqual(refused['errors']['base'], 'invalid_account')
+        saved = await flow.async_step_account_edit(original[0])
+        self.assertEqual(saved['data']['accounts'], original)
+        self.assertEqual(saved['data']['alarms'], flow.config_entry.options['alarms'])
+        self.assertEqual(saved['data']['unrelated'], {'keep': True})
+        # A removed provider stays visible, but must not pass live validation.
+        mass.providers = [NS(instance_id='apple_music--new', name='New', domain='apple_music', available=True)]
+        missing = await flow.async_step_account_edit()
+        self.assertIn({'value': 'apple_music--one', 'label': 'apple_music--one ⚠'}, missing['data_schema']['provider_id']['options'])
+        self.assertEqual((await flow.async_step_account_edit(original[0]))['errors']['base'], 'invalid_account')
+        # Returning to add must start a fresh assignment, without the edit defaults.
+        fresh = await flow.async_step_add()
+        self.assertTrue(all(k.default() is None for k in fresh['data_schema']))
+
+    async def test_editing_alarm_keeps_id_prefills_box_and_updates_only_selected_alarm(self):
+        from unittest.mock import patch
+        flow, _, _, sources = self.configured_options_flow()
+        original = [dict(a) for a in flow.config_entry.options['alarms']]
+        sources[0].disabled_by = 'user'
+        form = await flow.async_step_alarm_edit({'alarm_id': 'wake_one'})
+        self.assertEqual({str(k): k.default() for k in form['data_schema']}, original[0])
+        self.assertIn({'value': 'media_player.box_one', 'label': 'media_player.box_one ⚠'}, form['data_schema']['source_entity']['options'])
+        alarm_module = importlib.import_module('installation_test.alarms')
+        with patch.object(alarm_module, 'apple_target', new=AsyncMock()):
+            changed = {**original[0], 'source_entity': 'media_player.box_two'}
+            refused = await flow.async_step_alarm_update({**changed, 'alarm_id': 'new_id'})
+            self.assertEqual(refused['errors']['base'], 'invalid_alarm')
+            saved = await flow.async_step_alarm_update(changed)
+        self.assertEqual(saved['data']['alarms'], [changed, original[1]])
+        self.assertEqual(saved['data']['accounts'], flow.config_entry.options['accounts'])
+        self.assertEqual(saved['data']['unrelated'], {'keep': True})
+        self.assertEqual((await flow.async_step_alarm_edit({'alarm_id': 'missing'}))['reason'], 'invalid_alarm')
 
     async def test_frontend_failure_requests_setup_retry_without_registering_an_entry(self):
         hass = self.make_hass()

@@ -1,4 +1,4 @@
-# Music Manager 1.6.0
+# Music Manager 1.6.1
 
 ![Music Manager](brand/icon.png)
 
@@ -65,6 +65,12 @@ Sender, Apple-Music-Alben und Apple-Music-Playlists erscheinen gemeinsam als Kur
 - **Abspielen:** Ein Klick auf eine Kachel startet den Favoriten auf der Sonos-Box dieser Karte. Apple-Music-Favoriten werden beim Start erneut gegen die persönliche Kontozuordnung geprüft. Für ein nicht mehr verfügbares oder anders zugeordnetes Konto erscheint ein Fehler; der Connector startet kein Ersatzkonto.
 
 Verfügbare öffentliche Album- und Playlist-Cover werden angezeigt, andernfalls das Apple-Music-Logo. Die allgemeine Apple-Music-Kachel öffnet weiterhin die Mediathek und bleibt hinter den persönlichen Favoriten stehen. Fehler beim Speichern oder Sortieren verändern die bestehende Liste nicht. Parallel gestartete Änderungen mehrerer Karten derselben HA-Verbindung werden nacheinander mit dem jeweils aktuellen Stand gespeichert.
+
+## Konfiguration im Überblick
+
+Unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren** erscheinen direkt die gespeicherte Music-Assistant-Verbindung, alle Benutzerzuordnungen (HA → MA → Apple Music) sowie alle Wecker mit Benutzer, Sonos-Box und ausgewählter Weckmusik. Die Übersicht verändert keine Einstellungen. Auch bei nicht erreichbarem Music Assistant bleiben die gespeicherten Zuordnungen mit ihren Kennungen sichtbar.
+
+Über **Vorhandene Benutzerzuordnung bearbeiten** oder **Vorhandenen Wecker bearbeiten** einen Eintrag auswählen. Das folgende Formular enthält seine aktuellen Werte. Die HA-Benutzerkennung einer Kontozuordnung und die Weckerkennung bleiben beim Bearbeiten fest; die zugehörigen Konten bzw. Benutzer und Box können geändert werden. Andere Einträge und Einstellungen bleiben erhalten.
 
 ## Weckmusik aus persönlichen Apple-Music-Favoriten
 

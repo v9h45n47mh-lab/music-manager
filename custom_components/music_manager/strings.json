@@ -21,14 +21,17 @@
   "options": {
     "step": {
       "init": {
-        "title": "Apple Music accounts",
+        "title": "Configuration overview",
         "menu_options": {
           "connect": "Music Assistant connection",
           "add": "Add or change user assignment",
           "remove": "Remove user assignment",
           "alarm": "Add or change alarm",
-          "alarm_remove": "Remove alarm assignment"
-        }
+          "alarm_remove": "Remove alarm assignment",
+          "edit": "Edit existing user assignment",
+          "alarm_edit": "Edit existing alarm"
+        },
+        "description": "**Music Assistant**\n{connection}\n\n**Account assignments · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Alarms · {alarm_count}**\nID · user → speaker · alarm music\n{alarms}\n\n— means no assignment or, for alarm music, the last Sonos playback. ⚠ means the saved alarm music could not be read. When Music Assistant is unavailable, saved IDs appear instead of account names."
       },
       "add": {
         "title": "Assign personal Apple Music account",
@@ -67,6 +70,38 @@
         "data": {
           "alarm_id": "Alarm ID"
         }
+      },
+      "edit": {
+        "title": "Edit user assignment",
+        "description": "Select an existing assignment. Its saved values are prefilled in the next step.",
+        "data": {
+          "ha_user_id": "Home Assistant user"
+        }
+      },
+      "alarm_edit": {
+        "title": "Edit alarm",
+        "description": "Select an existing alarm. Its user and Sonos speaker are prefilled in the next step. The alarm ID is preserved.",
+        "data": {
+          "alarm_id": "Alarm ID"
+        }
+      },
+      "account_edit": {
+        "title": "Edit user assignment",
+        "description": "The saved assignment is prefilled. Its HA user is fixed. Change the Music Assistant and Apple Music account as needed. A choice marked with ⚠ is currently unavailable and must be replaced.",
+        "data": {
+          "ha_user_id": "Home Assistant user",
+          "ma_user_id": "Music Assistant user",
+          "provider_id": "Apple Music account in Music Assistant"
+        }
+      },
+      "alarm_update": {
+        "title": "Edit alarm",
+        "description": "The saved user and Sonos speaker are prefilled. The alarm ID is fixed so the card and automation still reference the same alarm. A choice marked with ⚠ is currently unavailable and must be replaced.",
+        "data": {
+          "alarm_id": "Alarm ID",
+          "ha_user_id": "Home Assistant user",
+          "source_entity": "Sonos speaker"
+        }
       }
     },
     "error": {
@@ -84,7 +119,8 @@
       "no_accounts": "No accounts have been assigned yet.",
       "music_assistant_missing": "First connect Music Assistant under Configure → Music Assistant connection. Radio already works.",
       "no_alarms": "No alarms have been assigned.",
-      "invalid_alarm": "Invalid alarm ID."
+      "invalid_alarm": "Invalid alarm ID.",
+      "invalid_account": "The selected user assignment no longer exists. Reopen the configuration."
     }
   }
 }

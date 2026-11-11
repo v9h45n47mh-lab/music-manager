@@ -21,14 +21,17 @@
   "options": {
     "step": {
       "init": {
-        "title": "Apple-Music-Konten",
+        "title": "Konfiguration im Überblick",
         "menu_options": {
           "connect": "Music-Assistant-Verbindung",
           "add": "Benutzerzuordnung hinzufügen oder ändern",
           "remove": "Benutzerzuordnung entfernen",
           "alarm": "Wecker hinzufügen oder ändern",
-          "alarm_remove": "Weckerzuordnung entfernen"
-        }
+          "alarm_remove": "Weckerzuordnung entfernen",
+          "edit": "Vorhandene Benutzerzuordnung bearbeiten",
+          "alarm_edit": "Vorhandenen Wecker bearbeiten"
+        },
+        "description": "**Music Assistant**\n{connection}\n\n**Benutzerzuordnungen · {account_count}**\nHome Assistant → Music Assistant → Apple Music\n{accounts}\n\n**Wecker · {alarm_count}**\nKennung · Benutzer → Box · Weckmusik\n{alarms}\n\n— bedeutet: keine Zuordnung oder beim Wecker die letzte Sonos-Wiedergabe. ⚠ bedeutet: die gespeicherte Weckmusik konnte gerade nicht gelesen werden. Ist Music Assistant nicht erreichbar, erscheinen die gespeicherten Kennungen anstelle der Kontonamen."
       },
       "add": {
         "title": "Persönliches Apple-Music-Konto zuordnen",
@@ -67,6 +70,38 @@
         "data": {
           "alarm_id": "Weckerkennung"
         }
+      },
+      "edit": {
+        "title": "Benutzerzuordnung bearbeiten",
+        "description": "Wähle die vorhandene Zuordnung. Im nächsten Schritt sind ihre gespeicherten Werte vorausgefüllt.",
+        "data": {
+          "ha_user_id": "Home-Assistant-Benutzer"
+        }
+      },
+      "alarm_edit": {
+        "title": "Wecker bearbeiten",
+        "description": "Wähle den vorhandenen Wecker. Im nächsten Schritt sind Benutzer und Sonos-Box vorausgefüllt. Die Weckerkennung bleibt erhalten.",
+        "data": {
+          "alarm_id": "Weckerkennung"
+        }
+      },
+      "account_edit": {
+        "title": "Benutzerzuordnung bearbeiten",
+        "description": "Die gespeicherte Zuordnung ist vorausgefüllt. Der HA-Benutzer bleibt fest zugeordnet. Ändere bei Bedarf das Music-Assistant- und Apple-Music-Konto. Eine mit ⚠ markierte Auswahl ist aktuell nicht verfügbar und muss ersetzt werden.",
+        "data": {
+          "ha_user_id": "Home-Assistant-Benutzer",
+          "ma_user_id": "Music-Assistant-Benutzer",
+          "provider_id": "Apple-Music-Konto in Music Assistant"
+        }
+      },
+      "alarm_update": {
+        "title": "Wecker bearbeiten",
+        "description": "Benutzer und Sonos-Box sind mit den gespeicherten Werten vorausgefüllt. Die Weckerkennung bleibt erhalten, damit Karte und Automation weiter auf denselben Wecker verweisen. Eine mit ⚠ markierte Auswahl ist aktuell nicht verfügbar und muss ersetzt werden.",
+        "data": {
+          "alarm_id": "Weckerkennung",
+          "ha_user_id": "Home-Assistant-Benutzer",
+          "source_entity": "Sonos-Box"
+        }
       }
     },
     "error": {
@@ -84,7 +119,8 @@
       "no_accounts": "Es sind noch keine Konten zugeordnet.",
       "music_assistant_missing": "Verbinde zuerst Music Assistant unter Konfigurieren → Music-Assistant-Verbindung. Radio kannst du bereits verwenden.",
       "no_alarms": "Es sind noch keine Wecker zugeordnet.",
-      "invalid_alarm": "Die Weckerkennung ist ungültig."
+      "invalid_alarm": "Die Weckerkennung ist ungültig.",
+      "invalid_account": "Die gewählte Benutzerzuordnung ist nicht mehr vorhanden. Öffne die Konfiguration erneut."
     }
   }
 }
