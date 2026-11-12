@@ -52,7 +52,7 @@ const navigationData=new Map();
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
-    return {can_select,players,version:'2.0.0',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+    return {can_select,players,version:'2.1.0',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
    }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
@@ -285,7 +285,7 @@ test('album and playlist tracks preserve navigation, retry pagination and save w
   return {items:containers,more:false};
  };
  env.click(a,'open-apple');await flush();a._appleQuery.value='Kollektion';env.click(a,'apple-search');await flush();
- await a._action({action:'apple-tracks',data:{index:1}});assert.equal(env.wsCalls.at(-1).uri,containers[1].uri);
+ await a._action({action:'apple-tracks',data:{index:0}});assert.equal(env.wsCalls.at(-1).uri,containers[1].uri);
  assert.equal(env.wsCalls.at(-1).action,'tracks');assert.equal(env.wsCalls.at(-1).user_id,undefined);
  env.click(a,'apple-alarm-song');await flush();assert.equal(a._favorites.length,0);assert.equal(b._favorites.length,0);
  assert.equal(a._alarmSongs.length,1);assert.equal(b._alarmSongs.length,1);assert.equal(env.alarmSongData.get('manuel').length,1);
@@ -294,8 +294,8 @@ test('album and playlist tracks preserve navigation, retry pagination and save w
  failPage=false;env.click(a,'apple-retry');await flush();assert.equal(env.wsCalls.at(-1).offset,50);assert.equal(a._appleItems.length,2);
  env.click(a,'apple-songs');await flush();assert.equal(a._appleItems.length,1);assert.equal(a._appleOwnSongs,true);
  env.click(a,'apple-back');await flush();assert.equal(a._appleContainer.uri,containers[1].uri);assert.equal(a._appleItems.length,2);
- env.click(a,'apple-back');await flush();assert.equal(a._appleSearch,true);assert.equal(a._appleQuery.value,'Kollektion');assert.equal(a._appleItems[0].uri,containers[0].uri);
- env.click(a,'apple-tracks');await flush();assert.equal(env.wsCalls.at(-1).uri,containers[0].uri);a.remove();b.remove();
+ env.click(a,'apple-back');await flush();assert.equal(a._appleSearch,true);assert.equal(a._appleQuery.value,'Kollektion');assert.equal(a._appleItems[0].uri,containers[1].uri);
+ await a._action({action:'apple-library',data:{view:'album'}});env.click(a,'apple-tracks');await flush();assert.equal(env.wsCalls.at(-1).uri,containers[0].uri);a.remove();b.remove();
 });
 test('late private album tracks are discarded after a user or box change',async()=>{
  const env=setup();let finish;
@@ -328,7 +328,7 @@ test('Apple Music catalog and library use the authenticated gateway and selected
  const env=setup(),card=env.add();card.setConfig({entity:'media_player.a',music_assistant_entity:'media_player.ma_a'});
  env.wsHook=msg=>msg.type==='music_manager/apple_music'?msg.action==='status'?{account:'Manuel',entity_id:'media_player.ma_a'}:msg.action==='play'?{started:true}:{items:[{uri:'apple_music--a://track/42',title:'Ein Titel',description:'Interpret · Titel'}],more:false}:undefined;
  env.click(card,'open-apple');await flush();assert.equal(card._appleAccount,'Manuel');assert.equal(card._appleItems.length,1);
- card._appleQuery.value='Mein Titel';env.click(card,'apple-search');await flush();
+ await card._action({action:'apple-library',data:{view:'track'}});card._appleQuery.value='Mein Titel';env.click(card,'apple-search');await flush();
  const search=env.wsCalls.at(-1);assert.equal(search.action,'search');assert.equal(search.query,'Mein Titel');assert.equal(search.entity_id,'media_player.ma_a');assert.equal(search.source_entity,'media_player.a');assert.equal(search.user_id,undefined);assert.equal(search.provider_id,undefined);
  env.click(card,'apple-play');await flush();assert.equal(env.wsCalls.at(-1).action,'play');assert.equal(env.wsCalls.at(-1).uri,'apple_music--a://track/42');assert.equal(card._appleDialog.open,false);
  env.click(card,'next');await flush();assert.equal(env.wsCalls.at(-1).action,'next');assert.equal(env.wsCalls.at(-1).source_entity,'media_player.a');
@@ -683,7 +683,7 @@ test('player Apple Music favorites and combined wake-song dialogs retain their p
 });
 test('player radio browser returns to the settings dialog and shows actual component versions',async()=>{
  const env=setup(),card=env.addPlayer();await flush();env.click(card,'player-settings');const sender=card._settingsDialog.querySelector('[data-action="open-radio"]');sender.click();await flush();assert(card._dialog.open);assert(card._settingsDialog.open);
- card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.0\.0 · Integration 2\.0\.0 · UI 1\.4\.1/);
+ card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.1\.0 · Integration 2\.1\.0 · UI 1\.4\.1/);
 });
 test('player children show their fixed speaker only inside settings and adults use a compact room dropdown',async()=>{
  const env=setup(),card=env.addPlayer();await flush();assert(card.shadowRoot.querySelector('.fui-player-speaker-compact'));assert.equal(card.shadowRoot.querySelector('#music-player-box option').textContent.includes('Sonos '),false);
@@ -697,4 +697,46 @@ test('the old beta type is an unlisted compatibility alias of the regular player
  const legacy=env.document.createElement('music-manager-beta-card');legacy.setConfig({type:'custom:music-manager-beta-card',entity:'media_player.a',navigation_id:'hauptplayer'});env.document.body.append(legacy);legacy.hass=env.makeHass();await flush();
  assert.equal(legacy._config.entity,'media_player.b');assert(legacy.shadowRoot.querySelector('.fui-player-toolbar'));assert.equal(legacy._favorites.length,1);assert.equal(env.window.customCards.some(c=>c.type.includes('beta')),false);
  const editor=Current.getConfigElement();editor.setConfig({type:'custom:music-manager-beta-card',entity:'media_player.a',navigation_id:'hauptplayer'});env.document.body.append(editor);let saved;editor.addEventListener('config-changed',e=>saved=e.detail.config);editor.shadowRoot.querySelector('[data-key="next"]').click();assert.equal(saved.type,'custom:music-manager-card');assert.equal(saved.navigation_id,'hauptplayer');legacy.remove();editor.remove();
+});
+
+test('Apple categories browse the personal library without a query and filter the same catalog search with a query',async()=>{
+ const env=setup();let searches=0;
+ const record=(kind,label)=>({uri:`apple_music--a://${kind}/${label}`,media_type:kind,title:label});
+ env.wsHook=msg=>{
+  if(msg.type!=='music_manager/apple_music')return;
+  if(msg.action==='status')return {account:'Manuel',entity_id:'media_player.ma_a'};
+  if(msg.action==='search'){searches++;return {items:['playlist','album','track'].flatMap(kind=>[record(kind,'Suche '+kind),record(kind,'Weitere '+kind)]),more:false};}
+  if(msg.action==='tracks')return {items:[record('track','Albumtitel')],more:false};
+  return {items:[record(msg.media_type,'Eigene '+msg.media_type)],more:false};
+ };
+ const card=env.addPlayer();await flush();await card._action({action:'open-apple'});
+ for(const view of ['playlist','album','track']){
+  await card._action({action:'apple-library',data:{view}});assert.equal(env.wsCalls.at(-1).action,'library');assert.equal(env.wsCalls.at(-1).media_type,view);assert.equal(card._appleItems[0].title,'Eigene '+view);assert.match(card.shadowRoot.getElementById('music-apple-location').textContent,/Deine Mediathek/);
+ }
+ card._appleQuery.value='Meine Suche';await card._action({action:'apple-search'});
+ for(const view of ['playlist','album','track','album']){
+  await card._action({action:'apple-library',data:{view}});assert.equal(card._appleQuery.value,'Meine Suche');assert.equal(card._appleItems.length,2);assert(card._appleItems.every(item=>item.media_type===view));assert.equal(card._appleDialog.querySelector(`[data-view="${view}"]`).getAttribute('aria-pressed'),'true');assert.match(card.shadowRoot.getElementById('music-apple-location').textContent,/Suchergebnisse.*Meine Suche/);
+ }
+ assert.equal(searches,1);assert.equal(card._appleSearchResults.items.length,6);
+ await card._action({action:'apple-tracks',data:{index:0}});assert.equal(card._appleItems[0].title,'Albumtitel');await card._action({action:'apple-back'});assert.equal(card._appleView,'album');assert.equal(card._appleQuery.value,'Meine Suche');assert.equal(card._appleItems[0].title,'Suche album');assert.equal(card._appleSearch,true);
+ card._appleQuery.value='';card._appleQuery.dispatchEvent(new env.window.Event('input',{bubbles:true}));await flush();assert.equal(env.wsCalls.at(-1).action,'library');assert.equal(env.wsCalls.at(-1).media_type,'album');assert.equal(card._appleItems[0].title,'Eigene album');assert.equal(card._appleSearchResults,null);assert.equal(card._appleSearch,false);
+ card._appleQuery.value='   ';await card._action({action:'apple-search'});assert.equal(env.wsCalls.at(-1).action,'library');assert.equal(card._appleError,'');card.remove();
+});
+
+test('category searches discard old queries and private results after an account switch and retry failed searches',async()=>{
+ const env=setup();let resolveOld,fail=false;
+ env.wsHook=msg=>{
+  if(msg.type!=='music_manager/apple_music')return;
+  if(msg.action==='status')return {account:'Manuel',entity_id:'media_player.ma_a'};
+  if(msg.action==='search'){
+   if(msg.query==='Alt')return new Promise(resolve=>{resolveOld=resolve;});
+   if(fail)throw new Error('Vorübergehend nicht verfügbar');
+   return {items:[{uri:'apple_music--a://album/new',media_type:'album',title:'Neues Album'}],more:false};
+  }
+  return {items:[],more:false};
+ };
+ const card=env.addPlayer();await flush();await card._action({action:'open-apple'});card._appleQuery.value='Alt';const old=card._action({action:'apple-search'});await flush();card._appleQuery.value='Neu';await card._action({action:'apple-library',data:{view:'album'}});
+ resolveOld({items:[{uri:'apple_music--a://album/old',media_type:'album',title:'Altes Album'}]});await old;assert.equal(card._appleSearchResults.query,'Neu');assert.equal(card._appleItems[0].title,'Neues Album');
+ fail=true;await card._action({action:'apple-search'});assert.match(card._appleError,/Vorübergehend/);assert.equal(card._appleSearchResults,null);fail=false;await card._action({action:'apple-retry'});assert.equal(card._appleItems[0].title,'Neues Album');assert.equal(card._appleError,'');
+ card._appleQuery.value='Alt';const privateSearch=card._action({action:'apple-search'});await flush();env.switchUser('vera');resolveOld({items:[{uri:'apple_music--a://album/private',media_type:'album',title:'Privates Album'}]});await privateSearch;assert.equal(card._appleSearchResults,null);assert.equal(card._appleSearchQuery,'');assert.equal(card._appleItems.length,0);assert.equal(card._appleDialog.open,false);card.remove();
 });

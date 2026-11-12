@@ -1,4 +1,4 @@
-# Music Manager 2.0.0
+# Music Manager 2.1.0
 
 ![Music Manager](brand/icon.png)
 
@@ -25,7 +25,7 @@ navigation_id: hauptplayer
 
 Bestehende Karten mit `type: custom:music-manager-card` erhalten das neue Design automatisch. Die separate Beta-Datei und der Beta-Eintrag im Kartenpicker entfallen. Bereits gespeicherte Beta-YAML mit `custom:music-manager-beta-card` wird über einen unsichtbaren Kompatibilitätsnamen auf denselben regulären Player geleitet. Beim nächsten Speichern im visuellen Editor wird der Typ auf `custom:music-manager-card` umgestellt. Es gibt keinen getrennten Beta-Player mehr.
 
-Persönliche Box-Auswahl, Favoriten, Wecklieder, Konto- und Weckerzuordnungen bleiben erhalten. Im Marketplace auf **2.0.0** aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Neue Karten immer mit dem regulären Typ anlegen.
+Persönliche Box-Auswahl, Favoriten, Wecklieder, Konto- und Weckerzuordnungen bleiben erhalten. Im Marketplace auf **2.1.0** aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Neue Karten immer mit dem regulären Typ anlegen.
 
 ## Installation über den Marketplace
 
@@ -152,6 +152,12 @@ Während Apple Music läuft, zeigt die Tastenreihe zusätzlich **Shuffle als Sym
 Beim Wechsel zurück zu einem Radiosender übernimmt die Karte sofort wieder den nativen Sonos-Player und zeigt den gewählten Sender. Verspätete MA-Meldungen mit dem letzten Apple-Music-Titel ändern die Radioanzeige nicht. Shuffle und Zeitleiste verschwinden bei Radio; schlägt der Wechsel fehl, bleibt die vorherige Wiedergabe erhalten.
 
 Apple Music benötigt einen aktiven Zugang und **Music Assistant mit Apple-Music-Anbieter, Benutzerverwaltung und Musikquellenfiltern**. Die normale HA-Sonos-Integration allein stellt keinen persönlichen Apple-Music-Katalog bereit. Die Apple-Anmeldung erfolgt ausschließlich in Music Assistant; in der Karte oder in Music Manager werden keine Apple-Passwörter, Cookies oder Tokens eingetragen.
+
+### Mediathek und Suche
+
+Ohne Suchbegriff zeigen **Playlists**, **Alben** und **Titel** die persönlichen Einträge deines zugeordneten Apple-Music-Kontos. Mit einem Suchbegriff und **Suchen** oder einem Klick auf einen dieser Bereiche werden die passenden Suchergebnisse aus Apple Music angezeigt. Der Suchbegriff bleibt beim Wechsel zwischen den Bereichen erhalten; der aktive Bereich ist markiert. **Suchergebnisse** und **Deine Mediathek** machen deutlich, welche Ansicht geöffnet ist.
+
+Beim Leeren des Suchfelds geht es im gewählten Bereich zurück zur persönlichen Mediathek. Über **Titel anzeigen → Zurück** gelangst du wieder zur vorherigen Kategorie samt Suchbegriff. Favoriten und Wecklieder lassen sich wie bisher markieren.
 
 ### Einmalige Einrichtung
 

@@ -1,4 +1,4 @@
-/* Music Manager 2.0.0 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 2.1.0 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.4.1 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.4.1";
@@ -577,7 +577,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,MUSIC_PLAYER_CSS,escapeHtml,button,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '2.0.0';
+export const MUSIC_VERSION = '2.1.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -1026,6 +1026,9 @@ export class MusicPlayerBase extends HTMLElement {
     this._searchInput = this.shadowRoot.getElementById('music-radio-query');
     this._appleDialog=this.shadowRoot.getElementById('music-apple-dialog');
     this._appleQuery=this.shadowRoot.getElementById('music-apple-query');
+    this._appleQuery.addEventListener('input',()=>{
+      if(!this._appleQuery.value.trim()&&(this._appleSearch||this._appleParent))void this._selectAppleView(this._appleView);
+    });
     this._alarmSongInput=this.shadowRoot.getElementById('music-alarm-song-query');
     this._alarmSongInput.addEventListener('input',()=>{this._alarmSongQuery=this._alarmSongInput.value;this._renderApple();});
     this.shadowRoot.getElementById('music-apple-search-form').addEventListener('submit',event=>{event.preventDefault();void this._action({action:'apple-search'});});
@@ -1359,9 +1362,9 @@ export class MusicPlayerBase extends HTMLElement {
       case 'alarm-songs-add':
       case 'open-apple': await this._openApple();break;
       case 'open-alarm-songs': this._openAlarmSongs();break;
-      case 'apple-search': this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;await this._loadApple('search');break;
-      case 'apple-library': this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;this._appleView=data.view;await this._loadApple('library');break;
-      case 'apple-more': await this._loadApple(this._appleContainer?'tracks':'library',true);break;
+      case 'apple-search': await this._selectAppleView(this._appleView,true);break;
+      case 'apple-library': await this._selectAppleView(data.view);break;
+      case 'apple-more': await this._loadApple(this._appleContainer?'tracks':this._appleSearch?'search':'library',true);break;
       case 'apple-tracks': await this._showAppleTracks(this._appleItems[Number(data.index)]);break;
       case 'favorite-tracks': await this._showAppleTracks(this._favorites.find(f=>f.uri===data.id));break;
       case 'apple-back': this._restoreAppleParent();break;
@@ -1465,6 +1468,7 @@ export class MusicPlayerBase extends HTMLElement {
   _resetApple(close=true) {
     this._appleRequest++;this._appleItems=[];this._appleAccount='';this._appleError='';
     this._appleLoading=false;this._appleMore=false;this._applePreferred=false;this._appleEntity='';this._appleReady=false;
+    this._appleSearch=false;this._appleSearchResults=null;this._appleSearchQuery='';this._appleOffset=0;
     this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;this._appleRetry=null;
     this._alarmSongQuery='';if(this._alarmSongInput)this._alarmSongInput.value='';
     if(close)this._appleDialog?.close();
@@ -1527,12 +1531,27 @@ export class MusicPlayerBase extends HTMLElement {
     }
   }
 
+  _appleSearchItems(items){return items.filter(item=>(item.media_type||item.uri.match(/:\/\/(track|album|playlist)\//)?.[1])===this._appleView);}
+
+  async _selectAppleView(view=this._appleView,refresh=false){
+    if(this._busy||!['playlist','album','track'].includes(view))return;
+    this._appleContainer=null;this._appleParent=null;this._appleOwnSongs=false;this._appleView=view;
+    const query=this._appleQuery.value.trim().slice(0,200),cached=this._appleSearchResults;
+    if(query&&!refresh&&cached?.query===query){
+      this._appleRequest++;this._appleLoading=false;this._appleSearch=true;this._appleSearchQuery=query;
+      this._appleItems=this._appleSearchItems(cached.items);this._appleMore=false;this._appleError='';this._appleRetry=null;this._renderApple();return;
+    }
+    if(!query){this._appleSearchResults=null;this._appleSearchQuery='';}
+    await this._loadApple(query?'search':'library');
+  }
+
   async _loadApple(action,append=false) {
     if(this._busy || !this._musicAssistantEntity)return;
     const query=this._appleQuery.value.trim().slice(0,200);
-    if(action==='search'&&!query){this._appleError='Bitte einen Suchbegriff eingeben.';this._renderApple();return;}
+    if(action==='search'&&!query)action='library';
     const request=++this._appleRequest;
     this._appleLoading=true;this._appleError='';this._appleSearch=action==='search';
+    if(this._appleSearch){this._appleSearchQuery=query;this._appleSearchResults=null;}
     this._appleRetry=null;
     const offset=append?this._appleOffset||0:0;
     if(!append)this._appleItems=[];
@@ -1541,7 +1560,8 @@ export class MusicPlayerBase extends HTMLElement {
       const response=await this._appleCommand(action,action==='search'?{query}:action==='tracks'?{uri:this._appleContainer.uri,offset}:{media_type:this._appleView,offset});
       if(request!==this._appleRequest)return;
       const items=response.items.filter(item=>item && typeof item.uri==='string'&&typeof item.title==='string');
-      this._appleItems=append?[...this._appleItems,...items]:items;
+      if(action==='search'){this._appleSearchResults={query,items};this._appleItems=this._appleSearchItems(items);}
+      else this._appleItems=append?[...this._appleItems,...items]:items;
       this._appleMore=Boolean(response.more);this._appleOffset=response.next_offset;
     } catch(error) {
       if(request!==this._appleRequest)return;
@@ -1554,7 +1574,7 @@ export class MusicPlayerBase extends HTMLElement {
 
   _rememberAppleParent() {
     this._appleParent={epoch:this._epoch,items:[...this._appleItems],view:this._appleView,search:this._appleSearch,
-      query:this._appleQuery.value,more:this._appleMore,offset:this._appleOffset,container:this._appleContainer,ownSongs:this._appleOwnSongs,parent:this._appleParent,scroll:this.shadowRoot.getElementById('music-apple-results').scrollTop};
+      query:this._appleQuery.value,searchResults:this._appleSearchResults,searchQuery:this._appleSearchQuery,more:this._appleMore,offset:this._appleOffset,container:this._appleContainer,ownSongs:this._appleOwnSongs,parent:this._appleParent,scroll:this.shadowRoot.getElementById('music-apple-results').scrollTop};
   }
 
   async _showAppleTracks(item) {
@@ -1581,7 +1601,7 @@ export class MusicPlayerBase extends HTMLElement {
   _restoreAppleParent() {
     const parent=this._appleParent;if(!parent||parent.epoch!==this._epoch||this._busy)return;
     this._appleRequest++;this._appleLoading=false;this._appleContainer=parent.container;this._appleOwnSongs=parent.ownSongs;this._appleParent=parent.parent;this._appleError='';this._appleRetry=null;
-    this._appleItems=parent.items;this._appleView=parent.view;this._appleSearch=parent.search;this._appleQuery.value=parent.query;this._appleMore=parent.more;this._appleOffset=parent.offset;
+    this._appleItems=parent.items;this._appleView=parent.view;this._appleSearch=parent.search;this._appleSearchResults=parent.searchResults;this._appleSearchQuery=parent.searchQuery;this._appleQuery.value=parent.query;this._appleMore=parent.more;this._appleOffset=parent.offset;
     this._renderApple();this.shadowRoot.getElementById('music-apple-results').scrollTop=parent.scroll;
   }
 
@@ -1613,10 +1633,10 @@ export class MusicPlayerBase extends HTMLElement {
     this.shadowRoot.getElementById('music-apple-search-form').hidden=Boolean(this._appleOwnSongs);
     this.shadowRoot.getElementById('music-alarm-song-tools').hidden=!this._appleOwnSongs;
     for(const control of this._appleDialog.querySelectorAll('form button,form input'))control.disabled=disabled;
-    for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleContainer&&!this._appleOwnSongs&&!this._appleSearch&&control.dataset.view===this._appleView));
+    for(const control of this._appleDialog.querySelectorAll('[data-action="apple-library"]'))control.setAttribute('aria-pressed',String(!this._appleContainer&&!this._appleOwnSongs&&control.dataset.view===this._appleView));
     this.shadowRoot.getElementById('music-apple-account').innerHTML=this._appleAccount&&!this._appleOwnSongs?row({title:this._appleAccount,description:'Dein Apple-Music-Konto'}):'';
     this.shadowRoot.getElementById('music-apple-status').innerHTML=(this._appleError?notice(this._appleError,{error:true})+(this._appleRetry?button({label:'Erneut laden',action:'apple-retry',disabled:this._appleLoading}):''):'')+(this._favoriteError?notice(this._favoriteError,{error:true}):'')+(this._alarmSongError?notice(this._alarmSongError,{error:true})+button({label:'Wecklieder erneut laden',action:'reload-alarm-songs'}):'')+(this._appleLoading?loadingState('Apple Music wird geladen …'):this._busy?loadingState('Wiedergabe wird gestartet …'):this._favoriteBusy?loadingState(this._alarmSongSaving?'Wecklieder werden gespeichert …':'Favoriten werden gespeichert …'):this._appleOwnSongs&&this._alarmSongLoading?loadingState('Wecklieder werden geladen …'):'');
-    this.shadowRoot.getElementById('music-apple-location').innerHTML=this._appleOwnSongs?row({title:`${this._alarmSongs.length} Wecklieder`,description:'Entfernen ändert die Auswahlliste. Bereits gespeicherte Weckerauswahlen bleiben erhalten.',trailing:this._appleParent?button({label:'Zurück',action:'apple-back',disabled:this._busy}):''}):this._appleParent?row({title:this._appleContainer?.title||'',description:'Einzelne Titel zum Abspielen oder als Wecklied auswählen',trailing:button({label:'Zurück',action:'apple-back',disabled:this._busy})}):'';
+    this.shadowRoot.getElementById('music-apple-location').innerHTML=this._appleOwnSongs?row({title:`${this._alarmSongs.length} Wecklieder`,description:'Entfernen ändert die Auswahlliste. Bereits gespeicherte Weckerauswahlen bleiben erhalten.',trailing:this._appleParent?button({label:'Zurück',action:'apple-back',disabled:this._busy}):''}):this._appleParent?row({title:this._appleContainer?.title||'',description:'Einzelne Titel zum Abspielen oder als Wecklied auswählen',trailing:button({label:'Zurück',action:'apple-back',disabled:this._busy})}):row({title:this._appleSearch?'Suchergebnisse':'Deine Mediathek',description:({playlist:'Playlists',album:'Alben',track:'Titel'})[this._appleView]+(this._appleSearch?' zu „'+this._appleSearchQuery+'“':' deines Apple-Music-Kontos')});
     const results=this.shadowRoot.getElementById('music-apple-results');
     if(this._appleOwnSongs){const query=(this._alarmSongQuery||'').trim().toLocaleLowerCase();this._appleItems=this._alarmSongs.filter(s=>[s.title,s.description].join(' ').toLocaleLowerCase().includes(query));}
     results.setAttribute('aria-label',this._appleOwnSongs?'Wecklieder verwalten':'Apple-Music-Einträge');

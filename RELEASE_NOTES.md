@@ -1,11 +1,10 @@
-## Music Manager 2.0.0
+## Music Manager 2.1.0
 
-- Das optimierte Player-Design ist jetzt das Design der **regulären Music-Manager-Karte**. Vorhandene Karten mit `custom:music-manager-card` erhalten es automatisch.
-- Die separate Beta-Karte und ihr Eintrag im Kartenpicker entfallen. Alte Beta-YAML wird zur Vermeidung ausgefallener Kacheln über einen unsichtbaren Kompatibilitätsnamen auf denselben Player geleitet; der visuelle Editor speichert anschließend den regulären Typ.
-- Kompaktes persönliches Box-Dropdown für Vera und Manuel; feste Ausgangsbox für Maximilian und Paul. Bei den Kindern steht der Boxname nur in den Einstellungen.
-- Runde Medientasten, Radio mit Play/Pause, Apple Music mit Titelwechsel, Shuffle und Zeitleiste. Lautstärke **0–50 %** über die volle Breite.
-- Symbolfavoriten ohne Text; der laufende Favorit ist unten ausgeblendet und bleibt in der Verwaltung erhalten. Radio Browser, Apple Music und Favoriten führen beim Schließen zurück zu den Einstellungen.
-- Wecklieder nur für Maximilian und Paul, mit gemeinsamer Verwaltung „Favoriten & Wecklieder“. Persönliche Daten und Berechtigungen bleiben erhalten.
-- HA UI Kit **1.4.1**, Versionsanzeige in den Einstellungen. Keine Beta-Beschriftungen mehr in der Konfiguration.
+- Apple Music in den Einstellungen: Ohne Suchbegriff zeigen **Playlists**, **Alben** und **Titel** deine persönliche Mediathek.
+- Mit Suchbegriff zeigen dieselben Bereiche die passenden **Suchergebnisse aus Apple Music**. Der Begriff bleibt beim Wechsel erhalten; der aktive Bereich bleibt hervorgehoben.
+- Das Leeren des Suchfelds führt im gewählten Bereich zurück zur persönlichen Mediathek. Eine leere oder nur aus Leerzeichen bestehende Suche öffnet ebenfalls die Mediathek.
+- Aus geöffneten Alben oder Playlists führt **Zurück** wieder zur vorherigen Ansicht einschließlich Suchbegriff und Kategorie.
+- Persönliche Kontenzuordnung, Box-Auswahl, Favoriten und Wecklieder bleiben erhalten. Die Suche verwendet weiterhin ausschließlich den angemeldeten Benutzer und dessen zugeordnetes Apple-Music-Konto.
+- Gemeinsame Gestaltung mit HA UI Kit **1.4.1**.
 
-Im Marketplace aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Bestehende reguläre Karten benötigen keine YAML-Änderung.
+Im Marketplace aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Keine YAML-Änderung erforderlich.

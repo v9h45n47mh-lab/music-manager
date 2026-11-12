@@ -64,7 +64,7 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(msg.action==='select'){if(!players.some(p=>p.entity_id===msg.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=msg.entity_id;}
-    return {can_select,players,version:'2.0.0',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||msg.source_entity:msg.source_entity};
+    return {can_select,players,version:'2.1.0',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||msg.source_entity:msg.source_entity};
    }
    if(msg.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(msg.key).get(user)||[]};}
    if(msg.type==='frontend/set_user_data'){if(failFavorites)throw new Error('Speichern verweigert');dataForKey(msg.key).set(user,msg.value);(msg.key==='music_manager_alarm_songs'?notifyAlarmSongs:notifyFavorites)(user);return null;}
@@ -87,8 +87,8 @@ const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(use
    if(msg.action==='play'){update(msg.source_entity,{state:'playing',attributes:{media_content_id:'http://music-assistant.example:8095/flow/session/example-queue/item/player.aac',media_channel:'Music Assistant',media_title:'Music Assistant',media_duration:null}});update(target,{state:'playing',attributes:{active_queue:'example-queue',media_content_id:msg.uri,media_title:'Apple Music – Beispieltitel',media_artist:'Beispielinterpret',media_duration:240,media_position:35,media_position_updated_at:new Date().toISOString(),shuffle:false}});return {started:true};}
    if(msg.action==='tracks')return {items:[{uri:'apple_music--demo://track/from-'+msg.uri.split('://')[1].split('/')[0]+'-'+(msg.offset||0),title:'Lied aus '+(msg.uri.includes('/album/')?'dem Album':'der Playlist'),media_type:'track',description:'Beispielinterpret · Titel'}],more:false};
    if(msg.action==='next'){update(target,{attributes:{media_content_id:'apple_music--demo://track/next',media_title:'Nächster Beispieltitel',media_position:0,media_position_updated_at:new Date().toISOString()}});return {skipped:true};}
-   const type=msg.action==='search'?'track':msg.media_type;
-   return {items:[{uri:'apple_music--demo://'+type+'/123',title:msg.action==='search'?'Beispieltitel: '+msg.query:type==='playlist'?'Meine Lieblingsmusik':type==='album'?'Mein Lieblingsalbum':'Mein Lieblingstitel',description:{track:'Titel',album:'Album',playlist:'Playlist'}[type],media_type:type}],more:false};
+   const types=msg.action==='search'?['playlist','album','track']:[msg.media_type];
+   return {items:types.map(type=>({uri:'apple_music--demo://'+type+'/123',title:msg.action==='search'?{playlist:'Beispielplaylist: ',album:'Beispielalbum: ',track:'Beispieltitel: '}[type]+msg.query:type==='playlist'?'Meine Lieblingsmusik':type==='album'?'Mein Lieblingsalbum':'Mein Lieblingstitel',description:{track:'Titel',album:'Album',playlist:'Playlist'}[type],media_type:type})),more:false};
   }
   if(failBrowse)throw new Error('Radio Browser nicht geladen');
   if(msg.type==='media_source/search_media')return {result:msg.search_query==='leer'?[]:[station('swr3','SWR3'),station('rock','Rock Antenne – sehr langer Sendername für die mobile Ansicht')]};
