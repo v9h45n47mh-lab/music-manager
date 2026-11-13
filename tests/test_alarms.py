@@ -11,6 +11,48 @@ import test_apple_music as gateway_fixture
 
 
 class AlarmTests(IsolatedAsyncioTestCase):
+    async def test_marked_radio_is_personal_persisted_and_plays_without_apple_or_ma(self):
+        hass, owner, _, other, store, _, call, _, entry = self.setup_alarm()
+        radio = {'media_content_id': 'media-source://radio_browser/swr3', 'title': 'SWR3', 'can_play': True}
+        store.data[self.alarms.ALARM_SONGS_KEY] = [radio]
+        store.data[self.alarms.FAVORITES_KEY] = [dict(radio, media_content_id='media-source://radio_browser/ordinary')]
+        entry.options['accounts'] = []
+        hass.mass.auth.get_user.side_effect = RuntimeError('MA offline')
+        result = await self.alarms.alarm_data(hass, owner, 'school_alarm', radio['media_content_id'])
+        self.assertEqual(result['selection']['kind'], 'radio')
+        self.assertTrue(result['selection_compatible'])
+        with self.assertRaises(self.alarms.AccessError):
+            await self.alarms.alarm_data(hass, other, 'school_alarm')
+        with self.assertRaises(self.alarms.AccessError):
+            await self.alarms.alarm_data(hass, owner, 'school_alarm', 'media-source://radio_browser/ordinary')
+        store.data[self.alarms.ALARM_SONGS_KEY] = []
+        await self.alarms.play_alarm(hass, call)
+        hass.services.async_call.assert_awaited_once_with('media_player', 'play_media', {
+            'entity_id':'media_player.sonos', 'media_content_id':radio['media_content_id'],
+            'media_content_type':'music', 'extra':{'title':'SWR3'}}, blocking=True, context=call.context)
+        hass.mass.auth.get_user.assert_not_awaited()
+        hass.mass.player_queues.play_media.assert_not_awaited()
+
+    async def test_radio_selection_rechecks_speaker_permission_and_rejects_forged_sources(self):
+        for uri in ['https://example.com/audio', 'media-source://radio_browser',
+                    'media-source://radio_browser/country/DE', 'media-source://radio_browser/../secret']:
+            hass, owner, _, _, store, _, call, _, _ = self.setup_alarm()
+            radio = {'kind':'radio', 'uri':uri, 'media_content_id':uri, 'title':'Forged', 'media_type':'radio'}
+            store.data[self.alarms.ALARM_SONGS_KEY] = [radio]
+            store.data[self.alarms.FAVORITES_KEY] = []
+            self.assertEqual((await self.alarms.alarm_data(hass, owner, 'school_alarm'))['songs'], [])
+            store.data[self.alarms.SELECTION_KEY] = {'school_alarm':radio}
+            with self.assertRaises(self.alarms.HomeAssistantError):
+                await self.alarms.play_alarm(hass, call)
+            hass.services.async_call.assert_not_awaited()
+        hass, owner, _, _, store, _, call, permission, _ = self.setup_alarm()
+        station = {'media_content_id':'media-source://radio_browser/swr3','title':'SWR3'}
+        store.data[self.alarms.SELECTION_KEY] = {'school_alarm':self.alarms.radio_item(station)}
+        permission.allowed = False
+        with self.assertRaises(self.alarms.HomeAssistantError):
+            await self.alarms.play_alarm(hass, call)
+        hass.services.async_call.assert_not_awaited()
+
     @classmethod
     def setUpClass(cls):
         cls.gateway = load_gateway()

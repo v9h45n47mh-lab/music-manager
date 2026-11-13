@@ -20,6 +20,21 @@ SELECTION_KEY = "music_manager_alarm_music"
 FAVORITES_KEY = "music_manager_favorites"
 ALARM_SONGS_KEY = "music_manager_alarm_songs"
 ALARM_ID = re.compile(r"[a-z0-9][a-z0-9_]{0,63}\Z")
+RADIO_ID = re.compile(r"media-source://radio_browser/[a-zA-Z0-9_-]{1,128}\Z")
+
+
+def radio_item(item):
+    """Only station IDs resolved by HA's Radio Browser may be wake sources."""
+    if not isinstance(item, dict) or item.get("kind") not in (None, "radio"):
+        return None
+    uri = item.get("media_content_id", item.get("uri"))
+    title = item.get("title")
+    if (not isinstance(uri, str) or not RADIO_ID.fullmatch(uri)
+        or item.get("uri", uri) != uri or item.get("can_play") is False
+        or item.get("can_expand") or not isinstance(title, str) or not title.strip()):
+        return None
+    return {"kind": "radio", "uri": uri, "media_type": "radio",
+            "media_content_id": uri, "media_content_type": "music", "title": title[:500]}
 
 
 def configured_alarm(hass, alarm_id):
@@ -80,16 +95,19 @@ def favorite_item(item, provider_id):
 
 
 def songs_from(store, provider_id):
-    """Read the separate wake-song list, plus old markers until migrated."""
+    """Read explicitly marked radio stations and songs, never ordinary favorites."""
     result, seen = [], set()
     raw = store.data.get(ALARM_SONGS_KEY, [])
     legacy = store.data.get(FAVORITES_KEY, [])
     candidates = list(raw) if isinstance(raw, list) else []
     candidates += [item for item in legacy if isinstance(item, dict) and item.get("alarm_song") is True] if isinstance(legacy, list) else []
     for raw_item in candidates:
-        if not isinstance(raw_item, dict) or raw_item.get("media_type") != "track":
+        if not isinstance(raw_item, dict):
             continue
-        if (item := music_item(raw_item, provider_id)) and item["uri"] not in seen:
+        item = radio_item(raw_item)
+        if item is None and raw_item.get("media_type") == "track":
+            item = music_item(raw_item, provider_id)
+        if item and item["uri"] not in seen:
             result.append(item)
             seen.add(item["uri"])
     return result
@@ -102,7 +120,8 @@ def selection_from(store, alarm_id):
         return None
     # Keep the saved choice after removing it from the wake-song list. The
     # account is rechecked at playback; removal must not cancel a wake-up.
-    return {k: item[k] for k in ("uri", "media_type", "title") if isinstance(item.get(k), str)}
+    fields = ("uri", "media_type", "title", "kind", "media_content_id", "media_content_type") if item.get("kind") == "radio" else ("uri", "media_type", "title")
+    return {k: item[k] for k in fields if isinstance(item.get(k), str)}
 
 
 async def apple_target(hass, entry, alarm, owner):
@@ -128,15 +147,19 @@ async def alarm_data(hass, caller, alarm_id, uri=None):
     entry, alarm = configured_alarm(hass, alarm_id)
     owner = await alarm_owner(hass, alarm, caller)
     source = checked_source(hass, alarm, owner)
-    account = account_for(entry.options.get(CONF_ACCOUNTS, []), owner.id)
+    try:
+        account = account_for(entry.options.get(CONF_ACCOUNTS, []), owner.id)
+    except AccessError:
+        # Native radio needs no Apple Music account or running MA connection.
+        account = None
     store = await async_user_store(hass, owner.id)
     if uri is not None:
         locks = hass.data.setdefault(f"{DOMAIN}_alarm_locks", {})
         async with locks.setdefault(owner.id, asyncio.Lock()):
-            item = next((f for f in songs_from(store, account["provider_id"]) if f["uri"] == uri), None)
+            item = next((f for f in songs_from(store, account["provider_id"] if account else "") if f["uri"] == uri), None)
             if uri and not item:
-                raise AccessError("invalid_favorite", "Wähle einen einzelnen Titel aus deiner persönlichen Wecklied-Liste.")
-            if item:
+                raise AccessError("invalid_favorite", "Wähle einen markierten Titel oder Radiosender aus deiner persönlichen Weckliste.")
+            if item and item.get("kind") != "radio":
                 await apple_target(hass, entry, alarm, owner)
             saved = store.data.get(SELECTION_KEY, {})
             saved = dict(saved) if isinstance(saved, dict) else {}
@@ -146,12 +169,13 @@ async def alarm_data(hass, caller, alarm_id, uri=None):
                 saved.pop(alarm_id, None)
             await store.async_set_item(SELECTION_KEY, saved)
     selection = selection_from(store, alarm_id)
-    favorites = songs_from(store, account["provider_id"])
+    provider_id = account["provider_id"] if account else ""
+    favorites = songs_from(store, provider_id)
     return {"alarm_id": alarm_id, "owner": owner.name or owner.id,
             "source": hass.states.get(source.entity_id).attributes.get("friendly_name", source.entity_id)
             if hass.states.get(source.entity_id) else source.entity_id,
             "selection": selection, "songs": favorites, "favorites": favorites,
-            "selection_compatible": not selection or music_item({"kind": "apple_music", **selection}, account["provider_id"]) is not None,
+            "selection_compatible": not selection or (radio_item(selection) is not None if selection.get("kind") == "radio" else music_item({"kind": "apple_music", **selection}, provider_id) is not None),
             "in_songs": not selection or any(f["uri"] == selection.get("uri") for f in favorites),
             "in_favorites": not selection or any(f["uri"] == selection.get("uri") for f in favorites)}
 
@@ -190,6 +214,15 @@ async def play_alarm(hass, call):
             selected = selection_from(store, alarm["alarm_id"])
             if selected is None:
                 await hass.services.async_call("media_player", "media_play", {"entity_id": source.entity_id}, blocking=True, context=call.context)
+                return
+            if selected.get("kind") == "radio":
+                station = radio_item(selected)
+                if station is None:
+                    raise AccessError("invalid_favorite", "Der gespeicherte Radiosender ist ungültig. Bitte neu auswählen.")
+                await hass.services.async_call("media_player", "play_media", {
+                    "entity_id": source.entity_id, "media_content_id": station["uri"],
+                    "media_content_type": station["media_content_type"], "extra": {"title": station["title"]},
+                }, blocking=True, context=call.context)
                 return
             mass, account, target = await apple_target(hass, entry, alarm, owner)
             uri = validate_uri(selected.get("uri"), account["provider_id"])

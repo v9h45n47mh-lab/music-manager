@@ -52,7 +52,7 @@ const navigationData=new Map();
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
-    return {can_select,players,version:'2.1.0',show_alarm_songs:['maximilian','paul'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+    return {can_select,players,version:'2.2.0',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
    }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
@@ -606,17 +606,17 @@ test('regular player visual editor emits the canonical card type and player expl
  assert.equal(env.window.customCards.filter(c=>c.type==='music-manager-card').length,1);assert.equal(env.window.customCards.some(c=>c.type.includes('beta')),false);
 });
 
-test('player parents only have gear settings and never load or save wake songs',async()=>{
+test('player parents have wake management and retain their personal speaker dropdown',async()=>{
  const env=setup(),card=env.addPlayer();await flush();
  assert(card.shadowRoot.querySelector('#player [data-action="player-settings"]'));
  for(const action of ['open-radio','open-apple','manage-favorites','open-alarm-songs'])assert.equal(card.shadowRoot.querySelector(`#player [data-action="${action}"]`),null);
  assert.equal(card.shadowRoot.querySelector('#player').textContent.includes('Beta'),false);
  assert.equal(card.shadowRoot.querySelector('#music-player-box').closest('label').querySelector('span').className,'visually-hidden');
  for(const user of ['manuel','vera']){
-  env.switchUser(user);await flush();env.click(card,'player-settings');assert.equal(card._settingsDialog.open,true);assert.match(card._settingsDialog.textContent,/Sender/);assert.equal(card._settingsDialog.textContent.includes('Weck'),false);
-  const calls=env.wsCalls.length;await card._action({action:'apple-alarm-song',data:{index:0}});await card._action({action:'open-alarm-songs'});assert.equal(env.wsCalls.length,calls);assert.equal(card._alarmSongUser==null,true);
+  env.switchUser(user);await flush();env.click(card,'player-settings');assert.equal(card._settingsDialog.open,true);assert.match(card._settingsDialog.textContent,/Sender/);assert.equal(card._settingsDialog.textContent.includes('Weck'),true);
+  await card._action({action:'open-alarm-songs'});assert.equal(card._dialog.open,true);assert.equal(card._alarmSongUser,user);assert(card.shadowRoot.querySelector('#music-player-box'));card._dialog.close();
  }
- assert(!env.wsCalls.some(msg=>msg.key==='music_manager_alarm_songs'));
+ assert.equal(card._alarmSongUser,'vera');
 });
 test('player children manage separate favorites and wake songs in one dialog and do not leak to parents',async()=>{
  const env=setup(),song={kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',title:'Mein Wecklied',can_play:true,media_content_id:'apple_music--demo://track/wake'};
@@ -625,11 +625,11 @@ test('player children manage separate favorites and wake songs in one dialog and
  assert.equal(card._settingsDialog.open,true);assert.equal(card._dialog.open,true);assert.equal(card.shadowRoot.getElementById('music-radio-dialog-title').textContent,'Favoriten & Wecklieder');assert.match(card.shadowRoot.getElementById('player-wake-list').textContent,/Mein Wecklied/);
  await card._action({action:'remove-alarm-song',data:{uri:song.uri}});await flush();assert.equal(card._alarmSongs.length,0);assert.equal(card._favorites.length,1);assert.equal(env.favoriteData.get('maximilian').length,1);
  env.alarmSongData.set('maximilian',[song]);env.notifyAlarmSongs('maximilian');await flush();await card._toggleFavorite(card._favorites[0],false);await flush();assert.equal(card._favorites.length,0);assert.equal(card._alarmSongs.length,1);
- env.switchUser('manuel');await flush();assert.equal(card._showWakeSongs,false);assert.equal(card._alarmSongs.length,0);assert.equal(card._dialog.open,false);assert.equal(card._settingsDialog.textContent.includes('Weck'),false);
+ env.switchUser('manuel');await flush();assert.equal(card._showWakeSongs,true);assert.equal(card._alarmSongs.length,0);assert.equal(card._dialog.open,false);assert.equal(card._settingsDialog.textContent.includes('Weck'),true);
 });
-test('player hides all Apple wake actions for adults but preserves track browsing and favorite stars',async()=>{
+test('player adults and children have wake actions while keeping favorite stars',async()=>{
  const env=setup(),card=env.addPlayer();await flush();card._appleReady=true;card._appleEntity='media_player.ma_a';card._appleItems=[{uri:'apple_music--demo://track/song',title:'Lied',media_type:'track'}];card._appleParent={};card._renderApple();
- assert.equal(card.shadowRoot.querySelectorAll('[data-action="apple-alarm-song"]').length,0);assert(card.shadowRoot.querySelector('[data-action="apple-favorite"]'));assert.equal(card._appleDialog.querySelector('.music-manage-nav').textContent,'Favoriten');assert(!card.shadowRoot.getElementById('music-apple-location').textContent.includes('Wecklied'));
+ assert.equal(card.shadowRoot.querySelectorAll('[data-action="apple-alarm-song"]').length,1);assert(card.shadowRoot.querySelector('[data-action="apple-favorite"]'));assert.equal(card._appleDialog.querySelector('.music-manage-nav').textContent,'Favoriten & Wecklieder');
  env.switchUser('paul');await flush();card._appleReady=true;card._appleEntity='media_player.ma_a';card._appleItems=[{uri:'apple_music--demo://track/song',title:'Lied',media_type:'track'}];card._renderApple();assert.equal(card.shadowRoot.querySelectorAll('[data-action="apple-alarm-song"]').length,1);
 });
 test('player caps volume commands at fifty and maps the entire slider to zero through fifty',async()=>{
@@ -683,7 +683,7 @@ test('player Apple Music favorites and combined wake-song dialogs retain their p
 });
 test('player radio browser returns to the settings dialog and shows actual component versions',async()=>{
  const env=setup(),card=env.addPlayer();await flush();env.click(card,'player-settings');const sender=card._settingsDialog.querySelector('[data-action="open-radio"]');sender.click();await flush();assert(card._dialog.open);assert(card._settingsDialog.open);
- card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.1\.0 · Integration 2\.1\.0 · UI 1\.4\.1/);
+ card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.2\.0 · Integration 2\.2\.0 · UI 1\.4\.1/);
 });
 test('player children show their fixed speaker only inside settings and adults use a compact room dropdown',async()=>{
  const env=setup(),card=env.addPlayer();await flush();assert(card.shadowRoot.querySelector('.fui-player-speaker-compact'));assert.equal(card.shadowRoot.querySelector('#music-player-box option').textContent.includes('Sonos '),false);

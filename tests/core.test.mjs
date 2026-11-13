@@ -1,4 +1,21 @@
 import test from 'node:test';
+import {normalizeAlarmSongs,saveAlarmSong,ALARM_SONGS_KEY,FAVORITES_KEY} from '../src/core.js';
+
+test('marked radio stations have a separate personal wake list and reject categories or arbitrary URLs',async()=>{
+ const radio={media_content_id:'media-source://radio_browser/swr3',media_content_type:'audio/mpeg',title:'SWR3',can_play:true};
+ const song={kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',title:'Wake'};
+ const data=new Map([[FAVORITES_KEY,[radio]],[ALARM_SONGS_KEY,[song]]]);
+ const hass={user:{id:'vera'},connection:{},callWS:async m=>{if(m.type==='frontend/set_user_data')data.set(m.key,m.value);return {value:data.get(m.key)};}};
+ await saveAlarmSong(hass,radio,true);
+ assert.equal(data.get(ALARM_SONGS_KEY).length,2);assert.equal(data.get(ALARM_SONGS_KEY)[1].kind,'radio');
+ assert.equal(data.get(ALARM_SONGS_KEY)[1].uri,radio.media_content_id);assert.deepEqual(data.get(FAVORITES_KEY),[radio]);
+ await saveAlarmSong(hass,radio,true);assert.equal(data.get(ALARM_SONGS_KEY).length,2);
+ await saveAlarmSong(hass,radio,false);assert.equal(data.get(ALARM_SONGS_KEY).length,1);assert.deepEqual(data.get(FAVORITES_KEY),[radio]);
+ for(const id of ['https://example.com/radio','media-source://radio_browser','media-source://radio_browser/country/DE','media-source://radio_browser/../x']){
+  assert.deepEqual(normalizeAlarmSongs([{...radio,media_content_id:id}]),[]);
+  await assert.rejects(saveAlarmSong(hass,{...radio,media_content_id:id},true));
+ }
+});
 import assert from 'node:assert/strict';
 import {normalizeConfig,volumePercent,normalizeMedia,stationPayload,playbackAction,sonosOptions,hasFeature,isRadioId,RADIO_ROOT} from '../src/core.js';
 test('per-card configuration validates entity and independent control switches',()=>{

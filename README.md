@@ -1,4 +1,4 @@
-# Music Manager 2.1.0
+# Music Manager 2.2.0
 
 ![Music Manager](brand/icon.png)
 
@@ -15,7 +15,7 @@ navigation_id: hauptplayer
 `entity` durch die tatsächliche native Sonos-Entität ersetzen. Sie bleibt die Ausgangsbox. `navigation_id` ist optional; damit lassen sich die persönlichen Box-Auswahlen mehrerer Karten trennen. Favoriten und Apple-Music-Konto gehören weiterhin dem angemeldeten HA-Benutzer.
 
 - **Vera und Manuel:** kompaktes Box-Dropdown oben links, 150 px breit, mit Raumnamen ohne „Sonos“-Vorsatz. Die gewählte Box wird je Benutzer gespeichert. Berechtigte Benutzer lassen sich unter **Konfigurieren → Box-Auswahl** verwalten.
-- **Maximilian und Paul:** feste Ausgangsbox. Der Boxname steht ausschließlich in den Einstellungen. Nur diese beiden Benutzer erhalten die gemeinsame Verwaltung **Favoriten & Wecklieder**. Beide Listen bleiben getrennt gespeichert.
+- **Maximilian und Paul:** feste Ausgangsbox. Der Boxname steht ausschließlich in den Einstellungen. Die gemeinsame Verwaltung **Favoriten & Wecklieder** steht Maximilian, Paul, Vera und Manuel zur Verfügung. Beide Listen bleiben getrennt gespeichert.
 - **Zahnrad oben rechts:** Sender, Apple Music und Favoritenverwaltung. Beim Schließen eines Dialogs über X oder Escape geht es zurück zu den Einstellungen. Dort stehen auch die installierten Versionen von Oberfläche, Integration und UI Kit.
 - **Wiedergabe:** runde Symboltasten; bei Radio nur Play/Pause. Apple Music bietet zusätzlich Vor/Zurück, Shuffle und die Zeitleiste zum Spulen.
 - **Lautstärke:** 0–50 % über die gesamte Reglerbreite, mit Prozentanzeige beim Bedienen. Auch die von dieser Karte gesendeten Befehle sind auf 50 % begrenzt. Andere HA-Karten, direkte Serviceaufrufe und Sonos bleiben unabhängig.
@@ -25,7 +25,7 @@ navigation_id: hauptplayer
 
 Bestehende Karten mit `type: custom:music-manager-card` erhalten das neue Design automatisch. Die separate Beta-Datei und der Beta-Eintrag im Kartenpicker entfallen. Bereits gespeicherte Beta-YAML mit `custom:music-manager-beta-card` wird über einen unsichtbaren Kompatibilitätsnamen auf denselben regulären Player geleitet. Beim nächsten Speichern im visuellen Editor wird der Typ auf `custom:music-manager-card` umgestellt. Es gibt keinen getrennten Beta-Player mehr.
 
-Persönliche Box-Auswahl, Favoriten, Wecklieder, Konto- und Weckerzuordnungen bleiben erhalten. Im Marketplace auf **2.1.0** aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Neue Karten immer mit dem regulären Typ anlegen.
+Persönliche Box-Auswahl, Favoriten, Wecklieder, Konto- und Weckerzuordnungen bleiben erhalten. Im Marketplace auf **2.2.0** aktualisieren, **HA neu starten** und die Seite vollständig neu laden. Neue Karten immer mit dem regulären Typ anlegen.
 
 ## Installation über den Marketplace
 
@@ -96,7 +96,7 @@ Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutig
 
 ## Handyansicht
 
-Radio- und Apple-Music-Dialoge nutzen auf kleinen Bildschirmen die gesamte verfügbare Höhe. Der Schließen-Button bleibt oben erreichbar; es gibt einen durchgehenden Scrollbereich. Suchfeld, Mediathek-Tabs und Verwaltung sind getrennt angeordnet. Cover und Liednamen haben eine eigene Zeile, Aktionen darunter mindestens 44 Pixel große Bedienflächen. Sender, Apple Music und Favoriten werden über das Zahnrad in den Einstellungen geöffnet. Bei den Kindern sind Favoriten und Wecklieder dort zusammengefasst.
+Radio- und Apple-Music-Dialoge nutzen auf kleinen Bildschirmen die gesamte verfügbare Höhe. Der Schließen-Button bleibt oben erreichbar; es gibt einen durchgehenden Scrollbereich. Suchfeld, Mediathek-Tabs und Verwaltung sind getrennt angeordnet. Cover und Liednamen haben eine eigene Zeile, Aktionen darunter mindestens 44 Pixel große Bedienflächen. Sender, Apple Music und Favoriten werden über das Zahnrad in den Einstellungen geöffnet. Bei Maximilian, Paul, Vera und Manuel sind Favoriten und Weckinhalte dort zusammengefasst.
 
 Die Weckmusik-Zeile verwendet unverändert die gemeinsame UI-Kit-Zeile und deren Button. „Auswählen“ bleibt auch auf schmalen Handys rechts neben dem Text. Der Text kann umbrechen; der Button bleibt vollständig innerhalb der Karte.
 
@@ -104,9 +104,9 @@ Die Weckerauswahl zeigt die markierten Lieder direkt als durchsuchbare Liste, oh
 
 ## Persönliche Wecklieder
 
-Wecklieder sind eine eigene Liste pro HA-Benutzer, unabhängig von den Favoriten. Bei einem einzelnen Apple-Music-Titel das **Weckersymbol** betätigen. Das speichert ihn ausschließlich unter **Wecklieder** direkt unter den Bedienelementen oder unter **Apple Music → Wecklieder**; es entsteht keine Kurzwahlkachel. In der Verwaltung lassen sich Lieder durchsuchen und über **Entfernen** einzeln aus der Liste nehmen. Diese Verwaltung benötigt keine erreichbare Music-Assistant-Verbindung. Ein Titel kann zusätzlich über den Stern ausdrücklich als normaler Favorit gespeichert werden. Beide Listen lassen sich unabhängig ändern.
+Wecklieder sind eine eigene Liste pro HA-Benutzer, unabhängig von den Favoriten. Bei einem einzelnen Apple-Music-Titel das **Weckersymbol** betätigen. Das speichert ihn ausschließlich in der persönlichen Weckliste unter **Einstellungen → Favoriten & Wecklieder**; es entsteht keine Kurzwahlkachel. In der Verwaltung lassen sich Lieder durchsuchen und über **Entfernen** einzeln aus der Liste nehmen. Diese Verwaltung benötigt keine erreichbare Music-Assistant-Verbindung. Ein Titel kann zusätzlich über den Stern ausdrücklich als normaler Favorit gespeichert werden. Beide Listen lassen sich unabhängig ändern.
 
-Auch Titel aus Alben und Playlists sind auswählbar: **Album oder Playlist öffnen → Titel anzeigen → Weckersymbol beim gewünschten Lied**. Alben, Playlists und Radiosender selbst werden nicht als Wecklieder angeboten. Bisher mit dem Weckersymbol markierte Favoriten werden beim nächsten Laden einer Music-Manager-Karte automatisch in die getrennte Wecklied-Liste übernommen und aus der bisherigen Favoritenliste entfernt. Gespeicherte Weckerauswahlen bleiben erhalten.
+Auch Titel aus Alben und Playlists sind auswählbar: **Album oder Playlist öffnen → Titel anzeigen → Weckersymbol beim gewünschten Lied**. Radiosender lassen sich im Senderdialog ebenfalls mit dem Weckersymbol markieren. Alben und Playlists selbst werden nicht als neue Weckinhalte angeboten. Bisher mit dem Weckersymbol markierte Favoriten werden beim nächsten Laden einer Music-Manager-Karte automatisch in die getrennte Wecklied-Liste übernommen und aus der bisherigen Favoritenliste entfernt. Gespeicherte Weckerauswahlen bleiben erhalten.
 
 **Kompatibilität:** „Titel anzeigen“ unterstützt auch den Music-Assistant-Client 1.6.0 aus Home Assistant 2026.11 sowie 1.5.1 aus 2026.10. Diese Clients liefern die vollständige Album-/Playlist-Titelliste; Music Manager zeigt sie in Seiten mit 50 Einträgen an. Neue Parameter für Benutzerausführung und serverseitiges Nachladen werden nur verwendet, wenn Client und Server sie unterstützen. Quelle und sichtbare Titel bleiben auf das exakt zugeordnete Apple-Music-Konto begrenzt.
 
@@ -126,7 +126,7 @@ Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm
   name: Weckmusik
 ```
 
-4. Unter **Weckmusik → Auswählen** ein Lied aus der persönlichen **Wecklied-Liste** des Wecker-Benutzers wählen. Ein Administrator darf dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
+4. Unter **Weckmusik → Auswählen** einen Titel oder Radiosender aus der persönlichen **Weckliste** des Wecker-Benutzers wählen. Ein Administrator darf dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
 5. Im bestehenden Sonos-Zweig der Weckerautomation den bisherigen Start durch folgende Aktion ersetzen:
 
 ```yaml
@@ -137,7 +137,7 @@ Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm
 
 Neutrale Einfügebeispiele stehen unter [`examples/alarm_row.yaml`](examples/alarm_row.yaml) und [`examples/alarm_action.yaml`](examples/alarm_action.yaml). Füge die Auswahl nur in den Abschnitt ein, dessen Automation tatsächlich Musik startet. Licht-, Rollladen-, Kalender- und Stop-Aktionen bleiben in der vorhandenen Automation. Die Beispiele enthalten keine persönlichen Entitätsnamen oder vollständigen privaten Automationen.
 
-In der Auswahlliste stehen ausschließlich ausdrücklich markierte **einzelne Wecklieder** des zugeordneten Benutzers. Normale Favoriten, Alben und Playlists werden dort nicht angeboten. Die bisherige Auswahl wird separat angezeigt; **Auswahl zurücksetzen** entfernt sie. Ohne Auswahl wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt. Bereits gespeicherte Weckmusik bleibt bis zum ausdrücklichen Austausch erhalten, auch ältere Album-/Playlist-Auswahlen oder später entfernte Wecklied-Markierungen. Beim Öffnen wird daraus kein zusätzlicher Listeneintrag erzeugt. So wird ein bestehender Wecker durch das Update oder das Entfernen einer Markierung nicht stillschweigend abgeschaltet.
+In der Auswahlliste stehen ausschließlich ausdrücklich markierte **einzelne Titel und Radiosender** des zugeordneten Benutzers. Normale Favoriten, Alben und Playlists werden dort nicht angeboten. Die bisherige Auswahl wird separat angezeigt; **Auswahl zurücksetzen** entfernt sie. Ohne Auswahl wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt. Bereits gespeicherte Weckmusik bleibt bis zum ausdrücklichen Austausch erhalten, auch ältere Album-/Playlist-Auswahlen oder später entfernte Wecklied-Markierungen. Beim Öffnen wird daraus kein zusätzlicher Listeneintrag erzeugt. So wird ein bestehender Wecker durch das Update oder das Entfernen einer Markierung nicht stillschweigend abgeschaltet.
 
 Der Hintergrundstart akzeptiert ausschließlich die vorher vom Administrator konfigurierte **Weckerkennung**, keine frei übergebenen Benutzer-, Konto- oder Lautsprecherkennungen. Er prüft vor Apple-Music-Wiedergabe erneut den aktiven HA-Besitzer, seine HA- und MA-Boxfreigaben, das persönliche MA-Konto und den exakten Apple-Music-Anbieter. Bei gelöschten Konten, geänderten Zuordnungen oder nicht erreichbarer Box erscheint ein Fehler in der Automation; eine fehlgeschlagene Apple-Music-Wiedergabe wechselt nicht automatisch zu einer anderen Quelle.
 
@@ -261,3 +261,11 @@ npm run test:browser
 - [Media-Source-WebSocket-API in HA 2026.11.1](https://github.com/home-assistant/core/blob/2026.11.1/homeassistant/components/media_source/http.py)
 
 Lizenz: MIT; die Lizenz des UI Kits ist in `LICENSES.txt` und im Quellprojekt enthalten.
+
+## Persönliche Weckmusik: Titel und Radiosender (2.2.0)
+
+Maximilian, Paul, Vera und Manuel können unter dem Zahnrad **Favoriten & Wecklieder** verwalten. In **Sender** markiert das Weckersymbol einen Radiosender zum Wecken; in Apple Music lassen sich weiterhin einzelne Titel markieren. Favoriten und Weckinhalte werden unabhängig und je HA-Benutzer gespeichert. Entfernen aus einer Liste ändert die andere Liste nicht.
+
+Die Auswahl **Weckmusik** auf der Weckerkarte zeigt markierte Titel und Radiosender. Ein gespeicherter Radiosender bleibt auch nach Entfernen seiner Markierung für einen bereits eingerichteten Wecker erhalten, bis die Auswahl geändert wird. Radio wird nativ über Home Assistants Radio Browser abgespielt, Apple Music weiterhin mit dem zugeordneten persönlichen Konto. Boxberechtigungen werden vor jeder Wiedergabe erneut geprüft.
+
+Für die neue Wecker-App ist zusätzlich **Wecker 1.6.0** erforderlich. Vorhandene Weckerkennungen, Musikauswahlen und Gerätebindungen bleiben erhalten. Vera und Manuel behalten ihre persönliche Boxauswahl; die Kinder verwenden weiterhin die in der Karte konfigurierte Box.
