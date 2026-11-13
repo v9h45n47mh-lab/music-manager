@@ -1,4 +1,4 @@
-/* Music Manager 2.2.0 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 2.2.1 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.4.1 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.4.1";
@@ -577,7 +577,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,MUSIC_PLAYER_CSS,escapeHtml,button,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '2.2.0';
+export const MUSIC_VERSION = '2.2.1';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -2072,12 +2072,15 @@ if(!window.customCards.some(card=>card.type==='music-manager-card'))window.custo
 
 })();
 (() => {
-const {UI_CSS, row, button, dialog, field, notice, loadingState, bindUI, escapeHtml} = MusicManagerUI;
+const {UI_CSS, row, button, dialog, field, selectField, notice, loadingState, bindUI, escapeHtml} = MusicManagerUI;
 
 
 /** An entities-card row. The backend resolves the configured owner and box. */
 class MusicManagerAlarmRow extends HTMLElement {
   constructor() { super();this.attachShadow({mode:'open'});this._epoch=0;this._data=null;this._error=''; }
+  static get supportsPlaybackSettings(){return true;}
+  /** The owning alarm integration persists playback policy; this row owns its draft. */
+  set playbackSettings(settings){this._playback=settings;if(!this._dialog?.open)this._playbackDraft=settings?{...settings.value}:null;this._render();}
   setConfig(config) {
     if(!/^[a-z0-9][a-z0-9_]{0,63}$/.test(config?.alarm_id||''))throw new Error('Bitte eine gültige Weckerkennung angeben.');
     this._config={...config};this._reset();this._ensure();this._load();
@@ -2108,7 +2111,8 @@ class MusicManagerAlarmRow extends HTMLElement {
         @media(max-width:600px){#alarm-current button{width:100%}}
       </style><div class="alarm-row" id="alarm-row"></div>${dialog({id:'alarm-dialog',title:'Weckmusik auswählen',content:'<div class="alarm-browser" id="alarm-content"></div>'})}`;
       this._dialog=this.shadowRoot.getElementById('alarm-dialog');
-      this.shadowRoot.addEventListener('input',event=>{if(event.target.id==='alarm-song-query'){this._query=event.target.value;this._renderChoices();}});
+      this.shadowRoot.addEventListener('input',event=>{if(event.target.id==='alarm-song-query'){this._query=event.target.value;this._renderChoices();}if(event.target.id==='alarm-playback-minutes'&&this._playbackDraft)this._playbackDraft.minutes=Number(event.target.value);});
+      this.shadowRoot.addEventListener('change',event=>{if(event.target.id==='alarm-playback-mode'&&this._playbackDraft){this._playbackDraft.mode=event.target.value;this._render();}});
       this._dialog.addEventListener('close',()=>{this._epoch++;this._loading=false;this._saving=false;this._render();this.shadowRoot.querySelector('[data-action="alarm-open"]')?.focus();});
     }
     this._render();
@@ -2128,18 +2132,25 @@ class MusicManagerAlarmRow extends HTMLElement {
   }
   async _action({action,value,data}) {
     if(action==='alarm-open'){
-      this._query='';this._dialog.showModal();await this._load(true);return;
+      this._query='';this._playbackDraft=this._playback?{...this._playback.value}:null;this._dialog.showModal();await this._load(true);return;
     }
     if(action==='alarm-retry'){await this._load(true);return;}
     if(action==='alarm-clear')value='';
     if(action==='alarm-select')value??=data?.uri;
-    if(!['alarm-select','alarm-clear'].includes(action)||this._saving||this._loading)return;
+    if(!['alarm-select','alarm-clear','alarm-playback-save'].includes(action)||this._saving||this._loading)return;
     const current=this._data;
-    if(value!==''&&!(current?.songs||current?.favorites)?.some(f=>this._isChoice(f)&&f.uri===value))return;
+    const choice=action==='alarm-playback-save'?current?.selection:(current?.songs||current?.favorites)?.find(f=>this._isChoice(f)&&f.uri===value);
+    if(action!=='alarm-playback-save'&&value!==''&&!choice)return;
+    if(this._playbackDraft){
+      const p=this._playbackDraft;
+      if(p.mode==='track_end'&&(!choice||choice.kind==='radio'||choice.media_type!=='track')){this._error='„Wenn Titel endet“ benötigt einen einzelnen Titel. Für Radio oder die letzte Sonos-Wiedergabe bitte eine feste Dauer wählen.';this._render();return;}
+      if(!['duration','track_end'].includes(p.mode)||p.mode==='duration'&&(!Number.isInteger(p.minutes)||p.minutes<1||p.minutes>1440)){this._error='Bitte eine Dauer von 1 bis 1440 Minuten wählen.';this._render();return;}
+    }
     const epoch=++this._epoch;this._saving=true;this._error='';this._render();
     try {
-      const data=await this._request('select',{uri:value});if(epoch!==this._epoch)return;
-      this._data=data;this._saving=false;this._dialog.close();
+      if(action!=='alarm-playback-save'){const data=await this._request('select',{uri:value});if(epoch!==this._epoch)return;this._data=data;}
+      if(this._playback&&this._playbackDraft){await this._playback.save({...this._playbackDraft});if(epoch!==this._epoch)return;}
+      this._saving=false;this._dialog.close();
     } catch(error) { if(epoch===this._epoch)this._error=String(error?.message||error?.code||error); }
     finally { if(epoch===this._epoch){this._saving=false;this._render();} }
   }
@@ -2155,6 +2166,7 @@ class MusicManagerAlarmRow extends HTMLElement {
       (this._error?notice(this._error,{error:true})+button({label:'Erneut laden',action:'alarm-retry',disabled:busy}):'')+
       (busy?loadingState(this._saving?'Weckmusik wird gespeichert …':'Weckmusik wird geladen …'):'')+
       (this._data?`<div id="alarm-current">${selected?row({title:selected.title,description:'Gespeicherte Weckmusik',trailing:button({label:'Auswahl zurücksetzen',action:'alarm-clear',disabled:busy})}):notice('Ohne ausgewählte Weckmusik wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt.')}</div>`+
+        (this._playbackDraft?selectField({id:'alarm-playback-mode',label:'Weckmusik beenden',value:this._playbackDraft.mode,disabled:busy,options:[{value:'duration',label:'Nach einer festen Dauer'},{value:'track_end',label:'Wenn Titel endet'}]})+(this._playbackDraft.mode==='duration'?field({id:'alarm-playback-minutes',label:'Dauer in Minuten',type:'number',value:String(this._playbackDraft.minutes),min:1,max:1440,step:1,disabled:busy,required:true})+notice('Ist die Dauer länger als der Titel, wird er bis zum Ablauf wiederholt.'):notice('Der gewählte Titel wird einmal vollständig abgespielt. Für Live-Radio eine feste Dauer wählen.'))+button({label:'Dauer übernehmen',action:'alarm-playback-save',disabled:busy}):'')+
         (selected&&this._data.selection_compatible===false?notice('Die gespeicherte Weckmusik gehört nicht mehr zum zugeordneten Apple-Music-Konto. Bitte neu auswählen.',{error:true}):selected&&!(this._data.in_songs??this._data.in_favorites)?notice('Die bisherige Weckmusik bleibt gespeichert. Für eine neue Auswahl markiere einen einzelnen Titel oder Radiosender zum Wecken.'):!items.length?notice('Markiere zuerst einen einzelnen Titel oder Radiosender in Music Manager über das Weckersymbol.'):'')+
         field({id:'alarm-song-query',label:'Weckmusik suchen',type:'search',value:this._query||'',placeholder:'Titel oder Radiosender',maxLength:200,autocomplete:'off',disabled:busy})+
         '<div id="alarm-song-count" class="hint" aria-live="polite"></div><ul class="alarm-song-list" id="alarm-song-list" aria-label="Verfügbare Wecklieder"></ul>':'');
