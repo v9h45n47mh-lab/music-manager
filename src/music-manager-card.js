@@ -1,5 +1,5 @@
 import {UI_CSS, MUSIC_PLAYER_CSS, musicPlayerHeader, musicTransport, musicFavoriteTile, musicActionButton, musicArtwork, notice, button, iconButton, field, section, row, dialog, loadingState, emptyState, versionInfo, UI_VERSION} from './family-ui/1.4.1/family-ui.js';
-import {normalizeConfig, stationLogo, errorText, isAvailable, hasFeature, MUSIC_VERSION, sonosContentId, sonosPlaybackSource} from './core.js';
+import {normalizeConfig, stationLogo, errorText, isAvailable, hasFeature, MUSIC_VERSION, sonosContentId, sonosPlaybackSource, isRadioId} from './core.js';
 import {MusicPlayerBase, MusicPlayerEditorBase} from './music-player-base.js';
 
 class MusicManagerCard extends MusicPlayerBase {
@@ -141,7 +141,7 @@ class MusicManagerCard extends MusicPlayerBase {
     const current=this._config.entity,name=this._boxName(current);
     const choices=(this._boxes||[]).map(p=>({value:p.entity_id,label:this._shortBoxName(p.name)+(p.available===false?' · Nicht erreichbar':'')}));
     if(!choices.some(p=>p.value===current))choices.unshift({value:current,label:name});
-    return musicPlayerHeader({title,description:detail,speaker:name,hideSpeaker:this._showWakeSongs||!this._navigationReady,speakerSelect:this._canSelectBox?{id:'music-player-box',value:current,options:choices,compact:true,disabled:this._busy||this._navigationLoading||this._navigationSaving}:null,artwork:stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail),radio,settingsAction:'player-settings',disabled:this._busy||this._navigationLoading||this._navigationSaving})+
+    return musicPlayerHeader({title,description:detail,speaker:name,hideSpeaker:this._showWakeSongs&&!this._canSelectBox||!this._navigationReady,speakerSelect:this._canSelectBox?{id:'music-player-box',value:current,options:choices,compact:true,disabled:this._busy||this._navigationLoading||this._navigationSaving}:null,artwork:stationLogo(attrs.entity_picture||this._selectedStation?.thumbnail),radio,settingsAction:'player-settings',disabled:this._busy||this._navigationLoading||this._navigationSaving})+
       `<div class="fui-player-navigation-status" aria-live="polite">${this._navigationError?notice(this._navigationError,{error:true})+button({label:'Erneut laden',action:'player-reload'}):this._navigationLoading?loadingState('Persönliche Box wird geladen …'):this._navigationSaving?loadingState('Box wird gespeichert …'):''}</div>`;
   }
   _renderPlayer(){
@@ -165,7 +165,7 @@ class MusicManagerCard extends MusicPlayerBase {
     if(key!==this._settingsRenderKey){
       this._settingsRenderKey=key;
       const items=[['Sender','open-radio','Sender wählen'],['Apple Music','open-apple','Apple Music öffnen'],[this._showWakeSongs?'Favoriten & Wecklieder':'Favoriten','manage-favorites',this._showWakeSongs?'Favoriten und Wecklieder verwalten':'Favoriten verwalten']];
-      host.innerHTML=(this._showWakeSongs?row({title:'Box',description:speaker}):'')+items.map(([title,action,label])=>row({title,trailing:iconButton({icon:'right',label,action,disabled:busy})})).join('')+versionInfo({frontend:MUSIC_VERSION,backend:this._backendVersion,ui:UI_VERSION});
+      host.innerHTML=(!this._canSelectBox?row({title:'Box',description:speaker}):'')+items.map(([title,action,label])=>row({title,trailing:iconButton({icon:'right',label,action,disabled:busy})})).join('')+versionInfo({frontend:MUSIC_VERSION,backend:this._backendVersion,ui:UI_VERSION});
     }
     for(const button of host.querySelectorAll('button[data-action]'))button.disabled=busy;
   }
@@ -191,7 +191,7 @@ class MusicManagerCard extends MusicPlayerBase {
     super._renderBrowser();if(!this._dialog||!this._favoriteMode||!this._showWakeSongs)return;
     this.shadowRoot.getElementById('music-radio-dialog-title').textContent='Favoriten & Wecklieder';
     const results=this.shadowRoot.getElementById('music-radio-results');results.setAttribute('aria-label','Favoriten und Wecklieder verwalten');
-    results.insertAdjacentHTML('beforeend',section({id:'player-wake-group',title:`Wecklieder (${this._alarmSongs.length})`,content:`<div class="fui-player-song-tools">${field({id:'player-wake-query',label:'Wecklieder durchsuchen',type:'search',value:this._playerSongQuery||'',placeholder:'Lied suchen',autocomplete:'off'})}${button({label:'Musik hinzufügen',action:'player-add-songs',disabled:this._favoriteBusy||this._busy})}<div id="player-wake-status" aria-live="polite"></div><div id="player-wake-list" class="fui-player-song-list"></div></div>`}));
+    results.insertAdjacentHTML('beforeend',section({id:'player-wake-group',title:`Wecklieder (${this._alarmSongs.length})`,content:`<div class="fui-player-song-tools">${field({id:'player-wake-query',label:'Wecklieder durchsuchen',type:'search',value:this._playerSongQuery||'',placeholder:'Lied suchen',autocomplete:'off'})}${button({label:'Musik hinzufügen',action:'player-add-songs',disabled:this._favoriteBusy||this._busy})}${button({label:'Radiosender hinzufügen',action:'player-add-radio',disabled:this._favoriteBusy||this._busy})}<div id="player-wake-status" aria-live="polite"></div><div id="player-wake-list" class="fui-player-song-list"></div></div>`}));
     const input=this.shadowRoot.getElementById('player-wake-query');input.addEventListener('input',()=>{this._playerSongQuery=input.value;this._renderCombinedSongs();});this._renderCombinedSongs();
     if(searching){input.focus();input.setSelectionRange?.(...selection);}
   }
@@ -201,23 +201,24 @@ class MusicManagerCard extends MusicPlayerBase {
     status.innerHTML=this._alarmSongError?notice(this._alarmSongError,{error:true})+button({label:'Erneut laden',action:'reload-alarm-songs'}):this._alarmSongLoading?loadingState('Wecklieder werden geladen …'):this._appleError?notice(this._appleError,{error:true}):'';
     const query=(this._playerSongQuery||'').trim().toLocaleLowerCase(),items=this._alarmSongs.filter(item=>[item.title,item.description].join(' ').toLocaleLowerCase().includes(query));
     const disabled=this._favoriteBusy||this._busy||this._alarmSongLoading;
-    host.innerHTML=items.map(item=>`<div class="music-station-row">${musicArtwork({src:stationLogo(item.thumbnail)})}${row({title:item.title,description:item.description||'',trailing:musicActionButton({label:'Wecklied abspielen: '+item.title,icon:'play',action:'player-play-wake',data:{uri:item.uri},disabled})+iconButton({label:'Wecklied entfernen: '+item.title,icon:'trash',action:'remove-alarm-song',data:{uri:item.uri},danger:true,disabled})})}</div>`).join('')||(!this._alarmSongLoading?emptyState(query?'Keine passenden Wecklieder.':'Noch keine Wecklieder. In Apple Music kannst du einzelne Titel mit dem Weckersymbol markieren.'):'');
+    host.innerHTML=items.map(item=>`<div class="music-station-row">${musicArtwork({src:stationLogo(item.thumbnail)})}${row({title:item.title,description:item.description||'',trailing:musicActionButton({label:'Wecklied abspielen: '+item.title,icon:'play',action:'player-play-wake',data:{uri:item.uri},disabled})+iconButton({label:'Wecklied entfernen: '+item.title,icon:'trash',action:'remove-alarm-song',data:{uri:item.uri},danger:true,disabled})})}</div>`).join('')||(!this._alarmSongLoading?emptyState(query?'Keine passenden Wecklieder.':'Noch keine Weckinhalte. Markiere einzelne Apple-Music-Titel oder Radiosender mit dem Weckersymbol.'):'');
   }
   async _action(event){
     if(event.action==='player-reload'){this._navigationReady=false;await this._loadNavigation();return;}
     if(this._navigationLoading||this._navigationSaving)return;
     if(event.action==='player-settings'){this._renderSettings();if(!this._settingsDialog.open)this._settingsDialog.showModal();return;}
-    const wakeActions=['open-alarm-songs','apple-songs','apple-alarm-song','remove-alarm-song','reload-alarm-songs','alarm-songs-add','player-add-songs','player-play-wake'];
+    const wakeActions=['open-alarm-songs','apple-songs','apple-alarm-song','remove-alarm-song','reload-alarm-songs','alarm-songs-add','player-add-songs','player-add-radio','radio-alarm-song','favorite-alarm-song','player-play-wake'];
     if(wakeActions.includes(event.action)&&!this._showWakeSongs)return;
     if(['open-alarm-songs','apple-songs'].includes(event.action)){await super._action({action:'manage-favorites'});return;}
     if(['player-add-songs','alarm-songs-add'].includes(event.action)){this._dialog.close();await this._openApple();return;}
-    if(event.action==='player-play-wake'){const song=this._alarmSongs.find(item=>item.uri===event.data.uri);if(song)await this._playApple(song);return;}
+    if(event.action==='player-add-radio'){this._dialog.close();await this._openRadio();return;}
+    if(event.action==='player-play-wake'){const song=this._alarmSongs.find(item=>item.uri===event.data.uri);if(song){if(isRadioId(song.media_content_id))await this._playStation(song);else await this._playApple(song);}return;}
     if(event.action==='play-favorite'&&event.data?.favorite){const index=this._favorites.findIndex(item=>item.media_content_id===event.data.favorite);if(index<0)return;event={...event,data:{...event.data,index:String(index)}};}
     await super._action(event);
   }
 }
 class MusicManagerCardEditor extends MusicPlayerEditorBase {
-  _editorDescription(){return 'Die gewählte Sonos-Box ist die Ausgangsbox. Vera und Manuel können ihre Box persönlich wechseln. Weitere Benutzer bleiben auf der Ausgangsbox. Das Zahnrad öffnet Sender, Apple Music und Favoriten. Maximilian und Paul verwalten dort Favoriten und Wecklieder gemeinsam. Die Lautstärke der Karte ist auf 0–50 % begrenzt. ';}
+  _editorDescription(){return 'Die gewählte Sonos-Box ist die Ausgangsbox. Vera und Manuel können ihre Box persönlich wechseln. Weitere Benutzer bleiben auf der Ausgangsbox. Das Zahnrad öffnet Sender, Apple Music und Favoriten. Maximilian, Paul, Vera und Manuel verwalten dort Favoriten und Weckinhalte gemeinsam. Radiosender und einzelne Apple-Music-Titel können zum Wecken markiert werden. Die Lautstärke der Karte ist auf 0–50 % begrenzt. ';}
   _emit(){this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config,type:'custom:music-manager-card'}},bubbles:true,composed:true}));}
 }
 if(!customElements.get('music-manager-card'))customElements.define('music-manager-card',MusicManagerCard);

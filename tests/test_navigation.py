@@ -112,8 +112,12 @@ class NavigationTests(IsolatedAsyncioTestCase):
         self.assertEqual(saved['data']['alarms'], self.entry.options['alarms'])
         self.assertEqual(saved['data']['speaker_selection_users'], ['manuel', 'vera'])
 
-    async def test_wake_song_display_is_only_for_the_two_named_children(self):
+    async def test_wake_content_is_available_to_children_and_parents_only(self):
         for name in ['manuel', 'vera', 'maximilian', 'paul']:
-            self.assertEqual((await self.data(name))['show_alarm_songs'], name in ['maximilian', 'paul'])
+            self.assertEqual((await self.data(name))['show_alarm_songs'], True)
         self.hass.auth.async_get_users.return_value.append(NS(id='duplicate', name='Paul', is_active=True, system_generated=False))
         self.assertFalse((await self.data('paul'))['show_alarm_songs'])
+
+    async def test_unrelated_account_does_not_gain_wake_controls(self):
+        self.users['guest'] = NS(id='guest', name='Guest', is_active=True, system_generated=False)
+        self.assertFalse((await self.data('guest'))['show_alarm_songs'])

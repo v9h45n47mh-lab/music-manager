@@ -662,9 +662,9 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   for(const action of ['open-radio','open-apple','manage-favorites','open-alarm-songs'])assert.equal(await player().locator(`#player [data-action="${action}"]`).count(),0);
   const geometry=await player().evaluate(el=>{const root=el.shadowRoot,select=root.querySelector('#music-player-box'),gear=root.querySelector('[data-action="player-settings"]'),a=select.getBoundingClientRect(),b=gear.getBoundingClientRect();return {left:a.right<b.left,width:a.width,label:getComputedStyle(select.closest('label').querySelector('span')).position};});assert(geometry.left);assert(geometry.width<=190);assert.equal(geometry.label,'absolute');
   assert.equal(await player().locator('[data-action="play-favorite"]').innerText(),'');assert.equal(await player().locator('[data-action="play-favorite"]').getAttribute('aria-label'),'Manuels Radio abspielen');
-  await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');await settings.waitFor();assert(!await settings.innerText().then(t=>t.includes('Weck')));assert.equal(await settings.locator('.setting-row').count(),3);
+  await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');await settings.waitFor();assert(await settings.innerText().then(t=>t.includes('Weck')));assert.equal(await settings.locator('.setting-row').count(),3);
   await settings.getByRole('button',{name:'Apple Music öffnen',exact:true}).click();await player().locator('#music-apple-dialog [data-action="apple-play"]').first().waitFor();assert(await settings.isVisible());assert.equal(await player().locator('[data-action="apple-songs"],[data-action="apple-alarm-song"]').count(),0);
-  await player().locator('#music-apple-dialog').getByRole('button',{name:'Alben',exact:true}).click();await player().getByRole('button',{name:'Titel anzeigen',exact:true}).click();await player().locator('#music-apple-results [data-action="apple-play"]').waitFor();assert.equal(await player().locator('[data-action="apple-alarm-song"]').count(),0);assert(!await player().locator('#music-apple-location').innerText().then(t=>t.includes('Weck')));
+  await player().locator('#music-apple-dialog').getByRole('button',{name:'Alben',exact:true}).click();await player().getByRole('button',{name:'Titel anzeigen',exact:true}).click();await player().locator('#music-apple-results [data-action="apple-play"]').waitFor();assert((await player().locator('[data-action="apple-alarm-song"]').count())>0);assert(await player().locator('#music-apple-location').innerText().then(t=>t.includes('Weck')));
  });
  await check('player children combine favorites and wake songs with search remove and independent storage',async()=>{
   await setupPlayer();await page.evaluate(()=>{demo.seedFavorites('paul',[demo.station('kid','Pauls Sender')]);demo.seedAlarmSongs('paul',[{kind:'apple_music',uri:'apple_music--demo://track/wake1',media_type:'track',title:'Erstes Wecklied'},{kind:'apple_music',uri:'apple_music--demo://track/wake2',media_type:'track',title:'Zweites Wecklied'}]);demo.switchUser('paul');});await page.waitForFunction(()=>demo.cards.at(-1)._showWakeSongs&&!demo.cards.at(-1)._alarmSongLoading);
@@ -673,7 +673,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await manager.getByRole('button',{name:'Wecklied entfernen: Erstes Wecklied',exact:true}).click();await page.waitForFunction(()=>demo.alarmSongData.get('paul').length===1);assert.equal(await page.evaluate(()=>demo.favoriteData.get('paul')[0].title),'Pauls Sender');
   await manager.getByRole('checkbox',{name:'Favorit behalten: Pauls Sender',exact:true}).click();await page.waitForFunction(()=>demo.favoriteData.get('paul').length===0);assert.equal(await page.evaluate(()=>demo.alarmSongData.get('paul')[0].title),'Zweites Wecklied');
   for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await manager.evaluate(e=>e.scrollWidth>e.clientWidth));await page.screenshot({path:path.join(screens,`player-combined-${width}-${dark?'dark':'light'}.png`),fullPage:false});}
-  await manager.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();assert(!await player().locator('#music-player-settings').innerText().then(t=>t.includes('Weck')));
+  await manager.getByRole('button',{name:'Schließen',exact:true}).click();await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();assert(await player().locator('#music-player-settings').innerText().then(t=>t.includes('Weck')));
  });
  await check('player radio has play pause only and Apple restores track navigation and shuffle',async()=>{
   await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();await player().getByRole('button',{name:'Sender wählen',exact:true}).click();const radio=player().locator('#music-radio-dialog');await radio.getByRole('button',{name:'Beliebt',exact:true}).click();await radio.locator('[data-action="play-station"]').first().click();await page.waitForFunction(()=>demo.cards.at(-1)._playbackSource==='radio');assert.equal(await player().locator('#player [data-action="previous"],#player [data-action="next"]').count(),0);assert.equal(await player().locator('#player [data-action="play-pause"]').count(),1);
@@ -707,7 +707,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('player closing radio Apple Music and favorites by X or Escape returns to settings with versions',async()=>{
   await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');
   for(const [name,id] of [['Sender wählen','music-radio-dialog'],['Apple Music öffnen','music-apple-dialog'],['Favoriten verwalten','music-radio-dialog']])for(const close of ['button','escape']){
-   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.1.0 · Integration 2.1.0 · UI 1.4.1');
+   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.2.0 · Integration 2.2.0 · UI 1.4.1');
   }
   await settings.getByRole('button',{name:'Schließen',exact:true}).click();await settings.waitFor({state:'hidden'});
   await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();
@@ -818,6 +818,35 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    await panel().locator('[data-action="edit"][data-id="ha-one"]').click();await editor().locator('#config-provider_id').waitFor();assert(!await editor().evaluate(el=>el.scrollWidth>el.clientWidth),`${width} editor overflow`);
    await page.screenshot({path:path.join(screens,`configuration-editor-${width}-${dark?'dark':'light'}.png`),fullPage:true});await editor().getByRole('button',{name:'Schließen',exact:true}).click();
   }
+ });
+ await check('parents mark and manage radio wake content separately from favorites and other users',async()=>{
+  await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();
+  await player().getByRole('button',{name:'Sender wählen',exact:true}).click();
+  const radio=player().locator('#music-radio-dialog');await radio.getByRole('button',{name:'Beliebt',exact:true}).click();
+  const mark=radio.locator('[data-action="radio-alarm-song"]').first();await mark.waitFor();
+  await mark.click();await page.waitForFunction(()=>demo.alarmSongData.get('manuel')?.some(s=>s.kind==='radio'));
+  assert.equal(await mark.getAttribute('aria-pressed'),'true');
+  assert.equal(await page.evaluate(()=>demo.favoriteData.get('manuel').length),1);
+  await radio.getByRole('button',{name:'Schließen',exact:true}).click();
+  await player().getByRole('button',{name:'Favoriten und Wecklieder verwalten',exact:true}).click();
+  await radio.locator('#player-wake-list [data-action="player-play-wake"]').waitFor();
+  for(const width of [320,390,1100])for(const dark of [false,true]){
+   await page.setViewportSize({width,height:850});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
+   assert(!await radio.evaluate(e=>e.scrollWidth>e.clientWidth));
+   await page.screenshot({path:path.join(screens,`radio-wake-parent-${width}-${dark?'dark':'light'}.png`),fullPage:false});
+  }
+  await radio.locator('#player-wake-list [data-action="player-play-wake"]').click();
+  assert.equal(await page.evaluate(()=>demo.calls.at(-1).service),'play_media');
+  assert((await page.evaluate(()=>demo.calls.at(-1).data.media_content_id)).startsWith('media-source://radio_browser/'));
+  await page.evaluate(()=>demo.switchUser('vera'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._alarmSongLoading);
+  assert.equal(await player().locator('#music-player-box').count(),1);assert.equal(await page.evaluate(()=>demo.cards.at(-1)._alarmSongs.length),0);
+ });
+ await check('wake picker lists marked radio stations and persists a radio choice without playback',async()=>{
+  await reset();await page.evaluate(()=>{demo.seedAlarmSongs('maximilian',[{kind:'radio',uri:'media-source://radio_browser/swr3',media_content_id:'media-source://radio_browser/swr3',media_type:'radio',title:'SWR3',can_play:true}]);demo.addAlarmRow();});
+  const alarm=page.locator('music-manager-alarm-row').first();await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();
+  await alarm.getByRole('button',{name:'Wecklied auswählen: SWR3',exact:true}).click();
+  await alarm.locator('#alarm-dialog').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>demo.alarmSelections.get('school_alarm').kind),'radio');
+  assert.equal(await page.evaluate(()=>demo.calls.length),0);
  });
  assert.deepEqual(errors,[]);console.log(`${checks} browser scenarios passed; no JavaScript errors.`);
  await browser.close();server.close();

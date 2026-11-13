@@ -59,7 +59,7 @@ async def navigation_data(hass, user, source, navigation_id="", selected=None):
         or navigation_id and not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", navigation_id)):
         raise AccessError("invalid_navigation", "Die Box oder Navigationskennung ist ungültig.")
     people = [u for u in await hass.auth.async_get_users() if u.is_active and not u.system_generated]
-    wake_names = {"maximilian", "paul"}
+    wake_names = {"maximilian", "paul", "vera", "manuel"}
     caller_name = (user.name or "").strip().casefold()
     show_alarm_songs = caller_name in wake_names and sum(
         (u.name or "").strip().casefold() == caller_name for u in people) == 1

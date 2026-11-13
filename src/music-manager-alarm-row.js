@@ -39,6 +39,7 @@ class MusicManagerAlarmRow extends HTMLElement {
     }
     this._render();
   }
+  _isChoice(item) { return item?.media_type==='track'||(item?.kind==='radio'&&/^media-source:\/\/radio_browser\/[a-zA-Z0-9_-]{1,128}$/.test(item.uri)); }
   _request(action,extra={}) { return this._hass.callWS({type:'music_manager/alarm',action,alarm_id:this._config.alarm_id,...extra}); }
   async _load(force=false) {
     if(!this.isConnected||!this._hass?.user?.id||!this._config||this._loading||this._saving)return;
@@ -60,7 +61,7 @@ class MusicManagerAlarmRow extends HTMLElement {
     if(action==='alarm-select')value??=data?.uri;
     if(!['alarm-select','alarm-clear'].includes(action)||this._saving||this._loading)return;
     const current=this._data;
-    if(value!==''&&!(current?.songs||current?.favorites)?.some(f=>f.media_type==='track'&&f.uri===value))return;
+    if(value!==''&&!(current?.songs||current?.favorites)?.some(f=>this._isChoice(f)&&f.uri===value))return;
     const epoch=++this._epoch;this._saving=true;this._error='';this._render();
     try {
       const data=await this._request('select',{uri:value});if(epoch!==this._epoch)return;
@@ -72,28 +73,28 @@ class MusicManagerAlarmRow extends HTMLElement {
     if(!this._dialog)return;
     const busy=this._loading||this._saving,selected=this._data?.selection;
     this.shadowRoot.getElementById('alarm-row').innerHTML=row({title:this._config.name||'Weckmusik',description:this._error||selected?.title||(this._loading?'Wird geladen …':'Letzte Sonos-Wiedergabe'),trailing:button({label:'Auswählen',action:'alarm-open',disabled:busy||!this._hass?.user?.id})});
-    const items=(this._data?.songs||this._data?.favorites||[]).filter(f=>f.media_type==='track');
+    const items=(this._data?.songs||this._data?.favorites||[]).filter(f=>this._isChoice(f));
     // The list contains marked songs only. Keep an older saved selection in
     // the status text, without adding albums or removed songs to the list.
     this.shadowRoot.getElementById('alarm-content').innerHTML=
       (this._data?row({title:this._data.owner,description:this._data.source}):'')+
       (this._error?notice(this._error,{error:true})+button({label:'Erneut laden',action:'alarm-retry',disabled:busy}):'')+
       (busy?loadingState(this._saving?'Weckmusik wird gespeichert …':'Weckmusik wird geladen …'):'')+
-      (this._data?`<div id="alarm-current">${selected?row({title:selected.title,description:'Gespeicherte Weckmusik',trailing:button({label:'Auswahl zurücksetzen',action:'alarm-clear',disabled:busy})}):notice('Ohne ausgewähltes Wecklied wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt.')}</div>`+
-        (selected&&this._data.selection_compatible===false?notice('Die gespeicherte Weckmusik gehört nicht mehr zum zugeordneten Apple-Music-Konto. Bitte neu auswählen.',{error:true}):selected&&!(this._data.in_songs??this._data.in_favorites)?notice('Die bisherige Weckmusik bleibt gespeichert. Für eine neue Auswahl füge einen einzelnen Titel zur Wecklied-Liste hinzu.'):!items.length?notice('Markiere zuerst einen einzelnen Titel in Music Manager über das Weckersymbol als Wecklied.'):'')+
-        field({id:'alarm-song-query',label:'Wecklied suchen',type:'search',value:this._query||'',placeholder:'Liedname',maxLength:200,autocomplete:'off',disabled:busy})+
+      (this._data?`<div id="alarm-current">${selected?row({title:selected.title,description:'Gespeicherte Weckmusik',trailing:button({label:'Auswahl zurücksetzen',action:'alarm-clear',disabled:busy})}):notice('Ohne ausgewählte Weckmusik wird wie bisher die letzte Sonos-Wiedergabe fortgesetzt.')}</div>`+
+        (selected&&this._data.selection_compatible===false?notice('Die gespeicherte Weckmusik gehört nicht mehr zum zugeordneten Apple-Music-Konto. Bitte neu auswählen.',{error:true}):selected&&!(this._data.in_songs??this._data.in_favorites)?notice('Die bisherige Weckmusik bleibt gespeichert. Für eine neue Auswahl markiere einen einzelnen Titel oder Radiosender zum Wecken.'):!items.length?notice('Markiere zuerst einen einzelnen Titel oder Radiosender in Music Manager über das Weckersymbol.'):'')+
+        field({id:'alarm-song-query',label:'Weckmusik suchen',type:'search',value:this._query||'',placeholder:'Titel oder Radiosender',maxLength:200,autocomplete:'off',disabled:busy})+
         '<div id="alarm-song-count" class="hint" aria-live="polite"></div><ul class="alarm-song-list" id="alarm-song-list" aria-label="Verfügbare Wecklieder"></ul>':'');
     this._renderChoices();
   }
   _renderChoices() {
     const list=this.shadowRoot.getElementById('alarm-song-list');if(!list)return;
-    const songs=(this._data?.songs||this._data?.favorites||[]).filter(f=>f.media_type==='track');
+    const songs=(this._data?.songs||this._data?.favorites||[]).filter(f=>this._isChoice(f));
     const query=(this._query||'').trim().toLocaleLowerCase(),items=songs.filter(f=>f.title.toLocaleLowerCase().includes(query));
-    this.shadowRoot.getElementById('alarm-song-count').textContent=`${items.length} von ${songs.length} Weckliedern · Antippen zum Auswählen`;
+    this.shadowRoot.getElementById('alarm-song-count').textContent=`${items.length} von ${songs.length} Weckinhalten · Antippen zum Auswählen`;
     list.setAttribute('aria-busy',String(this._loading||this._saving));
     list.innerHTML=items.map(song=>{
       const selected=song.uri===this._data.selection?.uri;
-      return `<li>${button({label:song.title,action:'alarm-select',data:{uri:song.uri},disabled:this._loading||this._saving}).replace('<button ',`<button aria-pressed="${selected}" aria-label="${escapeHtml('Wecklied auswählen: '+song.title)}" `).replace(`<span>${escapeHtml(song.title)}</span>`,`<span class="alarm-choice-mark" aria-hidden="true">✓</span><span class="alarm-choice-name">${escapeHtml(song.title)}${selected?'<small>Ausgewählt</small>':''}</span>`)}</li>`;
+      return `<li>${button({label:song.title,action:'alarm-select',data:{uri:song.uri},disabled:this._loading||this._saving}).replace('<button ',`<button aria-pressed="${selected}" aria-label="${escapeHtml('Wecklied auswählen: '+song.title)}" `).replace(`<span>${escapeHtml(song.title)}</span>`,`<span class="alarm-choice-mark" aria-hidden="true">✓</span><span class="alarm-choice-name">${escapeHtml(song.title)}${song.kind==='radio'?'<small>Radiosender</small>':''}${selected?'<small>Ausgewählt</small>':''}</span>`)}</li>`;
     }).join('')||`<li>${notice('Keine passenden Wecklieder.')}</li>`;
   }
 }

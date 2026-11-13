@@ -596,7 +596,7 @@ export class MusicPlayerBase extends HTMLElement {
         break;
       }
       case 'reload-alarm-songs': this._disconnectAlarmSongs();this._connectAlarmSongs();this._renderApple();break;
-      case 'apple-play': await this._playApple(this._appleItems[Number(data.index)]);break;
+      case 'apple-play': {const item=this._appleItems[Number(data.index)];if(isRadioId(item?.media_content_id))await this._playStation(item);else await this._playApple(item);break;}
       case 'apple-favorite': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item)await this._toggleFavorite(item);break;}
       case 'apple-alarm-song': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item?.media_type==='track')await this._toggleFavorite(item,undefined,true);break;}
       case 'move-favorite': await this._moveFavorite(data.program,data.direction);break;
@@ -605,6 +605,8 @@ export class MusicPlayerBase extends HTMLElement {
         if(!this._dialog.open)this._dialog.showModal();this._renderBrowser();break;
       case 'reload-favorites': this._disconnectFavorites();this._connectFavorites();break;
       case 'toggle-favorite': await this._toggleFavorite(this._browserItems[Number(data.index)]);break;
+      case 'radio-alarm-song': await this._toggleFavorite(this._browserItems[Number(data.index)],undefined,true);break;
+      case 'favorite-alarm-song': {const item=this._favorites.find(f=>f.media_content_id===data.id);if(item)await this._toggleFavorite(item,undefined,true);break;}
       case 'play-favorite': {const station=this._favorites[Number(data.index)];if(station?.kind==='apple_music')await this._playApple(station);else if(station)await this._playStation(station);break;}
       case 'open-radio': await this._openRadio();break;
       case 'search': await this._search();break;
@@ -680,7 +682,7 @@ export class MusicPlayerBase extends HTMLElement {
       this._playbackSource='radio';this._radioPreviousTitle=previousTitle;this._radioContentId=null;this._playbackIntent={source:'radio',previousId};this._cancelSeek();
       this._selectedStation={...station};
       this._applePreferred=false;this._syncRadioStation();this._playbackStarted(station,'radio');
-      this._dialog.close();
+      this._dialog.close();if(this._appleOwnSongs)this._appleDialog.close();
     },this._config.entity);
   }
 
@@ -927,6 +929,12 @@ export class MusicPlayerBase extends HTMLElement {
     }
   }
 
+  _radioAlarmButton(item,action,data) {
+    if(this._showWakeSongs===false||!item?.can_play||!/^media-source:\/\/radio_browser\/[a-zA-Z0-9_-]{1,128}$/.test(item.media_content_id))return '';
+    const saved=this._alarmSongs.some(s=>s.media_content_id===item.media_content_id);
+    return this._musicButton({label:(saved?'Nicht mehr zum Wecken verwenden: ':'Zum Wecken markieren: ')+item.title,icon:saved?'alarmFilled':'alarm',action,data,pressed:saved,disabled:this._favoriteBusy||this._alarmSongLoading||!this._hass?.user?.id});
+  }
+
   _translateCategory(title) {
     return {'Popular':'Beliebte Sender','By Category':'Genres und Themen','By Language':'Sprachen','Local stations':'Sender in der Nähe','Country list':'Länder','Radio Browser':'Kategorien'}[title] || title;
   }
@@ -952,7 +960,7 @@ export class MusicPlayerBase extends HTMLElement {
       results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
       results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-browser"><div class="music-station-row">${logoMarkup(item)}${row({
         title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?'Titel':item.media_type==='album'?'Album':'Playlist'):'Radiosender'
-      })}</div><div class="music-favorite-actions">${['album','playlist'].includes(item.media_type)?button({label:'Titel anzeigen',action:'favorite-tracks',data:{id:item.uri},disabled:this._favoriteBusy||this._busy}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
+      })}</div><div class="music-favorite-actions">${this._radioAlarmButton(item,'favorite-alarm-song',{id:item.media_content_id})}${['album','playlist'].includes(item.media_type)?button({label:'Titel anzeigen',action:'favorite-tracks',data:{id:item.uri},disabled:this._favoriteBusy||this._busy}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
       if(this._pendingFavoriteFocus&&!this._favoriteBusy) {
         const {id,index=0,direction}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
         const moved=direction&&[...results.querySelectorAll('[data-action="move-favorite"]')].find(b=>!b.disabled&&b.dataset.program===id&&b.dataset.direction===direction);
@@ -967,7 +975,7 @@ export class MusicPlayerBase extends HTMLElement {
     results.innerHTML=this._browseLoading?'':this._browserItems.length?this._browserItems.map((item,index)=>{
       if(item.can_expand)return row({title:this._translateCategory(item.title),description:'Kategorie',trailing:iconButton({icon:'right',label:'Kategorie öffnen: '+item.title,action:'browse-item',data:{index},disabled:this._busy})});
       const saved=this._favorites.some(s=>s.media_content_id===item.media_content_id);
-      return `<div class="music-catalog-item"><div class="music-station-row">${logoMarkup(item)}${row({title:item.title,description:'Radiosender'})}</div><div class="music-result-actions is-radio">${this._musicButton({label:(saved?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'toggle-favorite',data:{index},pressed:saved,disabled:this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id})}${button({label:'Abspielen',action:'play-station',data:{index},disabled:this._busy||!isAvailable(this._state)||!hasFeature(this._state,'playMedia')})}</div></div>`;
+      return `<div class="music-catalog-item"><div class="music-station-row">${logoMarkup(item)}${row({title:item.title,description:'Radiosender'})}</div><div class="music-result-actions${this._showWakeSongs===false?' is-radio':''}">${this._radioAlarmButton(item,'radio-alarm-song',{index})}${this._musicButton({label:(saved?'Favorit entfernen: ':'Als Favorit speichern: ')+item.title,icon:'star',action:'toggle-favorite',data:{index},pressed:saved,disabled:this._favoriteBusy||this._favoriteLoading||!this._hass?.user?.id})}${button({label:'Abspielen',action:'play-station',data:{index},disabled:this._busy||!isAvailable(this._state)||!hasFeature(this._state,'playMedia')})}</div></div>`;
     }).join(''):this._radioError?'':emptyState(this._searchMode?'Keine passenden Sender gefunden. Versuche einen anderen Namen.':'Keine Einträge in dieser Kategorie.');
   }
 }

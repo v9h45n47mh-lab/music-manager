@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '2.1.0';
+export const MUSIC_VERSION = '2.2.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -146,7 +146,7 @@ async function updateFavorites(hass, update) {
   });
 }
 export function normalizeAlarmSongs(value) {
-  return normalizeFavorites(value).filter(f=>f.kind==='apple_music'&&f.media_type==='track').map(f=>{const next={...f};delete next.alarm_song;return next;});
+  return normalizeFavorites(value).filter(f=>f.kind==='apple_music'?f.media_type==='track':/^media-source:\/\/radio_browser\/[a-zA-Z0-9_-]{1,128}$/.test(f.media_content_id)).map(f=>{const next={...f};delete next.alarm_song;return f.kind==='apple_music'?next:{...next,kind:'radio',uri:f.media_content_id,media_type:'radio',description:'Radiosender'};});
 }
 async function migrateLegacyAlarmSongs(hass) {
   const response=await hass.callWS({type:'frontend/get_user_data',key:FAVORITES_KEY});
@@ -171,8 +171,8 @@ export async function saveFavorite(hass, favorite, enabled) {
   });
 }
 export async function saveAlarmSong(hass,favorite,enabled) {
-  const item=appleFavorite(favorite);
-  if(item?.media_type!=='track')throw new Error('Nur einzelne Apple-Music-Titel können Wecklieder sein.');
+  const item=normalizeAlarmSongs([favorite])[0];
+  if(!item)throw new Error('Nur einzelne Apple-Music-Titel und Radiosender können zum Wecken markiert werden.');
   return serializeUserData(hass,async()=>{
     await migrateLegacyAlarmSongs(hass);
     const response=await hass.callWS({type:'frontend/get_user_data',key:ALARM_SONGS_KEY});
