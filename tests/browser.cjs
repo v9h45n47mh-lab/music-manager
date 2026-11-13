@@ -707,7 +707,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('player closing radio Apple Music and favorites by X or Escape returns to settings with versions',async()=>{
   await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');
   for(const [name,id] of [['Sender wählen','music-radio-dialog'],['Apple Music öffnen','music-apple-dialog'],['Favoriten und Wecklieder verwalten','music-radio-dialog']])for(const close of ['button','escape']){
-   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.2.0 · Integration 2.2.0 · UI 1.4.1');
+   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.2.1 · Integration 2.2.1 · UI 1.4.1');
   }
   await settings.getByRole('button',{name:'Schließen',exact:true}).click();await settings.waitFor({state:'hidden'});
   await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();
@@ -847,6 +847,13 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await alarm.getByRole('button',{name:'Wecklied auswählen: SWR3',exact:true}).click();
   await alarm.locator('#alarm-dialog').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>demo.alarmSelections.get('school_alarm').kind),'radio');
   assert.equal(await page.evaluate(()=>demo.calls.length),0);
+ });
+ await check('alarm duration is edited alongside the song and fits both themes on narrow displays',async()=>{
+  await reset();await page.evaluate(()=>{const song={kind:'apple_music',uri:'apple_music--demo://track/wake',media_type:'track',title:'Aufwachen'};demo.seedAlarmSongs('maximilian',[song]);demo.alarmSelections.set('school_alarm',song);const row=demo.addAlarmRow();window.savedPlayback=[];row.playbackSettings={value:{mode:'duration',minutes:5},save:async value=>window.savedPlayback.push(value)};});
+  const alarm=page.locator('music-manager-alarm-row').first();await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();await alarm.locator('#alarm-playback-minutes').fill('9');
+  for(const width of [320,390,1100])for(const dark of [false,true]){await page.setViewportSize({width,height:1000});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);assert(!await alarm.locator('#alarm-dialog').evaluate(e=>e.scrollWidth>e.clientWidth));await alarm.locator('#alarm-dialog').screenshot({path:path.join(screens,`alarm-playback-duration-${width}-${dark?'dark':'light'}.png`)});}
+  await alarm.getByRole('button',{name:'Wecklied auswählen: Aufwachen',exact:true}).click();await alarm.locator('#alarm-dialog').waitFor({state:'hidden'});assert.deepEqual(await page.evaluate(()=>window.savedPlayback),[{mode:'duration',minutes:9}]);
+  await alarm.getByRole('button',{name:'Auswählen',exact:true}).click();await alarm.locator('#alarm-playback-mode').selectOption('track_end');await alarm.getByRole('button',{name:'Dauer übernehmen',exact:true}).click();await alarm.locator('#alarm-dialog').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.savedPlayback.at(-1).mode),'track_end');
  });
  assert.deepEqual(errors,[]);console.log(`${checks} browser scenarios passed; no JavaScript errors.`);
  await browser.close();server.close();

@@ -1,3 +1,9 @@
+# Music Manager 2.2.1
+
+- Die Weckmusikauswahl kann die Abspieldauer der zugehörigen Wecker-Integration anzeigen: feste Minutendauer oder „Wenn Titel endet“.
+- Die Dauer wird zusammen mit einer neuen Musikauswahl oder separat über „Dauer übernehmen“ gespeichert. Ein Fehler lässt den Dialog offen.
+- Für Radiosender ist eine feste Dauer erforderlich. Die Erweiterung wird durch Wecker ab 1.7.0 eingebunden; bestehende Music-Manager-Karten bleiben unverändert verwendbar.
+
 # Music Manager 2.2.0
 
 - Radiosender können über das Weckersymbol unabhängig von Favoriten zum Wecken markiert werden.

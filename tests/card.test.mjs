@@ -52,7 +52,7 @@ const navigationData=new Map();
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
-    return {can_select,players,version:'2.2.0',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+    return {can_select,players,version:'2.2.1',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
    }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
@@ -683,7 +683,7 @@ test('player Apple Music favorites and combined wake-song dialogs retain their p
 });
 test('player radio browser returns to the settings dialog and shows actual component versions',async()=>{
  const env=setup(),card=env.addPlayer();await flush();env.click(card,'player-settings');const sender=card._settingsDialog.querySelector('[data-action="open-radio"]');sender.click();await flush();assert(card._dialog.open);assert(card._settingsDialog.open);
- card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.2\.0 · Integration 2\.2\.0 · UI 1\.4\.1/);
+ card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.2\.1 · Integration 2\.2\.1 · UI 1\.4\.1/);
 });
 test('player children show their fixed speaker only inside settings and adults use a compact room dropdown',async()=>{
  const env=setup(),card=env.addPlayer();await flush();assert(card.shadowRoot.querySelector('.fui-player-speaker-compact'));assert.equal(card.shadowRoot.querySelector('#music-player-box option').textContent.includes('Sonos '),false);
@@ -739,4 +739,15 @@ test('category searches discard old queries and private results after an account
  resolveOld({items:[{uri:'apple_music--a://album/old',media_type:'album',title:'Altes Album'}]});await old;assert.equal(card._appleSearchResults.query,'Neu');assert.equal(card._appleItems[0].title,'Neues Album');
  fail=true;await card._action({action:'apple-search'});assert.match(card._appleError,/Vorübergehend/);assert.equal(card._appleSearchResults,null);fail=false;await card._action({action:'apple-retry'});assert.equal(card._appleItems[0].title,'Neues Album');assert.equal(card._appleError,'');
  card._appleQuery.value='Alt';const privateSearch=card._action({action:'apple-search'});await flush();env.switchUser('vera');resolveOld({items:[{uri:'apple_music--a://album/private',media_type:'album',title:'Privates Album'}]});await privateSearch;assert.equal(card._appleSearchResults,null);assert.equal(card._appleSearchQuery,'');assert.equal(card._appleItems.length,0);assert.equal(card._appleDialog.open,false);card.remove();
+});
+
+test('alarm playback draft saves with a song, supports duration-only changes and rejects track-end for radio',async()=>{
+ const env=setup(),row=env.document.createElement('music-manager-alarm-row'),saved=[];
+ const song={uri:'apple_music--a://track/wake',title:'Aufwachen',media_type:'track'},radio={uri:'media-source://radio_browser/swr3',kind:'radio',media_type:'radio',title:'SWR3'};let selected=song,fail=false;
+ env.wsHook=msg=>msg.type==='music_manager/alarm'?(msg.action==='select'&&(selected=[song,radio].find(item=>item.uri===msg.uri)),{owner:'Maximilian',source:'Sonos',songs:[song,radio],selection:selected,in_songs:true}):undefined;
+ row.setConfig({alarm_id:'school_alarm'});env.document.body.append(row);row.hass=env.makeHass();row.playbackSettings={value:{mode:'duration',minutes:5},save:async value=>{if(fail)throw Error('Dauer nicht gespeichert');saved.push({...value});}};await flush();env.click(row,'alarm-open');await flush();
+ const minutes=row.shadowRoot.querySelector('#alarm-playback-minutes');minutes.value='9';minutes.dispatchEvent(new env.window.Event('input',{bubbles:true}));await row._action({action:'alarm-select',value:song.uri});assert.deepEqual(saved,[{mode:'duration',minutes:9}]);
+ env.click(row,'alarm-open');await flush();row._playbackDraft.mode='track_end';row._render();const before=env.wsCalls.length;await row._action({action:'alarm-select',value:radio.uri});assert.equal(env.wsCalls.length,before);assert.match(row._dialog.textContent,/feste Dauer/);assert(row._dialog.open);
+ fail=true;await row._action({action:'alarm-playback-save'});assert.match(row._dialog.textContent,/Dauer nicht gespeichert/);assert(row._dialog.open);
+ fail=false;await row._action({action:'alarm-playback-save'});assert.equal(saved.at(-1).mode,'track_end');assert.equal(env.wsCalls.length,before);assert.equal(row._dialog.open,false);row.remove();
 });
