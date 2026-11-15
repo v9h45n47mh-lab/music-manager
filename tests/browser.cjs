@@ -362,6 +362,12 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.waitForFunction(()=>demo.favoriteData.get('manuel')[0].title==='Mein Lieblingsalbum');
   assert.equal(await manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}).isEnabled(),true);
   assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Mein Lieblingsalbum','SWR3','Meine Lieblingsmusik']);
+  const grip=manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}),target=manager.getByRole('button',{name:'Favorit verschieben: Meine Lieblingsmusik',exact:true});
+  await grip.scrollIntoViewIfNeeded();const a=await grip.boundingBox(),b=await target.boundingBox();
+  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.waitForTimeout(230);await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:8});await page.mouse.up();
+  await page.waitForFunction(()=>demo.favoriteData.get('manuel')[2].title==='Mein Lieblingsalbum');
+  await grip.press('Home');await page.waitForFunction(()=>demo.favoriteData.get('manuel')[0].title==='Mein Lieblingsalbum');
+
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    assert(!(await manager.evaluate(el=>el.scrollWidth>el.clientWidth)));
