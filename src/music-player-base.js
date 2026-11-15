@@ -2,7 +2,7 @@ import {
   UI_CSS, UI_VERSION, row, button, iconButton, field, combobox,
   section, toggle, rangeControl, dialog, notice, versionInfo, emptyState,
   loadingState, bindUI, escapeHtml, programOrderButtons
-} from './family-ui/1.4.1/family-ui.js';
+} from './family-ui/1.7.0/family-ui.js';
 import {
   observeFamilyAccess, releaseFamilyAccess, MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
   isAvailable, volumePercent, normalizeMedia, isRadioId, stationPayload,
@@ -76,7 +76,7 @@ const MUSIC_CSS = `
     #music-search-form>.toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
     #music-search-form [data-action="manage-favorites"]{grid-column:1/-1}
     .music-favorite-actions{flex-wrap:wrap}
-    .music-favorite-actions .program-order button{width:44px;height:44px}
+
     .music-favorite-actions .check{min-height:44px;min-width:44px;display:grid;place-items:center}
   }
 `;
@@ -604,7 +604,7 @@ export class MusicPlayerBase extends HTMLElement {
       case 'apple-play': {const item=this._appleItems[Number(data.index)];if(isRadioId(item?.media_content_id))await this._playStation(item);else await this._playApple(item);break;}
       case 'apple-favorite': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item)await this._toggleFavorite(item);break;}
       case 'apple-alarm-song': {const item=appleFavorite(this._appleItems[Number(data.index)]);if(item?.media_type==='track')await this._toggleFavorite(item,undefined,true);break;}
-      case 'move-favorite': await this._moveFavorite(data.program,data.direction);break;
+      case 'move-favorite': await this._moveFavorite(data.program,data.offset===undefined?data.direction:Number(data.offset));break;
       case 'manage-favorites':
         this._appleDialog.close();this._request++;this._browseLoading=false;this._favoriteMode=true;this._radioError='';this._error='';
         if(!this._dialog.open)this._dialog.showModal();this._renderBrowser();break;
@@ -965,10 +965,10 @@ export class MusicPlayerBase extends HTMLElement {
       results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
       results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-browser"><div class="music-station-row">${logoMarkup(item)}${row({
         title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?'Titel':item.media_type==='album'?'Album':'Playlist'):'Radiosender'
-      })}</div><div class="music-favorite-actions">${this._radioAlarmButton(item,'favorite-alarm-song',{id:item.media_content_id})}${['album','playlist'].includes(item.media_type)?button({label:'Titel anzeigen',action:'favorite-tracks',data:{id:item.uri},disabled:this._favoriteBusy||this._busy}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,upLabel:'Nach oben: '+item.title,downLabel:'Nach unten: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
+      })}</div><div class="music-favorite-actions">${this._radioAlarmButton(item,'favorite-alarm-song',{id:item.media_content_id})}${['album','playlist'].includes(item.media_type)?button({label:'Titel anzeigen',action:'favorite-tracks',data:{id:item.uri},disabled:this._favoriteBusy||this._busy}):''}${programOrderButtons({programId:item.media_content_id,index,count:this._favorites.length,action:'move-favorite',desktopOnly:false,disabled:this._favoriteBusy||!this._hass?.user?.id,dragLabel:'Favorit verschieben: '+item.title})}<label class="check"><input type="checkbox" data-managed-favorite-id="${escapeHtml(item.media_content_id)}" aria-label="${escapeHtml('Favorit behalten: '+item.title)}"${this._favoriteRemovingId===item.media_content_id?'':' checked'}${this._favoriteBusy||!this._hass?.user?.id?' disabled':''}><span class="visually-hidden">${escapeHtml(item.title)}</span></label></div></div>`).join(''):emptyState('Keine Favoriten vorhanden. Über den Stern bei Sendern, Titeln, Alben oder Playlists kannst du Favoriten hinzufügen.');
       if(this._pendingFavoriteFocus&&!this._favoriteBusy) {
         const {id,index=0,direction}=this._pendingFavoriteFocus,inputs=[...results.querySelectorAll('input[data-managed-favorite-id]')];
-        const moved=direction&&[...results.querySelectorAll('[data-action="move-favorite"]')].find(b=>!b.disabled&&b.dataset.program===id&&b.dataset.direction===direction);
+        const moved=direction&&[...results.querySelectorAll('[data-action="move-favorite"]')].find(b=>!b.disabled&&b.dataset.program===id);
         (moved||inputs.find(input=>input.dataset.managedFavoriteId===id)||inputs[Math.min(index,inputs.length-1)]||this._dialog.querySelector('[data-action="manage-favorites"]')).focus();
         this._pendingFavoriteFocus=null;
       }

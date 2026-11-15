@@ -1,5 +1,11 @@
 # Music Manager 2.2.0
 
+## Neu in 2.4.0
+
+Manuell sortierbare Einträge werden am gemeinsamen Sortiergriff gedrückt gehalten und an die gewünschte Position gezogen. Die bisherigen Auf-/Ab-Pfeile entfallen. Maus, Touch und Tastatur am Griff werden unterstützt; Escape bricht den Vorgang ab. HA UI Kit 1.7.0 liefert Griff, Rückmeldung und Interaktion gemeinsam. Bestehende Rechte und gespeicherte Daten bleiben erhalten.
+
+Die persönliche Favoritenreihenfolge wird mit einem einzigen Speichervorgang geändert. Andere Benutzer, Wecklieder und private Kontozuordnungen bleiben erhalten.
+
 ![Music Manager](brand/icon.png)
 
 [![Prüfungen](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml/badge.svg)](https://github.com/v9h45n47mh-lab/music-manager/actions/workflows/validate.yml)
