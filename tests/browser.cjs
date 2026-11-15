@@ -180,7 +180,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await action('open-radio').click();await dialog().locator('[data-action="popular"]').click();await dialog().locator('[data-action="play-station"]').first().waitFor();await page.keyboard.press('Escape');
   // A separate untouched UI Kit reference ensures local styles do not alter shared components.
   await page.evaluate(async()=>{
-   const kit=await import('/src/family-ui/1.4.1/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
+   const kit=await import('/src/family-ui/1.7.0/family-ui.js');const ref=document.querySelector('#reference').attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Beschreibung',trailing:kit.button({label:'Abspielen',action:'ref'})})}`;
   });
   for(const width of [320,375,390,430,1100])for(const dark of [false,true]){
@@ -356,12 +356,18 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await page.waitForFunction(()=>demo.favoriteData.get('manuel').length===3);
   await apple.getByRole('button',{name:'Favoriten verwalten',exact:true}).click();await apple.waitFor({state:'hidden'});
   const manager=dialog();await manager.getByRole('checkbox',{name:'Favorit behalten: Mein Lieblingsalbum',exact:true}).waitFor();
-  await manager.getByRole('button',{name:'Nach oben: Mein Lieblingsalbum',exact:true}).click();
+  await manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}).focus();await manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}).press('ArrowUp');
   await page.waitForFunction(()=>demo.favoriteData.get('manuel')[1].title==='Mein Lieblingsalbum');
-  await manager.getByRole('button',{name:'Nach oben: Mein Lieblingsalbum',exact:true}).click();
+  await manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}).focus();await manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}).press('ArrowUp');
   await page.waitForFunction(()=>demo.favoriteData.get('manuel')[0].title==='Mein Lieblingsalbum');
-  assert(await manager.getByRole('button',{name:'Nach oben: Mein Lieblingsalbum',exact:true}).isDisabled());
+  assert.equal(await manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}).isEnabled(),true);
   assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Mein Lieblingsalbum','SWR3','Meine Lieblingsmusik']);
+  const grip=manager.getByRole('button',{name:'Favorit verschieben: Mein Lieblingsalbum',exact:true}),target=manager.getByRole('button',{name:'Favorit verschieben: Meine Lieblingsmusik',exact:true});
+  await grip.scrollIntoViewIfNeeded();const a=await grip.boundingBox(),b=await target.boundingBox();
+  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.waitForTimeout(230);await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:8});await page.mouse.up();
+  await page.waitForFunction(()=>demo.favoriteData.get('manuel')[2].title==='Mein Lieblingsalbum');
+  await grip.press('Home');await page.waitForFunction(()=>demo.favoriteData.get('manuel')[0].title==='Mein Lieblingsalbum');
+
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    assert(!(await manager.evaluate(el=>el.scrollWidth>el.clientWidth)));
@@ -383,7 +389,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await card().locator('#player [data-action="manage-favorites"]').click();
   await dialog().getByRole('checkbox',{name:'Favorit behalten: Eins',exact:true}).waitFor();
   await page.evaluate(()=>demo.failFavorites=true);
-  await dialog().getByRole('button',{name:'Nach unten: Eins',exact:true}).click();await dialog().getByRole('alert').waitFor();
+  await dialog().getByRole('button',{name:'Favorit verschieben: Eins',exact:true}).focus();await dialog().getByRole('button',{name:'Favorit verschieben: Eins',exact:true}).press('ArrowDown');await dialog().getByRole('alert').waitFor();
   assert.deepEqual(await page.evaluate(()=>demo.favoriteData.get('manuel').map(f=>f.title)),['Eins','Zwei']);
   assert.equal(await page.evaluate(()=>demo.wsCalls.filter(m=>m.type==='media_source/browse_media').length),0);
  });
@@ -547,7 +553,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   await reset();await page.evaluate(async()=>{
    const song={kind:'apple_music',uri:'apple_music--demo://track/long',media_type:'track',title:'Skifahrt (Chicken Fajita) und ein sehr langer zusammenhängender Liedname'};demo.seedAlarmSongs('maximilian',[song]);demo.alarmSelections.set('school_alarm',song);demo.addAlarmRow();
    const host=document.querySelector('#alarm-host');host.style.display='grid';host.style.gridTemplateColumns='40px minmax(0,1fr)';host.style.gap='16px';host.style.overflow='hidden';host.prepend(document.createElement('span'));
-   const kit=await import('/src/family-ui/1.4.1/family-ui.js');const holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';const ref=holder.attachShadow({mode:'open'});
+   const kit=await import('/src/family-ui/1.7.0/family-ui.js');const holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';const ref=holder.attachShadow({mode:'open'});
    ref.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Weckmusik',description:'Lied',trailing:kit.button({label:'Auswählen',action:'reference'})})}`;
   });
   const alarm=page.locator('music-manager-alarm-row').first();await alarm.getByRole('button',{name:'Auswählen',exact:true}).waitFor();
@@ -640,7 +646,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  });
  await check('player selector keeps native UI Kit styling and the player fits phone desktop light and dark',async()=>{
   await setupPlayer();await page.evaluate(async()=>{
-   const kit=await import('/src/family-ui/1.4.1/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
+   const kit=await import('/src/family-ui/1.7.0/family-ui.js'),holder=document.querySelector('#reference');holder.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:300px;visibility:hidden';holder.attachShadow({mode:'open'}).innerHTML=`<style>${kit.UI_CSS}</style>${kit.selectField({id:'ref-box',label:'Box',options:[{value:'one',label:'Wohnzimmer'}]})}`;
    demo.update('media_player.wohnzimmer',{attributes:{media_title:'Ein sehr langer Titel für einen responsiven Musicplayer',entity_picture:'/missing-cover.png'}});
   });
   await page.waitForFunction(()=>!document.querySelector('music-manager-card').shadowRoot.querySelector('.fui-player-heading img'));
@@ -686,7 +692,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
    for(const button of await player().locator('.fui-music-transport button').all()){await button.hover();const box=await button.boundingBox();assert.equal(box.width,box.height);assert.equal(await button.evaluate(e=>getComputedStyle(e).borderRadius),'50%');}
    const slider=player().locator('#music-volume');assert.equal(await slider.getAttribute('max'),'50');await slider.evaluate(e=>{e.value='50';e.dispatchEvent(new Event('input',{bubbles:true}));});assert.equal(await slider.evaluate(e=>e.style.getPropertyValue('--range-percent')),'100%');await slider.dispatchEvent('change');await page.waitForFunction(()=>demo.calls.at(-1).data.volume_level===.5);assert.equal(await player().locator('output').innerText(),'50 %');await page.mouse.move(0,0);await player().screenshot({path:path.join(screens,`player-fifty-${width}-${dark?'dark':'light'}.png`)});
   }
-  assert(await player().evaluate(async el=>{const kit=await import('/src/family-ui/1.4.1/family-ui.js');return el.shadowRoot.querySelectorAll('style').length===1&&el.shadowRoot.querySelector('style').textContent===kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS;}));
+  assert(await player().evaluate(async el=>{const kit=await import('/src/family-ui/1.7.0/family-ui.js');return el.shadowRoot.querySelectorAll('style').length===1&&el.shadowRoot.querySelector('style').textContent===kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS;}));
   await page.evaluate(()=>demo.cards.at(-1)._action({action:'volume',phase:'change',value:99}));assert.equal(await page.evaluate(()=>demo.calls.at(-1).data.volume_level),.5);
  });
  await check('player native slider caps a public committed volume event at fifty',async()=>{
@@ -707,7 +713,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
  await check('player closing radio Apple Music and favorites by X or Escape returns to settings with versions',async()=>{
   await setupPlayer();await player().getByRole('button',{name:'Einstellungen',exact:true}).click();const settings=player().locator('#music-player-settings');
   for(const [name,id] of [['Sender wählen','music-radio-dialog'],['Apple Music öffnen','music-apple-dialog'],['Favoriten und Wecklieder verwalten','music-radio-dialog']])for(const close of ['button','escape']){
-   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.3.0 · Integration 2.3.0 · UI 1.4.1');
+   await settings.getByRole('button',{name,exact:true}).click();const child=player().locator('#'+id);await child.waitFor();if(close==='button')await child.getByRole('button',{name:'Schließen',exact:true}).click();else await page.keyboard.press('Escape');await child.waitFor({state:'hidden'});assert(await settings.isVisible());assert.equal(await settings.locator('.version-info').innerText(),'Oberfläche 2.4.0 · Integration 2.4.0 · UI 1.7.0');
   }
   await settings.getByRole('button',{name:'Schließen',exact:true}).click();await settings.waitFor({state:'hidden'});
   await page.evaluate(()=>demo.switchUser('paul'));await page.waitForFunction(()=>demo.cards.at(-1)._navigationReady&&!demo.cards.at(-1)._navigationLoading);await player().getByRole('button',{name:'Einstellungen',exact:true}).click();
@@ -809,7 +815,7 @@ async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
   assert.deepEqual(await page.evaluate(()=>configurationDemo.data.speaker_users),[{id:'manuel',name:'Manuel'}]);
  });
  await check('configuration follows UI Kit typography and fits desktop mobile and both themes',async()=>{
-  await openConfiguration();await page.evaluate(async()=>{const kit=await import('/src/family-ui/1.4.1/family-ui.js');const root=document.querySelector('#reference').attachShadow({mode:'open'});root.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Text'})}`;});
+  await openConfiguration();await page.evaluate(async()=>{const kit=await import('/src/family-ui/1.7.0/family-ui.js');const root=document.querySelector('#reference').attachShadow({mode:'open'});root.innerHTML=`<style>${kit.UI_CSS}</style>${kit.row({title:'Referenz',description:'Text'})}`;});
   for(const width of [320,390,1100])for(const dark of [false,true]){
    await page.setViewportSize({width,height:900});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    const report=await panel().evaluate(el=>{const root=el.shadowRoot,ref=document.querySelector('#reference').shadowRoot;const styles=e=>{const s=getComputedStyle(e);return [s.fontFamily,s.fontSize,s.fontWeight,s.color];};return {over:[...root.querySelectorAll('#configuration *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<0||r.right>innerWidth+1)}).map(e=>e.outerHTML.slice(0,100)),actual:styles(root.querySelector('.row-text strong')),reference:styles(ref.querySelector('.row-text strong'))};});

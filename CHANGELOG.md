@@ -1,5 +1,12 @@
 # Änderungen
 
+## 2.4.0
+
+Manuell sortierbare Einträge werden am gemeinsamen Sortiergriff gedrückt gehalten und an die gewünschte Position gezogen. Die bisherigen Auf-/Ab-Pfeile entfallen. Maus, Touch und Tastatur am Griff werden unterstützt; Escape bricht den Vorgang ab. HA UI Kit 1.7.0 liefert Griff, Rückmeldung und Interaktion gemeinsam. Bestehende Rechte und gespeicherte Daten bleiben erhalten.
+
+Die persönliche Favoritenreihenfolge wird mit einem einzigen Speichervorgang geändert. Andere Benutzer, Wecklieder und private Kontozuordnungen bleiben erhalten.
+
+
 ## 2.3.0
 
 Rollenrechte: Musikansicht, Wiedergabe, Konfiguration ansehen, fremde Weckmusik verwalten, Boxauswahl und persönliche Wecklieder. Die lokale Rechteauswahl für die Boxauswahl entfällt. Musikkonto- und Playerzuordnungen bleiben erhalten. Native Musiktasten laufen über einen authentifizierten Backend-Endpunkt mit Rollen- und Geräteprüfung.

@@ -1,4 +1,4 @@
-import {UI_CSS, MUSIC_PLAYER_CSS, musicPlayerHeader, musicTransport, musicFavoriteTile, musicActionButton, musicArtwork, notice, button, iconButton, field, section, row, dialog, loadingState, emptyState, versionInfo, UI_VERSION} from './family-ui/1.4.1/family-ui.js';
+import {UI_CSS, MUSIC_PLAYER_CSS, musicPlayerHeader, musicTransport, musicFavoriteTile, musicActionButton, musicArtwork, notice, button, iconButton, field, section, row, dialog, loadingState, emptyState, versionInfo, UI_VERSION} from './family-ui/1.7.0/family-ui.js';
 import {normalizeConfig, stationLogo, errorText, isAvailable, hasFeature, MUSIC_VERSION, sonosContentId, sonosPlaybackSource, isRadioId} from './core.js';
 import {MusicPlayerBase, MusicPlayerEditorBase} from './music-player-base.js';
 

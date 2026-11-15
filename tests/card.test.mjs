@@ -53,7 +53,7 @@ const navigationData=new Map();
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
-    return {can_select,players,version:'2.3.0',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+    return {can_select,players,version:'2.4.0',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
    }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
@@ -479,7 +479,7 @@ test('mixed favorites can be reordered and removed without Radio Browser and fai
  const album={kind:'apple_music',uri:'apple_music--a://album/42',media_type:'album',title:'Album'};
  env.favoriteData.set('manuel',[station('one','Eins'),album,station('two','Zwei')]);env.notifyFavorites('manuel');env.failBrowse=true;
  env.click(a,'manage-favorites');await flush();assert.equal(a._dialog.open,true);assert.equal(a.shadowRoot.querySelectorAll('[data-managed-favorite-id]').length,3);
- assert(a.shadowRoot.querySelector('[data-action="move-favorite"][data-direction="up"]').disabled);
+ assert(a.shadowRoot.querySelector('[data-action="move-favorite"][data-ui="order"]'));
  await a._moveFavorite(album.uri,'up');await flush();assert.deepEqual(env.favoriteData.get('manuel').map(f=>f.title),['Album','Eins','Zwei']);assert.equal(b._favorites[0].title,'Album');
  env.failFavorites=true;await a._moveFavorite(album.uri,'down');await flush();assert.equal(a._favorites[0].title,'Album');assert.match(a._dialog.textContent,/nicht sortiert/);
  env.failFavorites=false;const checkbox=[...a.shadowRoot.querySelectorAll('[data-managed-favorite-id]')].find(el=>el.dataset.managedFavoriteId===album.uri);checkbox.checked=false;checkbox.dispatchEvent(new env.window.Event('change',{bubbles:true}));await flush();
@@ -649,7 +649,7 @@ test('player radio only shows play pause while Apple keeps track navigation',asy
  env.update('media_player.a',{attributes:{media_content_id:'http://ma.example/flow/session/queue/item/player.aac'}});env.update('media_player.ma_a',{attributes:{active_queue:'queue',media_content_id:'apple_music--demo://track/song'}});card._appleEntity='media_player.ma_a';card._renderPlayer();assert(card.shadowRoot.querySelector('#player [data-action="next"]'));
 });
 test('player uses exactly the pinned kit styles and accessible icon-only favorite tiles',async()=>{
- const env=setup();env.favoriteData.set('manuel',[station('swr3','Mein Sender')]);const card=env.addPlayer();await flush();const kit=await import('../src/family-ui/1.4.1/family-ui.js');
+ const env=setup();env.favoriteData.set('manuel',[station('swr3','Mein Sender')]);const card=env.addPlayer();await flush();const kit=await import('../src/family-ui/1.7.0/family-ui.js');
  assert.equal(card.shadowRoot.querySelectorAll('style').length,1);assert.equal(card.shadowRoot.querySelector('style').textContent,kit.UI_CSS+'\n'+kit.MUSIC_PLAYER_CSS);const tile=card.shadowRoot.querySelector('[data-action="play-favorite"]');assert.equal(tile.textContent,'');assert.equal(tile.getAttribute('title'),'Mein Sender');assert.equal(tile.getAttribute('aria-label'),'Mein Sender abspielen');
 });
 
@@ -684,7 +684,7 @@ test('player Apple Music favorites and combined wake-song dialogs retain their p
 });
 test('player radio browser returns to the settings dialog and shows actual component versions',async()=>{
  const env=setup(),card=env.addPlayer();await flush();env.click(card,'player-settings');const sender=card._settingsDialog.querySelector('[data-action="open-radio"]');sender.click();await flush();assert(card._dialog.open);assert(card._settingsDialog.open);
- card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.3\.0 · Integration 2\.3\.0 · UI 1\.4\.1/);
+ card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.4\.0 · Integration 2\.4\.0 · UI 1\.7\.0/);
 });
 test('player children show their fixed speaker only inside settings and adults use a compact room dropdown',async()=>{
  const env=setup(),card=env.addPlayer();await flush();assert(card.shadowRoot.querySelector('.fui-player-speaker-compact'));assert.equal(card.shadowRoot.querySelector('#music-player-box option').textContent.includes('Sonos '),false);

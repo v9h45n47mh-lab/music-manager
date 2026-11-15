@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '2.3.0';
+export const MUSIC_VERSION = '2.4.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -184,11 +184,11 @@ export async function saveAlarmSong(hass,favorite,enabled) {
   });
 }
 export async function moveFavorite(hass,id,direction) {
-  if(!['up','down'].includes(direction))throw new Error('Ungültige Sortierrichtung.');
+  if(!['up','down'].includes(direction)&&!Number.isInteger(direction))throw new Error('Ungültige Sortierposition.');
   return updateFavorites(hass,favorites=>{
-    const index=favorites.findIndex(s=>s.media_content_id===id),target=index+(direction==='up'?-1:1);
+    const index=favorites.findIndex(s=>s.media_content_id===id),target=index+(Number.isInteger(direction)?direction:direction==='up'?-1:1);
     if(index<0||target<0||target>=favorites.length)return favorites;
-    const next=[...favorites];[next[index],next[target]]=[next[target],next[index]];return next;
+    const next=[...favorites];next.splice(target,0,...next.splice(index,1));return next;
   });
 }
 

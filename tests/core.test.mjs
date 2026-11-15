@@ -99,6 +99,10 @@ test('sorting merges with concurrent adds and removals without losing mixed favo
  assert.deepEqual(items.map(i=>i.title),['radio','Playlist','Album','new']);
  await saveFavorite(hass,{...album,title:'Renamed Album'},true);assert.equal(items[2].title,'Renamed Album');
  await Promise.all([saveFavorite(hass,album,false),moveFavorite(hass,album.uri,'up')]);assert.deepEqual(items.map(i=>i.title),['radio','Playlist','new']);
+ await moveFavorite(hass,RADIO_ROOT+'/radio',2);
+ assert.deepEqual(items.map(i=>i.title),['Playlist','new','radio']);
+ await moveFavorite(hass,RADIO_ROOT+'/radio',-2);
+ assert.deepEqual(items.map(i=>i.title),['radio','Playlist','new']);
  await assert.rejects(moveFavorite(hass,playlist.uri,'invalid'));
 });
 test('wake songs are stored separately from favorites and migrated without loss',async()=>{

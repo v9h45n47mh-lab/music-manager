@@ -1,9 +1,8 @@
 {
-  "version": "2.3.0",
-  "ui_version": "1.4.1",
-  "ui_source_commit": "393474e75869ba79195d800624a5a793a51fe2c4",
+  "version": "2.4.0",
+  "ui_version": "1.7.0",
   "files": {
-    "music-manager-card.js": "3c1d117e805ef3b8f4c675a2350bec1bd43a746f6c3ff8d123f1ffb83e90d9cb",
-    "LICENSES.txt": "8567b0fbef65f1f86d468bace9a0cc1596faeac47223d187ee664e238e993c1b"
+    "music-manager-card.js": "47cb7b889f8f52ab76accde9080d5eb6425cd95f8b7720a6d7cfc7463702ff46",
+    "LICENSES.txt": "129c67df39dccb04e1ce8450c3cb382793941e3c353557e9489240af5bbaa047"
   }
 }
