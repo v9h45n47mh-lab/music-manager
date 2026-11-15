@@ -1,4 +1,4 @@
-/* Music Manager 2.2.1 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
+/* Music Manager 2.3.0 | MIT | HA UI Kit 1.4.1 bundled locally, unchanged | See LICENSES.txt */
 const MusicManagerUI = (() => {
 /* HA UI Kit 1.4.1 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
 const UI_VERSION = "1.4.1";
@@ -577,7 +577,7 @@ return {UI_VERSION,UI_CSS,ICON_NAMES,icon,MUSIC_PLAYER_CSS,escapeHtml,button,pro
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '2.2.1';
+export const MUSIC_VERSION = '2.3.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -768,6 +768,19 @@ export async function moveFavorite(hass,id,direction) {
   });
 }
 
+export function observeFamilyAccess(host, application, changed) {
+  const hass=host._hass,uid=hass?.user?.id;
+  if(!uid||typeof hass.callWS!=='function')return;
+  if(host._familyAccessUser!==uid){host._familyAccessUnsub?.();host._familyAccessUser=uid;host._familyAccessWatching=false;host._familyAccessEpoch=(host._familyAccessEpoch||0)+1;host._familyAccess=null;}
+  if(host._familyAccessWatching||Date.now()<(host._familyAccessRetry||0))return;
+  host._familyAccessWatching=true;
+  const epoch=host._familyAccessEpoch;
+  const accept=result=>{if(epoch!==host._familyAccessEpoch)return;host._familyAccess=result.permissions||{};changed?.();};
+  const request=hass.connection?.subscribeMessage?hass.connection.subscribeMessage(accept,{type:'family_access/subscribe',application}):hass.callWS({type:'family_access/application_permissions',application}).then(accept);
+  Promise.resolve(request).then(unsub=>{if(typeof unsub==='function'){if(epoch===host._familyAccessEpoch)host._familyAccessUnsub=unsub;else unsub();}}).catch(()=>{if(epoch===host._familyAccessEpoch){host._familyAccess={};host._familyAccessWatching=false;host._familyAccessRetry=Date.now()+10000;changed?.();}});
+}
+export function releaseFamilyAccess(host){host._familyAccessUnsub?.();host._familyAccessUnsub=null;host._familyAccessWatching=false;host._familyAccessEpoch=(host._familyAccessEpoch||0)+1;}
+
 /** Dialog layout shared by the music card and the alarm entities row. */
 export const MUSIC_DIALOG_CSS = `
   .modal{max-height:90dvh}
@@ -940,7 +953,7 @@ export class MusicPlayerBase extends HTMLElement {
   set hass(hass) {
     const previous = this._state;
     const userChanged=this._hass && (this._hass.user?.id!==hass.user?.id || this._hass.connection!==hass.connection);
-    this._hass = hass;
+    this._hass = hass;observeFamilyAccess(this,'music_manager',()=>this._renderPlayer());
     if (!this._config) return;
     this._ensureDOM();
     if(userChanged){this._epoch++;this._busy=false;this._playbackSource=null;this._selectedStation=null;this._playbackIntent=null;this._radioContentId=null;this._cancelSeek();this._resetApple();}
@@ -980,6 +993,7 @@ export class MusicPlayerBase extends HTMLElement {
 
   connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._connectAlarmSongs(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
   disconnectedCallback() {
+    releaseFamilyAccess(this);
     clearTimeout(this._progressTimer);this._cancelSeek();
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
@@ -1307,6 +1321,10 @@ export class MusicPlayerBase extends HTMLElement {
   get _volumeMax(){return 100;}
 
   _renderPlayer() {
+    if(this._familyAccess && !this._familyAccess.view && !this._hass?.user?.is_admin){
+      this._ensureDOM();this._player.innerHTML=notice('Music Manager ist für deine Rolle nicht freigegeben.');
+      this._dialog?.close();this._appleDialog?.close();return;
+    }
     if (!this._player || !this._config) return;
     // HA state updates must not replace an input while the user drags it.
     const active = this.shadowRoot.activeElement;
@@ -1431,13 +1449,13 @@ export class MusicPlayerBase extends HTMLElement {
   }
 
   async _service(service,payload={},onSuccess,entityOverride) {
-    if(this._busy || !this._hass || !isAvailable(this._state))return false;
+    if(this._busy || !this._hass || !isAvailable(this._state) || this._familyAccess&&!this._familyAccess.play&&!this._hass.user?.is_admin)return false;
     const epoch=this._epoch, hass=this._hass, entity=entityOverride||this._controlEntity;
     this._busy=true;this._pendingService=service;this._error='';this._renderPlayer();
     if(this._dialog.open)this._renderBrowser();
     try {
       if(service==='media_next_track'&&entity===this._musicAssistantEntity)await this._appleCommand('next');
-      else await hass.callService('media_player',service,{...payload,entity_id:entity});
+      else await hass.callWS({type:'music_manager/player_action',service,entity_id:entity,data:payload});
       if(epoch!==this._epoch)return false;
       onSuccess?.();
       return true;
@@ -1772,7 +1790,7 @@ export class MusicPlayerEditorBase extends HTMLElement {
     this._renderPreservingInput();
   }
   set hass(hass) {
-    this._hass=hass;
+    this._hass=hass;observeFamilyAccess(this,'music_manager',()=>this._render());
     if(!this._registryRequested) {
       this._registryRequested=true;
       const cached=sonosOptions(hass);
@@ -1788,7 +1806,8 @@ export class MusicPlayerEditorBase extends HTMLElement {
     if(!this.shadowRoot.firstChild)this._render();
   }
   connectedCallback() {this._render();}
-  disconnectedCallback() {this._unbind?.();this._unbind=null;}
+  disconnectedCallback() {
+    releaseFamilyAccess(this);this._unbind?.();this._unbind=null;}
   _emit() {
     this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config,controls:{...this._config.controls}}},bubbles:true,composed:true}));
   }

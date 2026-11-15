@@ -1,3 +1,4 @@
+from copy import deepcopy
 """User isolation, remembered speakers and restrictions of the beta player."""
 import importlib
 import sys
@@ -100,17 +101,13 @@ class NavigationTests(IsolatedAsyncioTestCase):
             await self.data('manuel', 'media_player.bedroom')
         self.assertEqual((await self.data('manuel'))['entity_id'], 'media_player.office')
 
-    async def test_options_flow_prefills_defaults_and_preserves_existing_configuration(self):
-        flow = self.flow_module.MusicManagerOptionsFlow()
-        flow.hass, flow.config_entry = self.hass, self.entry
-        form = await flow.async_step_speaker_users()
-        marker = next(iter(form['data_schema']))
-        self.assertEqual(set(marker.default()), {'manuel', 'vera'})
-        self.entry.options = {'accounts': [{'ha_user_id': 'manuel'}], 'alarms': [{'alarm_id': 'school'}]}
-        saved = await flow.async_step_speaker_users({'speaker_selection_users': ['manuel', 'vera']})
-        self.assertEqual(saved['data']['accounts'], self.entry.options['accounts'])
-        self.assertEqual(saved['data']['alarms'], self.entry.options['alarms'])
-        self.assertEqual(saved['data']['speaker_selection_users'], ['manuel', 'vera'])
+    async def test_local_rights_editor_redirects_to_central_management_without_changes(self):
+        flow=self.flow_module.MusicManagerOptionsFlow()
+        flow.hass,flow.config_entry=self.hass,self.entry
+        before=deepcopy(self.entry.options)
+        result=await flow.async_step_speaker_users()
+        self.assertEqual(result['reason'],'permissions_in_family_access')
+        self.assertEqual(self.entry.options,before)
 
     async def test_wake_content_is_available_to_children_and_parents_only(self):
         for name in ['manuel', 'vera', 'maximilian', 'paul']:

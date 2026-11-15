@@ -129,7 +129,8 @@
       "music_assistant_missing": "Verbinde zuerst Music Assistant unter Konfigurieren → Music-Assistant-Verbindung. Radio kannst du bereits verwenden.",
       "no_alarms": "Es sind noch keine Wecker zugeordnet.",
       "invalid_alarm": "Die Weckerkennung ist ungültig.",
-      "invalid_account": "Die gewählte Benutzerzuordnung ist nicht mehr vorhanden. Öffne die Konfiguration erneut."
+      "invalid_account": "Die gewählte Benutzerzuordnung ist nicht mehr vorhanden. Öffne die Konfiguration erneut.",
+      "permissions_in_family_access": "Berechtigungen werden in Family Access je Rolle verwaltet."
     }
   }
 }

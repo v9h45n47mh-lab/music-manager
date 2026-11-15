@@ -129,7 +129,8 @@
       "music_assistant_missing": "First connect Music Assistant under Configure → Music Assistant connection. Radio already works.",
       "no_alarms": "No alarms have been assigned.",
       "invalid_alarm": "Invalid alarm ID.",
-      "invalid_account": "The selected user assignment no longer exists. Reopen the configuration."
+      "invalid_account": "The selected user assignment no longer exists. Reopen the configuration.",
+      "permissions_in_family_access": "Permissions are managed by role in Family Access."
     }
   }
 }

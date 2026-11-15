@@ -65,6 +65,7 @@ def load_installation():
     const.POLICY_CONTROL, const.POLICY_READ = 'control', 'read'
     ws = module('homeassistant.components.websocket_api')
     ws.websocket_command = lambda schema: lambda fn: fn
+    ws.async_register_command = lambda *args: None
     ws.async_response = lambda fn: fn
     ws.async_register_command = lambda *args: None
     module('homeassistant.helpers.entity_registry')
@@ -149,7 +150,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
 
     def make_hass(self, collection=None):
         return NS(data={'lovelace': NS(resources=collection if collection is not None else Resources())},
-                  http=NS(async_register_static_paths=AsyncMock()), extra=set(), panels={})
+                  http=NS(async_register_static_paths=AsyncMock()),auth=NS(async_get_users=AsyncMock(return_value=[])), extra=set(), panels={})
 
     async def test_new_install_registers_bundled_card_without_music_assistant(self):
         hass = self.make_hass()
@@ -349,7 +350,7 @@ class InstallationTests(IsolatedAsyncioTestCase):
         with patch.object(storage, 'async_user_store', new=AsyncMock(side_effect=lambda hass, owner: stores[owner])):
             overview = await flow.async_step_init()
             self.assertEqual(overview['type'], 'menu')
-            self.assertEqual(overview['menu_options'], ['connect', 'speaker_users', 'add', 'edit', 'remove', 'alarm', 'alarm_edit', 'alarm_remove'])
+            self.assertEqual(overview['menu_options'], ['connect', 'add', 'edit', 'remove', 'alarm', 'alarm_edit', 'alarm_remove'])
             text = overview['description_placeholders']
             self.assertEqual(text['connection'], 'MA Home')
             self.assertEqual(text['account_count'], '2')

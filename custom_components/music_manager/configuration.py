@@ -7,6 +7,7 @@ import probatio as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.frontend.storage import async_user_store
 
+from .family_access import allows
 from .access import AccessError, value
 from .alarms import selection_from
 from .const import CONF_ACCOUNTS, CONF_ALARMS, CONF_MASS_ENTRY, DOMAIN, VERSION
@@ -68,7 +69,7 @@ async def configuration_snapshot(hass, entry):
 async def websocket_configuration(hass, connection, msg):
     try:
         user = connection.user
-        if not user or not user.is_admin or not user.is_active or user.system_generated:
+        if not user or not allows(hass,user,DOMAIN,'manage',user.is_admin) or not user.is_active or user.system_generated:
             raise AccessError("unauthorized", "Die Music-Manager-Konfiguration ist nur für Administratoren verfügbar.")
         entries = list(hass.data.get(DOMAIN, {}).values())
         if len(entries) != 1:

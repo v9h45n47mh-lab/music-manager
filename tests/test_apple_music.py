@@ -236,6 +236,7 @@ def load_gateway():
             return fn
         return decorate
     ws.websocket_command, ws.async_response = command, lambda fn: fn
+    ws.async_register_command = lambda *args: None
     helpers = module('homeassistant.components.music_assistant.helpers')
     helpers.get_music_assistant_client = lambda hass, entry_id: hass.mass
     registry = module('homeassistant.helpers.entity_registry')
@@ -253,6 +254,29 @@ def load_gateway():
 
 
 class GatewayTests(IsolatedAsyncioTestCase):
+    async def test_player_gateway_checks_central_and_native_rights_each_time(self):
+        from unittest.mock import Mock
+        import sys,types
+        core=types.ModuleType('homeassistant.core');core.Context=lambda **kw:NS(**kw);sys.modules[core.__name__]=core
+        hass,connection,_,entities,native=self.setup_gateway()
+        connection.user.is_admin=False
+        grants={'view':True,'play':False}
+        hass.data['family_access_manager']=NS(application_protocol=1,application_permissions=lambda u,a:dict(grants))
+        hass.services=NS(async_call=AsyncMock())
+        msg={'id':1,'service':'media_pause','entity_id':'media_player.sonos','data':{}}
+        await self.gateway.websocket_player_action(hass,connection,msg)
+        hass.services.async_call.assert_not_awaited();self.assertEqual(connection.error[0],'unauthorized')
+        grants['play']=True;native.allowed=False
+        await self.gateway.websocket_player_action(hass,connection,msg)
+        hass.services.async_call.assert_not_awaited()
+        native.allowed=True
+        await self.gateway.websocket_player_action(hass,connection,msg)
+        self.assertEqual(hass.services.async_call.call_args.kwargs['context'].user_id,connection.user.id)
+        self.assertFalse(connection.user.is_admin)
+        hass.services.async_call.reset_mock();grants.clear()
+        await self.gateway.websocket_player_action(hass,connection,msg)
+        hass.services.async_call.assert_not_awaited()
+
     @classmethod
     def setUpClass(cls):
         cls.gateway = load_gateway()

@@ -13,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
 from .access import AccessError, account_for, checked_account, sonos_uid, validate_uri, value
+from .family_access import allows
 from .const import CONF_ACCOUNTS, CONF_ALARMS, CONF_MASS_ENTRY, DOMAIN
 from .helpers import music_assistant_client
 
@@ -50,12 +51,14 @@ def configured_alarm(hass, alarm_id):
     return entry, alarms[0]
 
 
-async def alarm_owner(hass, alarm, caller):
+async def alarm_owner(hass, alarm, caller, application="music_manager", permission=None):
     owner = await hass.auth.async_get_user(alarm.get("ha_user_id"))
     if not owner or not owner.is_active or owner.system_generated:
         raise AccessError("unauthorized", "Der zugeordnete HA-Benutzer ist nicht aktiv.")
+    if caller is not None and not allows(hass,caller,application,permission or ('use_own' if application=='wecker_manager' else 'play'),True,audit=True):
+        raise AccessError('unauthorized','Die Weckerbedienung ist für deine Rolle nicht freigegeben.')
     if caller is not None and (not caller.is_active or (
-        caller.id != owner.id and not caller.is_admin
+        caller.id != owner.id and not allows(hass,caller,application,'manage' if application=='wecker_manager' else 'alarms_others',caller.is_admin,audit=True)
     )):
         raise AccessError("unauthorized", "Dieser Wecker gehört einem anderen Benutzer.")
     return owner
@@ -145,7 +148,7 @@ async def apple_target(hass, entry, alarm, owner):
 
 async def alarm_data(hass, caller, alarm_id, uri=None):
     entry, alarm = configured_alarm(hass, alarm_id)
-    owner = await alarm_owner(hass, alarm, caller)
+    owner = await alarm_owner(hass, alarm, caller, permission='view' if uri is None else 'play')
     source = checked_source(hass, alarm, owner)
     try:
         account = account_for(entry.options.get(CONF_ACCOUNTS, []), owner.id)
