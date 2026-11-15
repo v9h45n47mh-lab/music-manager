@@ -961,7 +961,7 @@ export class MusicPlayerBase extends HTMLElement {
     results.setAttribute('aria-label',manager?'Favoriten verwalten':'Radiosender und Kategorien');
     results.classList.toggle('music-browser',manager);
     if(manager) {
-      path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Mit den Pfeilen sortieren. Häkchen entfernen, um einen Favoriten aus der Kurzwahl zu entfernen.'});
+      path.innerHTML=row({title:`${this._favorites.length} Favoriten`,description:'Sortiergriff gedrückt halten und an die gewünschte Position ziehen. Häkchen entfernen, um einen Favoriten aus der Kurzwahl zu entfernen.'});
       results.setAttribute('aria-busy',String(this._favoriteBusy||this._favoriteLoading));
       results.innerHTML=this._favoriteLoading?'':this._favorites.length?this._favorites.map((item,index)=>`<div class="music-browser"><div class="music-station-row">${logoMarkup(item)}${row({
         title:item.title,description:item.kind==='apple_music'?(item.media_type==='track'?'Titel':item.media_type==='album'?'Album':'Playlist'):'Radiosender'

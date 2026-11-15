@@ -86,7 +86,7 @@ Sender, einzelne Apple-Music-Titel, Apple-Music-Alben und Apple-Music-Playlists 
 
 - **Hinzufügen oder entfernen:** Im Radio Browser sowie bei Titeln, Alben und Playlists im Apple-Music-Dialog den Stern betätigen.
 - **Titel eines Albums oder einer Playlist öffnen:** Im Apple-Music-Dialog oder in der Favoritenverwaltung **Titel anzeigen** wählen. Die einzelnen Titel lassen sich abspielen, unabhängig favorisieren oder als Wecklied vormerken. **Mehr laden** lädt weitere Titel; **Zurück** stellt die vorherige Ansicht einschließlich Suchbegriff und geladener Einträge wieder her.
-- **Sortieren:** Unter der Kurzwahl **Favoriten** öffnen. Alternativ ist **Favoriten verwalten** in beiden Auswahldialogen verfügbar. Mit **↑ / ↓** wird der jeweilige Eintrag um einen Platz verschoben. Die neue Reihenfolge wird direkt gespeichert und auf den anderen Karten übernommen. Die Pfeile sind auch auf dem Handy sichtbar und per Tastatur bedienbar.
+- **Sortieren:** Unter der Kurzwahl **Favoriten** öffnen. Alternativ ist **Favoriten verwalten** in beiden Auswahldialogen verfügbar. Den Sortiergriff gedrückt halten und den Eintrag an die gewünschte Position ziehen. Die neue Reihenfolge wird direkt gespeichert und auf den anderen Karten übernommen. Der Griff ist auch auf dem Handy sichtbar und unterstützt Maus, Touch und Tastatur.
 - **Entfernen:** In derselben Verwaltung das Häkchen beim betreffenden Sender, Titel, Album oder der Playlist entfernen.
 - **Abspielen:** Ein Klick auf eine Kachel startet den Favoriten auf der Sonos-Box dieser Karte. Apple-Music-Favoriten werden beim Start erneut gegen die persönliche Kontozuordnung geprüft. Für ein nicht mehr verfügbares oder anders zugeordnetes Konto erscheint ein Fehler; der Connector startet kein Ersatzkonto.
 
