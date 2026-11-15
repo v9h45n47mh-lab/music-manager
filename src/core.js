@@ -1,7 +1,7 @@
 // Home Assistant's MediaPlayerEntityFeature flags, verified against core 2026.11.1.
 export const FEATURES = Object.freeze({pause:1,seek:2,volume:4,mute:8,previous:16,next:32,playMedia:512,stop:4096,play:16384,shuffle:32768});
 export const RADIO_ROOT = 'media-source://radio_browser';
-export const MUSIC_VERSION = '2.2.1';
+export const MUSIC_VERSION = '2.3.0';
 export const CONTROL_DEFAULTS = Object.freeze({play_pause:true,previous:true,next:true,shuffle:true,volume:true});
 
 export function normalizeConfig(config) {
@@ -191,3 +191,16 @@ export async function moveFavorite(hass,id,direction) {
     const next=[...favorites];[next[index],next[target]]=[next[target],next[index]];return next;
   });
 }
+
+export function observeFamilyAccess(host, application, changed) {
+  const hass=host._hass,uid=hass?.user?.id;
+  if(!uid||typeof hass.callWS!=='function')return;
+  if(host._familyAccessUser!==uid){host._familyAccessUnsub?.();host._familyAccessUser=uid;host._familyAccessWatching=false;host._familyAccessEpoch=(host._familyAccessEpoch||0)+1;host._familyAccess=null;}
+  if(host._familyAccessWatching||Date.now()<(host._familyAccessRetry||0))return;
+  host._familyAccessWatching=true;
+  const epoch=host._familyAccessEpoch;
+  const accept=result=>{if(epoch!==host._familyAccessEpoch)return;host._familyAccess=result.permissions||{};changed?.();};
+  const request=hass.connection?.subscribeMessage?hass.connection.subscribeMessage(accept,{type:'family_access/subscribe',application}):hass.callWS({type:'family_access/application_permissions',application}).then(accept);
+  Promise.resolve(request).then(unsub=>{if(typeof unsub==='function'){if(epoch===host._familyAccessEpoch)host._familyAccessUnsub=unsub;else unsub();}}).catch(()=>{if(epoch===host._familyAccessEpoch){host._familyAccess={};host._familyAccessWatching=false;host._familyAccessRetry=Date.now()+10000;changed?.();}});
+}
+export function releaseFamilyAccess(host){host._familyAccessUnsub?.();host._familyAccessUnsub=null;host._familyAccessWatching=false;host._familyAccessEpoch=(host._familyAccessEpoch||0)+1;}

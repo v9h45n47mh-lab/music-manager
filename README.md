@@ -14,7 +14,7 @@ navigation_id: hauptplayer
 
 `entity` durch die tatsächliche native Sonos-Entität ersetzen. Sie bleibt die Ausgangsbox. `navigation_id` ist optional; damit lassen sich die persönlichen Box-Auswahlen mehrerer Karten trennen. Favoriten und Apple-Music-Konto gehören weiterhin dem angemeldeten HA-Benutzer.
 
-- **Vera und Manuel:** kompaktes Box-Dropdown oben links, 150 px breit, mit Raumnamen ohne „Sonos“-Vorsatz. Die gewählte Box wird je Benutzer gespeichert. Berechtigte Benutzer lassen sich unter **Konfigurieren → Box-Auswahl** verwalten.
+- **Vera und Manuel:** kompaktes Box-Dropdown oben links, 150 px breit, mit Raumnamen ohne „Sonos“-Vorsatz. Die gewählte Box wird je Benutzer gespeichert. Berechtigte Rollen werden in **Family Access → Music Manager → Boxauswahl** verwaltet.
 - **Maximilian und Paul:** feste Ausgangsbox. Der Boxname steht ausschließlich in den Einstellungen. Die gemeinsame Verwaltung **Favoriten & Wecklieder** steht Maximilian, Paul, Vera und Manuel zur Verfügung. Beide Listen bleiben getrennt gespeichert.
 - **Zahnrad oben rechts:** Sender, Apple Music und Favoritenverwaltung. Beim Schließen eines Dialogs über X oder Escape geht es zurück zu den Einstellungen. Dort stehen auch die installierten Versionen von Oberfläche, Integration und UI Kit.
 - **Wiedergabe:** runde Symboltasten; bei Radio nur Play/Pause. Apple Music bietet zusätzlich Vor/Zurück, Shuffle und die Zeitleiste zum Spulen.
@@ -92,7 +92,7 @@ Unter **Einstellungen → Geräte & Dienste → Music Manager → Konfigurieren*
 
 Die Seite verwendet das fest eingebundene **HA UI Kit 1.4.1** für Kopfbereich, Bereiche, Zeilen, Symbole, Buttons, Auswahlfelder, Meldungen und Dialoge. Über das Stiftsymbol einen Eintrag bearbeiten; seine aktuellen Werte sind vorausgefüllt. Der Papierkorb öffnet eine ausdrückliche Bestätigung. Beim Wechsel der MA-Verbindung wird das Entfernen bestehender Kontozuordnungen zusätzlich bestätigt.
 
-Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutige Konten, Quellenfilter, Benutzer- und Boxfreigaben werden weiterhin serverseitig geprüft. Die neue Übersichtsabfrage ist nur lesend und nur für aktive HA-Administratoren zugelassen. Sie liefert keine Zugangsdaten, Tokens oder Favoriten-URIs. Gespeicherte Zuordnungen bleiben auch bei nicht erreichbarem MA-Server sichtbar. Nach einem Benutzerwechsel werden offene Eingaben und Daten des vorherigen Benutzers verworfen.
+Die Verwaltungsseite speichert über die vorhandenen HA-Options-Flows. Eindeutige Konten, Quellenfilter, Benutzer- und Boxfreigaben werden weiterhin serverseitig geprüft. Die neue Übersichtsabfrage ist nur lesend und für Rollen mit dem Recht „Anwendungskonfiguration ansehen“ und HA-Administratoren zugelassen. Sie liefert keine Zugangsdaten, Tokens oder Favoriten-URIs. Gespeicherte Zuordnungen bleiben auch bei nicht erreichbarem MA-Server sichtbar. Nach einem Benutzerwechsel werden offene Eingaben und Daten des vorherigen Benutzers verworfen.
 
 ## Handyansicht
 
@@ -126,7 +126,7 @@ Ab 1.6.0 enthält die Integration die Entities-Zeile `custom:music-manager-alarm
   name: Weckmusik
 ```
 
-4. Unter **Weckmusik → Auswählen** einen Titel oder Radiosender aus der persönlichen **Weckliste** des Wecker-Benutzers wählen. Ein Administrator darf dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
+4. Unter **Weckmusik → Auswählen** einen Titel oder Radiosender aus der persönlichen **Weckliste** des Wecker-Benutzers wählen. Rollen mit „Weckmusik anderer Benutzer verwalten“ dürfen dies ebenfalls für den fest zugeordneten Benutzer erledigen. Andere Benutzer können seine Auswahl weder sehen noch ändern. Die Oberfläche zeigt den tatsächlichen Besitzer und die Box vor der Auswahl an.
 5. Im bestehenden Sonos-Zweig der Weckerautomation den bisherigen Start durch folgende Aktion ersetzen:
 
 ```yaml
@@ -269,3 +269,14 @@ Maximilian, Paul, Vera und Manuel können unter dem Zahnrad **Favoriten & Weckli
 Die Auswahl **Weckmusik** auf der Weckerkarte zeigt markierte Titel und Radiosender. Ein gespeicherter Radiosender bleibt auch nach Entfernen seiner Markierung für einen bereits eingerichteten Wecker erhalten, bis die Auswahl geändert wird. Radio wird nativ über Home Assistants Radio Browser abgespielt, Apple Music weiterhin mit dem zugeordneten persönlichen Konto. Boxberechtigungen werden vor jeder Wiedergabe erneut geprüft.
 
 Für die neue Wecker-App ist zusätzlich **Wecker 1.6.0** erforderlich. Vorhandene Weckerkennungen, Musikauswahlen und Gerätebindungen bleiben erhalten. Vera und Manuel behalten ihre persönliche Boxauswahl; die Kinder verwenden weiterhin die in der Karte konfigurierte Box.
+
+
+## Zentrale Rollenrechte
+
+Rollenrechte: Musikansicht, Wiedergabe, Konfiguration ansehen, fremde Weckmusik verwalten, Boxauswahl und persönliche Wecklieder. Die lokale Rechteauswahl für die Boxauswahl entfällt. Musikkonto- und Playerzuordnungen bleiben erhalten. Native Musiktasten laufen über einen authentifizierten Backend-Endpunkt mit Rollen- und Geräteprüfung.
+
+Berechtigungen werden jetzt in **Family Access → Anwendung → Rolle** verwaltet. Benutzer können mehrere Rollen erhalten; ihre Freigaben ergänzen sich. Vorhandene Anwendungsrechte werden einmalig in Rollen mit dem Zusatz „übernommen“ importiert und den bisherigen Benutzern zugeordnet. Dashboardfreigaben und die Aktivierung der Dashboardnavigation werden dadurch nicht verändert.
+
+Zum Entziehen eines Rechts alle zugewiesenen Rollen einschließlich übernommener Rollen prüfen. Neue Benutzer erhalten nach der Übernahme keine automatischen Anwendungsrechte. Echte HA-Administratoren behalten Vollzugriff zur Wiederherstellung. Geräte-, Eigentümer- und externe Kontoberechtigungen gelten zusätzlich; eine Rolle erzeugt keine HA-Administratorrechte.
+
+**Aktualisierung:** zuerst Family Access Manager 1.1.0 oder neuer, danach die beteiligten Anwendungen aktualisieren und Home Assistant neu starten. Solange Family Access nicht eingerichtet ist, bleibt die bisherige Rechtevergabe erhalten. Ist Family Access eingerichtet, aber nicht verfügbar oder zu alt, werden Anwendungsaktionen für normale Benutzer abgelehnt. Lokale Benutzer-/Personen-, Geräte- und Musikkontozuordnungen bleiben für Identität und Eigentum erhalten; Rechte werden zentral vergeben.

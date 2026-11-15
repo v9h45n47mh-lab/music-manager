@@ -11,12 +11,13 @@ from homeassistant.components.frontend.storage import async_user_store
 from homeassistant.helpers import entity_registry as er
 
 from .access import AccessError, sonos_uid
+from .family_access import allows
 from .const import CONF_SPEAKER_USERS, DOMAIN, VERSION
 
 NAVIGATION_KEY = "music_manager_beta_navigation"
 
 
-async def speaker_users(hass, entry):
+async def legacy_speaker_users(hass, entry):
     """Persisted IDs take precedence, including an explicitly empty selection."""
     users = [u for u in await hass.auth.async_get_users()
              if u.is_active and not u.system_generated]
@@ -31,6 +32,11 @@ async def speaker_users(hass, entry):
             result.extend(matches)
     return result
 
+
+async def speaker_users(hass,entry):
+    users=[u for u in await hass.auth.async_get_users() if u.is_active and not u.system_generated]
+    legacy={u.id for u in await legacy_speaker_users(hass,entry)}
+    return [u for u in users if allows(hass,u,DOMAIN,'select_speaker',u.id in legacy)]
 
 def available_players(hass, user):
     registry = er.async_get(hass)
@@ -52,6 +58,7 @@ def available_players(hass, user):
 async def navigation_data(hass, user, source, navigation_id="", selected=None):
     if not user or not user.is_active or user.system_generated:
         raise AccessError("unauthorized", "Bitte mit einem persönlichen HA-Benutzer anmelden.")
+    if not allows(hass,user,DOMAIN,'view',True,audit=True):raise AccessError('unauthorized','Die Musikansicht ist für deine Rolle nicht freigegeben.')
     entries = list(hass.data.get(DOMAIN, {}).values())
     if len(entries) != 1:
         raise AccessError("not_configured", "Bitte Music Manager unter Geräte & Dienste einrichten.")
@@ -63,6 +70,7 @@ async def navigation_data(hass, user, source, navigation_id="", selected=None):
     caller_name = (user.name or "").strip().casefold()
     show_alarm_songs = caller_name in wake_names and sum(
         (u.name or "").strip().casefold() == caller_name for u in people) == 1
+    show_alarm_songs=allows(hass,user,DOMAIN,'alarm_songs',show_alarm_songs)
     allowed = user.id in {u.id for u in await speaker_users(hass, entries[0])}
     if not allowed:
         if selected is not None:

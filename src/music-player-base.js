@@ -4,7 +4,7 @@ import {
   loadingState, bindUI, escapeHtml, programOrderButtons
 } from './family-ui/1.4.1/family-ui.js';
 import {
-  MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
+  observeFamilyAccess, releaseFamilyAccess, MUSIC_VERSION, RADIO_ROOT, CONTROL_DEFAULTS, normalizeConfig, hasFeature,
   isAvailable, volumePercent, normalizeMedia, isRadioId, stationPayload,
   playbackAction, errorText, sonosOptions, musicAssistantOptions, FAVORITES_KEY, ALARM_SONGS_KEY, normalizeFavorites, normalizeAlarmSongs, migrateAlarmSongs, stationLogo, saveFavorite, saveAlarmSong,
   formatTime, playbackProgress, mediaIdentity, appleFavorite, moveFavorite, sonosContentId, sonosPlaybackSource
@@ -159,7 +159,7 @@ export class MusicPlayerBase extends HTMLElement {
   set hass(hass) {
     const previous = this._state;
     const userChanged=this._hass && (this._hass.user?.id!==hass.user?.id || this._hass.connection!==hass.connection);
-    this._hass = hass;
+    this._hass = hass;observeFamilyAccess(this,'music_manager',()=>this._renderPlayer());
     if (!this._config) return;
     this._ensureDOM();
     if(userChanged){this._epoch++;this._busy=false;this._playbackSource=null;this._selectedStation=null;this._playbackIntent=null;this._radioContentId=null;this._cancelSeek();this._resetApple();}
@@ -199,6 +199,7 @@ export class MusicPlayerBase extends HTMLElement {
 
   connectedCallback() { this._ensureDOM(); this._bind(); this._connectFavorites(); this._connectAlarmSongs(); this._loadNativeVolume(); this._renderPlayer(); this._resolveApplePlayer(); }
   disconnectedCallback() {
+    releaseFamilyAccess(this);
     clearTimeout(this._progressTimer);this._cancelSeek();
     this._unbind?.(); this._unbind = null;
     this._disconnectFavorites();
@@ -526,6 +527,10 @@ export class MusicPlayerBase extends HTMLElement {
   get _volumeMax(){return 100;}
 
   _renderPlayer() {
+    if(this._familyAccess && !this._familyAccess.view && !this._hass?.user?.is_admin){
+      this._ensureDOM();this._player.innerHTML=notice('Music Manager ist für deine Rolle nicht freigegeben.');
+      this._dialog?.close();this._appleDialog?.close();return;
+    }
     if (!this._player || !this._config) return;
     // HA state updates must not replace an input while the user drags it.
     const active = this.shadowRoot.activeElement;
@@ -650,13 +655,13 @@ export class MusicPlayerBase extends HTMLElement {
   }
 
   async _service(service,payload={},onSuccess,entityOverride) {
-    if(this._busy || !this._hass || !isAvailable(this._state))return false;
+    if(this._busy || !this._hass || !isAvailable(this._state) || this._familyAccess&&!this._familyAccess.play&&!this._hass.user?.is_admin)return false;
     const epoch=this._epoch, hass=this._hass, entity=entityOverride||this._controlEntity;
     this._busy=true;this._pendingService=service;this._error='';this._renderPlayer();
     if(this._dialog.open)this._renderBrowser();
     try {
       if(service==='media_next_track'&&entity===this._musicAssistantEntity)await this._appleCommand('next');
-      else await hass.callService('media_player',service,{...payload,entity_id:entity});
+      else await hass.callWS({type:'music_manager/player_action',service,entity_id:entity,data:payload});
       if(epoch!==this._epoch)return false;
       onSuccess?.();
       return true;
@@ -991,7 +996,7 @@ export class MusicPlayerEditorBase extends HTMLElement {
     this._renderPreservingInput();
   }
   set hass(hass) {
-    this._hass=hass;
+    this._hass=hass;observeFamilyAccess(this,'music_manager',()=>this._render());
     if(!this._registryRequested) {
       this._registryRequested=true;
       const cached=sonosOptions(hass);
@@ -1007,7 +1012,8 @@ export class MusicPlayerEditorBase extends HTMLElement {
     if(!this.shadowRoot.firstChild)this._render();
   }
   connectedCallback() {this._render();}
-  disconnectedCallback() {this._unbind?.();this._unbind=null;}
+  disconnectedCallback() {
+    releaseFamilyAccess(this);this._unbind?.();this._unbind=null;}
   _emit() {
     this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config,controls:{...this._config.controls}}},bubbles:true,composed:true}));
   }

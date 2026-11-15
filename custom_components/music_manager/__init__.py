@@ -11,6 +11,7 @@ from homeassistant.helpers import entity_registry as er
 from .access import AccessError, account_for, checked_account, container_tracks, library, search, sonos_uid, validate_uri, value
 from .const import CONF_ACCOUNTS, CONF_MASS_ENTRY, DOMAIN
 from .helpers import music_assistant_client
+from .family_access import allows, register
 
 
 async def async_setup(hass, config):
@@ -19,6 +20,7 @@ async def async_setup(hass, config):
     from .navigation import websocket_player_navigation
 
     websocket_api.async_register_command(hass, websocket_apple_music)
+    websocket_api.async_register_command(hass, websocket_player_action)
     websocket_api.async_register_command(hass, websocket_configuration)
     websocket_api.async_register_command(hass, websocket_player_navigation)
     async_register_alarms(hass)
@@ -34,6 +36,11 @@ async def async_setup_entry(hass, entry):
         from homeassistant.exceptions import ConfigEntryNotReady
 
         raise ConfigEntryNotReady("Music-Manager-Oberfläche konnte nicht registriert werden") from err
+    from .navigation import legacy_speaker_users
+    speaker_ids={u.id for u in await legacy_speaker_users(hass,entry)}
+    people=[u for u in await hass.auth.async_get_users() if u.is_active and not u.system_generated]
+    songs={u.id for u in people if (u.name or '').strip().casefold() in {'manuel','vera','maximilian','paul'} and sum((p.name or '').strip().casefold()==(u.name or '').strip().casefold() for p in people)==1}
+    await register(hass,DOMAIN,('view','play','manage','alarms_others','select_speaker','alarm_songs'),lambda u:{'view':True,'play':True,'manage':u.is_admin,'alarms_others':u.is_admin,'select_speaker':u.id in speaker_ids,'alarm_songs':u.id in songs}, entry=entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry
     return True
 
@@ -97,6 +104,9 @@ async def websocket_apple_music(hass, connection, msg):
         entry = entries[0]
         if not entry.data.get(CONF_MASS_ENTRY):
             raise AccessError("music_assistant_missing", "Verbinde Music Assistant unter Geräte & Dienste → Music Manager → Konfigurieren → Music-Assistant-Verbindung.")
+        permission='play' if msg['action'] in {'play','next'} else 'view'
+        if not allows(hass,connection.user,DOMAIN,permission,True,audit=True):
+            raise AccessError('unauthorized','Diese Musikfunktion ist für deine Rolle nicht freigegeben.')
         account = account_for(entry.options.get(CONF_ACCOUNTS, []), connection.user.id)
         mass = music_assistant_client(hass, entry.data[CONF_MASS_ENTRY])
         async with asyncio.timeout(30):
@@ -157,3 +167,31 @@ async def websocket_apple_music(hass, connection, msg):
     except Exception:
         # Do not send upstream responses or authentication material to a browser.
         connection.send_error(msg["id"], "music_assistant_error", "Music Assistant meldet einen Fehler. Bitte Verbindung, Benutzerrechte und Apple-Music-Anmeldung dort prüfen.")
+
+
+@websocket_api.websocket_command({vol.Required('type'):'music_manager/player_action',vol.Required('service'):str,vol.Required('entity_id'):str,vol.Optional('data',default={}):dict})
+@websocket_api.async_response
+async def websocket_player_action(hass,connection,msg):
+    from homeassistant.core import Context
+    import math
+    try:
+        if not allows(hass,connection.user,DOMAIN,'play',True,audit=True):
+            raise AccessError('unauthorized','Musikbedienung ist für deine Rolle nicht freigegeben.')
+        entity=er.async_get(hass).async_get(msg['entity_id'])
+        if not entity or entity.platform not in {'sonos','music_assistant'} or entity.disabled_by or not msg['entity_id'].startswith('media_player.'):
+            raise AccessError('wrong_player','Diese Box ist nicht verfügbar.')
+        if not all(connection.user.permissions.check_entity(msg['entity_id'],p) for p in (POLICY_READ,POLICY_CONTROL)):
+            raise AccessError('unauthorized','Keine HA-Bedienberechtigung für diese Box.')
+        allowed={'media_play':set(),'media_pause':set(),'media_play_pause':set(),'media_stop':set(),'media_next_track':set(),'media_previous_track':set(),'volume_set':{'volume_level'},'volume_mute':{'is_volume_muted'},'media_seek':{'seek_position'},'shuffle_set':{'shuffle'},'play_media':{'media_content_id','media_content_type','enqueue','announce','extra'}}
+        service,data=msg['service'],dict(msg['data'])
+        if service not in allowed or set(data)-allowed[service]:
+            raise AccessError('invalid_action','Unbekannte Musikaktion oder Parameter.')
+        for key in ('volume_level','seek_position'):
+            if key in data and (type(data[key]) not in (int,float) or not math.isfinite(data[key]) or data[key]<0 or key=='volume_level' and data[key]>1):
+                raise AccessError('invalid_action','Ungültiger Zahlenwert.')
+        for key in ('shuffle','is_volume_muted','announce'):
+            if key in data and type(data[key]) is not bool:raise AccessError('invalid_action','Ungültiger Schalterwert.')
+        await hass.services.async_call('media_player',service,{**data,'entity_id':msg['entity_id']},blocking=True,context=Context(user_id=connection.user.id))
+        connection.send_result(msg['id'],{'executed':True})
+    except AccessError as err:connection.send_error(msg['id'],err.code,str(err))
+    except Exception:connection.send_error(msg['id'],'player_error','Die Musikaktion konnte nicht ausgeführt werden.')

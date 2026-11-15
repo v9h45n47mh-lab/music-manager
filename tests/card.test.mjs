@@ -32,6 +32,7 @@ const notifyAlarmSongs=user=>{for(const cb of alarmSongSubscribers.get(user)||[]
 const notifyFavorites=user=>{for(const cb of favoriteSubscribers.get(user)||[])cb({value:favoriteData.get(user)||[]});};
 const connectionFor=user=>{
  if(!connections.has(user))connections.set(user,{async subscribeMessage(cb,message){
+  if(message.type==='family_access/subscribe'){cb({permissions:{view:true,play:true,manage:false}});return ()=>{};}
   if(failFavorites)throw new Error('Favoriten nicht verfügbar');
   const subscribers=subscribersForKey(message.key),data=dataForKey(message.key);
   if(!subscribers.has(user))subscribers.set(user,new Set());
@@ -44,7 +45,7 @@ const connectionFor=user=>{
 const navigationData=new Map();
  const makeHass=(user=currentUser)=>({user:{id:user},connection:connectionFor(user),states,entities:Object.fromEntries(registry.map(e=>[e.entity_id,e])),
   async callService(domain,service,data){calls.push({domain,service,data});if(serviceHook)await serviceHook();if(failService)throw new Error('Keine Berechtigung');},
-  async callWS(message){wsCalls.push(message);if(wsHook){const result=await wsHook(message);if(result!==undefined)return result;}
+  async callWS(message){if(message.type==='family_access/application_permissions')return {permissions:{view:true,play:true}};if(message.type==='music_manager/player_action')return this.callService('media_player',message.service,{...message.data,entity_id:message.entity_id});wsCalls.push(message);if(wsHook){const result=await wsHook(message);if(result!==undefined)return result;}
    if(message.type==='config/entity_registry/list')return registry;
    if(message.type==='music_manager/player_navigation'){
     const can_select=['manuel','vera'].includes(user),key=message.navigation_id||message.source_entity;
@@ -52,7 +53,7 @@ const navigationData=new Map();
     const players=can_select?registry.filter(e=>e.platform==='sonos'&&!e.disabled_by&&states[e.entity_id]).map(e=>({entity_id:e.entity_id,name:states[e.entity_id].attributes.friendly_name,available:true})):[];
     if(!navigationData.has(user))navigationData.set(user,{});
     if(message.action==='select'){if(!players.some(p=>p.entity_id===message.entity_id))throw new Error('Box nicht verfügbar');navigationData.get(user)[key]=message.entity_id;}
-    return {can_select,players,version:'2.2.1',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
+    return {can_select,players,version:'2.3.0',show_alarm_songs:['maximilian','paul','manuel','vera'].includes(user),entity_id:can_select?navigationData.get(user)[key]||message.source_entity:message.source_entity};
    }
    if(message.type==='music_manager/apple_music')throw {code:'unknown_command'};
    if(message.type==='frontend/get_user_data'){if(failFavorites)throw new Error('Favoriten nicht verfügbar');return {value:dataForKey(message.key).get(user)||[]};}
@@ -683,7 +684,7 @@ test('player Apple Music favorites and combined wake-song dialogs retain their p
 });
 test('player radio browser returns to the settings dialog and shows actual component versions',async()=>{
  const env=setup(),card=env.addPlayer();await flush();env.click(card,'player-settings');const sender=card._settingsDialog.querySelector('[data-action="open-radio"]');sender.click();await flush();assert(card._dialog.open);assert(card._settingsDialog.open);
- card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.2\.1 · Integration 2\.2\.1 · UI 1\.4\.1/);
+ card._dialog.close();await flush();assert.equal(card._dialog.open,false);assert(card._settingsDialog.open);assert.match(card._settingsDialog.querySelector('.version-info').textContent,/Oberfläche 2\.3\.0 · Integration 2\.3\.0 · UI 1\.4\.1/);
 });
 test('player children show their fixed speaker only inside settings and adults use a compact room dropdown',async()=>{
  const env=setup(),card=env.addPlayer();await flush();assert(card.shadowRoot.querySelector('.fui-player-speaker-compact'));assert.equal(card.shadowRoot.querySelector('#music-player-box option').textContent.includes('Sonos '),false);

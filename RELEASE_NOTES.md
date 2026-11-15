@@ -1,14 +1,9 @@
-# Music Manager 2.2.1
+# Music Manager 2.3.0
 
-- Die Weckmusikauswahl kann die Abspieldauer der zugehörigen Wecker-Integration anzeigen: feste Minutendauer oder „Wenn Titel endet“.
-- Die Dauer wird zusammen mit einer neuen Musikauswahl oder separat über „Dauer übernehmen“ gespeichert. Ein Fehler lässt den Dialog offen.
-- Für Radiosender ist eine feste Dauer erforderlich. Die Erweiterung wird durch Wecker ab 1.7.0 eingebunden; bestehende Music-Manager-Karten bleiben unverändert verwendbar.
+Rollenrechte: Musikansicht, Wiedergabe, Konfiguration ansehen, fremde Weckmusik verwalten, Boxauswahl und persönliche Wecklieder. Die lokale Rechteauswahl für die Boxauswahl entfällt. Musikkonto- und Playerzuordnungen bleiben erhalten. Native Musiktasten laufen über einen authentifizierten Backend-Endpunkt mit Rollen- und Geräteprüfung.
 
-# Music Manager 2.2.0
+Berechtigungen werden jetzt in **Family Access → Anwendung → Rolle** verwaltet. Benutzer können mehrere Rollen erhalten; ihre Freigaben ergänzen sich. Vorhandene Anwendungsrechte werden einmalig in Rollen mit dem Zusatz „übernommen“ importiert und den bisherigen Benutzern zugeordnet. Dashboardfreigaben und die Aktivierung der Dashboardnavigation werden dadurch nicht verändert.
 
-- Radiosender können über das Weckersymbol unabhängig von Favoriten zum Wecken markiert werden.
-- Die Weckmusikauswahl zeigt markierte Radiosender und einzelne Apple-Music-Titel.
-- Vera und Manuel erhalten ebenfalls die persönliche Verwaltung für Favoriten und Weckinhalte; ihre Box-Dropdowns bleiben erhalten.
-- Radiosender starten nativ auf der fest zugeordneten Sonos-Box, auch ohne aktive Apple-Music-Verbindung.
-- Vorhandene Auswahlen bleiben erhalten; persönliche Listen und Geräteberechtigungen bleiben getrennt.
-- Für Radio in der neuen Wecker-App zusätzlich Wecker 1.6.0 installieren. Nach dem Update HA neu starten und den Browser vollständig neu laden.
+Zum Entziehen eines Rechts alle zugewiesenen Rollen einschließlich übernommener Rollen prüfen. Neue Benutzer erhalten nach der Übernahme keine automatischen Anwendungsrechte. Echte HA-Administratoren behalten Vollzugriff zur Wiederherstellung. Geräte-, Eigentümer- und externe Kontoberechtigungen gelten zusätzlich; eine Rolle erzeugt keine HA-Administratorrechte.
+
+**Aktualisierung:** zuerst Family Access Manager 1.1.0 oder neuer, danach die beteiligten Anwendungen aktualisieren und Home Assistant neu starten. Solange Family Access nicht eingerichtet ist, bleibt die bisherige Rechtevergabe erhalten. Ist Family Access eingerichtet, aber nicht verfügbar oder zu alt, werden Anwendungsaktionen für normale Benutzer abgelehnt. Lokale Benutzer-/Personen-, Geräte- und Musikkontozuordnungen bleiben für Identität und Eigentum erhalten; Rechte werden zentral vergeben.

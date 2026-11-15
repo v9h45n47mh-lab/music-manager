@@ -121,7 +121,7 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
             alarm_rows.append("- **" + markdown_text(alarm.get("alarm_id", "—")) + "** · "
                               + markdown_text(users.get(owner, owner or "—")) + " → "
                               + markdown_text(speaker or "—") + " · " + markdown_text(music))
-        menu = ["connect", "speaker_users", "add"]
+        menu = ["connect", "add"]
         if accounts:
             menu += ["edit", "remove"]
         menu += ["alarm"]
@@ -136,21 +136,8 @@ class MusicManagerOptionsFlow(config_entries.OptionsFlow):
             "alarms": "\n".join(alarm_rows) or "—"})
 
     async def async_step_speaker_users(self, user_input=None):
-        from .navigation import speaker_users
+        return self.async_abort(reason='permissions_in_family_access')
 
-        users = [u for u in await self.hass.auth.async_get_users()
-                 if u.is_active and not u.system_generated]
-        if user_input is not None:
-            selected = user_input.get(CONF_SPEAKER_USERS, [])
-            if not isinstance(selected, list) or any(uid not in {u.id for u in users} for uid in selected):
-                return self.async_abort(reason="invalid_account")
-            return self.async_create_entry(title="", data={**self.config_entry.options, CONF_SPEAKER_USERS: list(dict.fromkeys(selected))})
-        defaults = [u.id for u in await speaker_users(self.hass, self.config_entry)]
-        choices = [{"value": u.id, "label": u.name or u.id} for u in users]
-        return self.async_show_form(step_id="speaker_users", data_schema=vol.Schema({
-            vol.Required(CONF_SPEAKER_USERS, default=defaults): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=choices, multiple=True,
-                                              mode=selector.SelectSelectorMode.DROPDOWN))}))
 
     async def async_step_edit(self, user_input=None):
         accounts = self.config_entry.options.get(CONF_ACCOUNTS, [])
